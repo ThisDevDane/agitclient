@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 04:21:49
+ *  @Last Time: 12-12-2017 04:33:38
  *  
  *  @Description:
  *  
@@ -625,22 +625,37 @@ Lib_Features :: enum i32 {
     NSEC    = (1 << 3),
 }
 
+Repository_Open_Flags :: enum u32 {
+    No_Search = (1 << 0),
+    Cross_Fs  = (1 << 1),
+    Bare      = (1 << 2),
+    No_Dotgit = (1 << 3),
+    From_Env  = (1 << 4),
+}
+
 ///////////////////////// Odin UTIL /////////////////////////
 
-_TEXT_BUF_SIZE        :: 4096;
+_PATH_BUF_SIZE        :: 4096;
 _URL_BUF_SIZE        :: 4096;
+_MISC_BUF_SIZE        :: 4096;
 
-@(thread_local) _text_buf : [_TEXT_BUF_SIZE]u8;
+@(thread_local) _path_buf : [_PATH_BUF_SIZE]u8;
 @(thread_local) _url_buf  : [_URL_BUF_SIZE]u8;
-_make_text_string :: proc(fmt_: string, args: ...any) -> ^byte {
-    s := fmt.bprintf(_text_buf[..], fmt_, ...args);
-    _text_buf[len(s)] = 0;
-    return cast(^byte)&_text_buf[0];
+@(thread_local) _misc_buf : [_MISC_BUF_SIZE]u8;
+_make_path_string :: proc(fmt_: string, args: ...any) -> ^byte {
+    s := fmt.bprintf(_path_buf[..], fmt_, ...args);
+    _path_buf[len(s)] = 0;
+    return cast(^byte)&_path_buf[0];
 }
 _make_url_string :: proc(fmt_: string, args: ...any) -> ^byte {
     s := fmt.bprintf(_url_buf[..], fmt_, ...args);
     _url_buf[len(s)] = 0;
     return cast(^byte)&_url_buf[0];
+}
+_make_misc_string :: proc(fmt_: string, args: ...any) -> ^byte {
+    s := fmt.bprintf(_misc_buf[..], fmt_, ...args);
+    _misc_buf[len(s)] = 0;
+    return cast(^byte)&_misc_buf[0];
 }
 
 @(default_calling_convention="stdcall")
@@ -657,6 +672,9 @@ foreign libgit {
     @(link_name = "git_repository_free") repository_free :: proc(repo : ^Repository) ---;
 
     git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
+
+    git_repository_open :: proc(out : ^^Repository, path : ^byte) -> i32 ---;
+    git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
 }
 
 err_last :: proc() -> Error {
@@ -667,18 +685,38 @@ err_last :: proc() -> Error {
 
 repository_init :: proc(path : string, is_bare : bool = false) -> (^Repository, i32) {
     repo : ^Repository = nil;
-    err := git_repository_init(&repo, _make_text_string("%s", path), u32(is_bare));
+    err := git_repository_init(&repo, _make_path_string(path), u32(is_bare));
     return repo, err;
 }
 
 repository_init :: proc(path : string, opts : ^Repository_Init_Options) -> (^Repository, i32) {
     repo : ^Repository = nil;
-    err := git_repository_init_ext(&repo, _make_text_string("%s", path), opts);
+    err := git_repository_init_ext(&repo, _make_path_string(path), opts);
     return repo, err;
 }
 
 clone :: proc(url : string, local_path : string, options : ^Clone_Options) -> (^Repository, i32) {
     repo : ^Repository = nil;
-    err := git_clone(&repo, _make_url_string(url), _make_text_string(local_path), options);
+    err := git_clone(&repo, _make_url_string(url), _make_path_string(local_path), options);
     return repo, err;
+}
+
+repository_open :: proc(path : string) -> (^Repository, i32) {
+    repo : ^Repository = nil;
+    err := git_repository_open(&repo, _make_path_string(path));
+    return repo, err;
+}
+
+repository_open :: proc(path : string, flags : Repository_Open_Flags, ceiling_dirs : string) -> (^Repository, i32) {
+    repo : ^Repository = nil;
+    err := git_repository_open_ext(&repo, _make_path_string(path), flags, _make_misc_string(ceiling_dirs));
+    return repo, err;
+}
+
+is_repository :: proc(path : string) -> bool {
+    if git_repository_open_ext(nil, _make_path_string(path), Repository_Open_Flags.No_Search, nil) != 0 {
+        return true;
+    } else {
+        return false;
+    }
 }
