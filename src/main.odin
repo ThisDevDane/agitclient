@@ -93,7 +93,7 @@ main :: proc() {
     lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d", 
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
  
-    repo, err := git.repository_open("E:/Odin/");
+    repo, err := git.repository_open("C:/odin/");
     if err != 0 {
         gerr := git.err_last();
         fmt.printf("Libgit Error: %d/%v %s\n", err, gerr.klass, gerr.message);

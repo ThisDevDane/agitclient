@@ -652,6 +652,50 @@ Status_Flags :: enum u32 {
     Conflicted      = (1 << 15),
 }
 
+Status_Show_Flags :: enum u32 {
+    IndexAndWorkdir = 0,
+    IndexOnly       = 1,
+    WorkdirOnly     = 2,
+}
+
+Status_Options :: struct #packed {
+    version  : u32,
+    show     : Status_Show_Flags,
+    flags    : u32,
+    pathspec : Str_Array,
+    baseline : ^Tree,
+}
+
+Status_List :: struct #ordered {};
+
+Status_Entry :: struct #ordered {
+    status           : Status_Flags,
+    head_to_index    : ^Diff_Delta
+    index_to_workdir : ^Diff_Delta,
+}
+
+Diff_Delta :: struct #ordered {
+    status     : Delta,
+    flags      : u32,
+    similarity : u16,
+    nfiles     : u16,
+    old_file   : Diff_File,
+    new_file   : Diff_File,
+}
+
+Delta :: enum u32 {
+    Unmodified =  0,
+    Added      =  1,
+    Deleted    =  2,
+    Modified   =  3,
+    Renamed    =  4,
+    Copied     =  5,
+    Ignored    =  6,
+    Untracked  =  7,
+    Typechange =  8,
+    Unreadable =  9,
+    Conflicted = 10,
+}
 
 ///////////////////////// Odin UTIL /////////////////////////
 
@@ -678,7 +722,8 @@ _make_misc_string :: proc(fmt_: string, args: ...any) -> ^byte {
     return cast(^byte)&_misc_buf[0];
 }
 
-status_cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, payload : rawptr) -> i32;
+
+Status_Cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, payload : rawptr) -> i32;
 
 @(default_calling_convention="stdcall")
 foreign libgit {
@@ -698,7 +743,13 @@ foreign libgit {
     git_repository_open :: proc(out : ^^Repository, path : ^byte) -> i32 ---;
     git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
 
-    @(link_name = "git_status_foreach") status_foreach :: proc(repo : ^Repository, callback : status_cb, payload : rawptr) -> i32 ---;
+    @(link_name = "git_status_foreach") status_foreach :: proc(repo : ^Repository, callback : Status_Cb, payload : rawptr) -> i32 ---;
+    @(link_name = "git_status_foreach_ext") status_foreach_ext :: proc(repo : ^Repository, opts : ^Status_Options, callback : Status_Cb, payload : rawptr) -> i32 ---;
+
+    git_status_list_new :: proc(out : ^^Status_List, repo : ^Repository, opts : ^Status_Options) -> i32 ---;
+
+    @(link_name = "git_status_list_entrycount") status_list_entrycount :: proc(statuslist: ^Status_List) -> uint ---;
+    @(link_name = "git_status_byindex") status_byindex :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
 
     git_remote_lookup :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> i32 ---;
     git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
@@ -764,4 +815,10 @@ remote_list   :: proc(repo : ^Repository) -> ([]string, i32) {
     }
 
     return res, err;
+}
+
+status_list_new :: proc(repo : Repository, opts : ^Status_Options) -> (^Status_List, i32) {
+    out : ^Status_List = nil;
+    err := git_status_list_new(&out, repo, opts);
+    return out, err;
 }
