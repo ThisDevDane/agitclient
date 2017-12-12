@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 22:17:56
+ *  @Last Time: 12-12-2017 22:45:30
  *  
  *  @Description:
  *  
@@ -732,7 +732,7 @@ Status_List :: struct #ordered {};
 
 Status_Entry :: struct #ordered {
     status           : Status_Flags,
-    head_to_index    : ^Diff_Delta
+    head_to_index    : ^Diff_Delta,
     index_to_workdir : ^Diff_Delta,
 }
 
@@ -784,7 +784,7 @@ _make_misc_string :: proc(fmt_: string, args: ...any) -> ^byte {
     return cast(^byte)&_misc_buf[0];
 }
 
-status_cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, payload : rawptr) -> i32;
+Status_Cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, payload : rawptr) -> i32;
 
 REMOTE_CALLBACKS_VERSION :: 1;
 
@@ -818,9 +818,11 @@ foreign libgit {
     git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
     @(link_name = "git_remote_default_branch") remote_default_branch :: proc(out : ^Buf, remote : ^Remote) -> i32 ---;
     @(link_name = "git_remote_connect")        remote_connect        :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> i32 ---;
+    @(link_name = "git_remote_disconnect")     remote_disconnect     :: proc(remote : ^Remote) ---;
     @(link_name = "git_remote_init_callbacks") remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> i32 ---;
     @(link_name = "git_remote_connected")      remote_connected      :: proc(remote : ^Remote) -> i32 ---;
     @(link_name = "git_remote_fetch")          remote_fetch          :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> i32 ---;
+    @(link_name = "git_remote_free")           remote_free           :: proc(remote : ^Remote) ---;
 
     @(link_name = "git_repository_index") repository_index :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
     git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
@@ -926,7 +928,7 @@ _str_array_to_slice :: proc(stra : ^Str_Array) -> []string {
     return res;
 }
 
-status_list_new :: proc(repo : Repository, opts : ^Status_Options) -> (^Status_List, i32) {
+status_list_new :: proc(repo : ^Repository, opts : ^Status_Options) -> (^Status_List, i32) {
     out : ^Status_List = nil;
     err := git_status_list_new(&out, repo, opts);
     return out, err;

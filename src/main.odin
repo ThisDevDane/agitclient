@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 22:28:48
+ *  @Last Time: 12-12-2017 22:44:08
  *  
  *  @Description:
  *  
@@ -115,6 +115,8 @@ main :: proc() {
     lib_ver_minor   : i32;
     lib_ver_rev     : i32;
 
+    path_buf        : [255+1]byte;
+
     git.lib_init();
     lib_features := git.lib_features();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -211,8 +213,9 @@ main :: proc() {
             imgui.end_main_menu_bar();
 
             if imgui.begin("TEST") {
-                if imgui.button("test") {
-                    repo, err := git.repository_open("../../WindIdle/");
+                imgui.input_text("Repo Path;", path_buf[..]);
+                if imgui.button("Fetch") {
+                    repo, err := git.repository_open(strings.to_odin_string(&path_buf[0]));
                     if err != 0 {
                         console.log(err);
                         gerr := git.err_last();
@@ -247,6 +250,9 @@ main :: proc() {
                     }
                     
                     git.status_foreach(repo, status_callback, nil);
+
+                    git.remote_free(remote);
+                    git.repository_free(repo);
                 }
                 imgui.end();
             }
