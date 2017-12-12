@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 08:21:03
+ *  @Last Time: 12-12-2017 22:17:56
  *  
  *  @Description:
  *  
@@ -55,6 +55,12 @@ Error :: struct {
 Str_Array :: struct #ordered {
     strings : ^^byte,
     count   : uint,
+}
+
+Buf :: struct #ordered {
+    ptr   : ^byte,
+    asize : uint, 
+    size  : uint,
 }
 
 Checkout_Perfdata :: struct #ordered {
@@ -295,7 +301,7 @@ Checkout_Options :: struct #ordered {
     perfdata_payload  : rawptr,
 } 
 
-Fetch_Options :: struct {
+Fetch_Options :: struct #ordered {
     version : i32,
 
     /**
@@ -356,7 +362,7 @@ Remote_Callbacks :: struct #ordered {
      * Returning GIT_PASSTHROUGH will make libgit2 behave as
      * though this field isn't set.
      */
-    credentials : proc "stdcall" (cred : ^^Cred,  url : ^byte,  username_from_url : ^byte, allowed_types : u32, payload : rawptr) -> i32,
+    credentials : proc "stdcall" (cred : ^^Cred,  url : ^byte,  username_from_url : ^byte, allowed_types : Cred_Type, payload : rawptr) -> i32,
 
     /**
      * If cert verification fails, this will be called to let the
@@ -704,6 +710,10 @@ Status_Flags :: enum u32 {
     Conflicted      = (1 << 15),
 }
 
+Direction :: enum i32 {
+    Fetch = 0,
+    Push  = 1
+}
 
 ///////////////////////// Odin UTIL /////////////////////////
 
@@ -732,6 +742,8 @@ _make_misc_string :: proc(fmt_: string, args: ...any) -> ^byte {
 
 status_cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, payload : rawptr) -> i32;
 
+REMOTE_CALLBACKS_VERSION :: 1;
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -754,12 +766,20 @@ foreign libgit {
 
     git_remote_lookup :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> i32 ---;
     git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
+    @(link_name = "git_remote_default_branch") remote_default_branch :: proc(out : ^Buf, remote : ^Remote) -> i32 ---;
+    @(link_name = "git_remote_connect")        remote_connect        :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> i32 ---;
+    @(link_name = "git_remote_init_callbacks") remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> i32 ---;
+    @(link_name = "git_remote_connected")      remote_connected      :: proc(remote : ^Remote) -> i32 ---;
+    @(link_name = "git_remote_fetch")          remote_fetch          :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> i32 ---;
 
     @(link_name = "git_repository_index") repository_index :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
     git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
     git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> i32 ---;
     @(link_name = "git_index_entrycount")  index_entrycount   :: proc(index : ^Index) -> uint ---;
     @(link_name = "git_index_get_byindex") index_get_byindex  :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
+
+    git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
+    @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
 }
 
 err_last        :: proc() -> Error {
@@ -815,13 +835,14 @@ remote_lookup :: proc(repo : ^Repository, name : string = "origin") -> (^Remote,
 remote_list   :: proc(repo : ^Repository) -> ([]string, i32) {
     strs := Str_Array{};
     err := git_remote_list(&strs, repo);
-    raw_strings := mem.slice_ptr(strs.strings, int(strs.count));
-    res := make([]string, int(strs.count));
-    for _, i in res {
-        res[i] = strings.to_odin_string(raw_strings[i]);
-    }
-
+    res := _str_array_to_slice(&strs);
     return res, err;
+}
+
+remote_init_callbacks :: proc() -> (Remote_Callbacks, i32) {
+    cb := Remote_Callbacks{};
+    err := remote_init_callbacks(&cb, 1);
+    return cb, err; 
 }
 
 repository_index :: proc(repo : ^Repository) -> (^Index, i32) {
@@ -838,4 +859,19 @@ index_add_bypath :: proc(index : ^Index, path : string) -> i32 {
 index_remove_bypath :: proc(index : ^Index, path : string) -> i32 {
     err := git_index_remove_bypath(index, _make_path_string(path));
     return err;
+}
+
+cred_userpass_plaintext_new :: proc(username : string, password : string) -> (^Cred, i32) {
+    cred : ^Cred = nil;
+    err := git_cred_userpass_plaintext_new(&cred, _make_url_string(username), _make_misc_string(password));
+    return cred, err;
+}
+
+_str_array_to_slice :: proc(stra : ^Str_Array) -> []string {
+    raw_strings := mem.slice_ptr(stra.strings, int(stra.count));
+    res := make([]string, int(stra.count));
+    for _, i in res {
+        res[i] = strings.to_odin_string(raw_strings[i]);
+    }
+    return res;
 }

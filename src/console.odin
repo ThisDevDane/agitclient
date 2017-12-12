@@ -6,7 +6,7 @@
  *  @Creation: 10-05-2017 21:11:30
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 07:25:13
+ *  @Last Time: 12-12-2017 22:30:15
  *  
  *  @Description:
  *      The console is an in engine window that can be pulled up for viewing.
@@ -291,7 +291,7 @@ enter_input :: proc(input : []u8) {
     if input[0] != 0 &&
        input[0] != ' ' {
         i := _find_string_null(input[..]);
-        str := string(input[0..i]);
+        str := string(input[0...i]);
         _internal_log(LogLevel.ConsoleInput, str);
         append(&_internal_data.history, strings.new_string(str));
         if !execute_command(str) {

@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 08:29:42
+ *  @Last Time: 12-12-2017 22:28:48
  *  
  *  @Description:
  *  
@@ -56,9 +56,37 @@ status_callback :: proc "stdcall" (path : ^byte, status_flags : git.Status_Flags
     return 0;
 }
 
+username : string;
+password : string;
+
+set_user :: proc(args : []string) {
+    username = args[0];
+    password = args[1];
+}
+
+credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,  
+                              username_from_url : ^byte, allowed_types : git.Cred_Type, payload : rawptr) -> i32 {
+    test_val :: proc(test : git.Cred_Type, value : git.Cred_Type) -> bool {
+        return test & value == test;
+    }
+    //console.log(test_val(git.Cred_Type.Userpass_Plaintext, allowed_types));
+    //console.log(test_val(git.Cred_Type.Ssh_Key,            allowed_types));
+    //console.log(test_val(git.Cred_Type.Ssh_Custom,         allowed_types));
+    //console.log(test_val(git.Cred_Type.Default,            allowed_types));
+    //console.log(test_val(git.Cred_Type.Ssh_Interactive,    allowed_types));
+    //console.log(test_val(git.Cred_Type.Username,           allowed_types));
+    //console.log(test_val(git.Cred_Type.Ssh_Memory,         allowed_types));
+    new_cred, err := git.cred_userpass_plaintext_new(username, password);
+    cred^ = new_cred;
+    //console.log("----------------");
+    return 0;
+}
+
+
 main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
+    console.add_command("set_user", set_user);
     app_handle := misc.get_app_handle();
     wnd_handle := window.create_window(app_handle, "A Git Client", false, 1280, 720);
     gl_ctx     := wgl.create_gl_context(wnd_handle, 3, 3);
@@ -96,14 +124,6 @@ main :: proc() {
     lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d", 
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
  
-    repo, err := git.repository_open("E:/Odin/");
-    if err != 0 {
-        gerr := git.err_last();
-        fmt.printf("Libgit Error: %d/%v %s\n", err, gerr.klass, gerr.message);
-    }
-
-    git.status_foreach(repo, status_callback, nil);
-
     main_loop: for {
         for msg.poll_message(&message) {
             switch msg in message {
@@ -189,6 +209,52 @@ main :: proc() {
                 }
             }
             imgui.end_main_menu_bar();
+
+            if imgui.begin("TEST") {
+                if imgui.button("test") {
+                    repo, err := git.repository_open("../../WindIdle/");
+                    if err != 0 {
+                        console.log(err);
+                        gerr := git.err_last();
+                        console.logf_error("Libgit Error: %v/%v %s\n", err, gerr.klass, gerr.message);
+                    } else {
+
+                    }
+
+                    remote, ok := git.remote_lookup(repo, "origin");
+                    remote_cb, _  := git.remote_init_callbacks();
+                    remote_cb.credentials = credentials_callback;
+                    ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
+                    if ok != 0 {
+                        gerr := git.err_last();
+                        console.logf_error("Libgit Error: %v/%v %s\n", ok, gerr.klass, gerr.message);
+                    } else {
+                        console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
+                    }
+
+                    fetch_opt := git.Fetch_Options{};
+                    fetch_cb, _  := git.remote_init_callbacks();
+                    fetch_opt.version = 1;
+                    fetch_opt.proxy_opts.version = 1;
+                    fetch_opt.callbacks = remote_cb;
+
+                    ok = git.remote_fetch(remote, nil, &fetch_opt, nil);
+                    if ok != 0 {
+                        gerr := git.err_last();
+                        console.logf_error("Libgit Error: %d/%v %s\n", ok, gerr.klass, gerr.message);
+                    } else {
+                        console.log("Fetch complete...");
+                    }
+                    
+                    git.status_foreach(repo, status_callback, nil);
+                }
+                imgui.end();
+            }
+
+            if imgui.begin("foo") {
+                defer imgui.end();
+            }
+
             console.draw_console(nil, &draw_log);
             if draw_log {
                 console.draw_log(&draw_log);
