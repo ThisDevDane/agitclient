@@ -11,7 +11,7 @@ if not exist "build" ( mkdir build )
 otime.exe -begin %OTM%
 echo Compiling with opt=%1...
 if %2 EQU 1 ( echo Compiling with debug )
-odin build %SRC% -opt=%1 -collection=mantle=../odin-mantle %DEBUG%
+odin build %SRC% -opt=%1 %DEBUG%
 set ERR=%ERRORLEVEL%
 
 if %ERR%==0 ( goto :build_success ) else ( goto :build_failed )

@@ -6,24 +6,27 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 01:38:47
+ *  @Last Time: 12-12-2017 04:18:03
  *  
  *  @Description:
  *  
  */
 
 import "core:fmt.odin";
+import "core:strings.odin";
+import "core:os.odin";
 
-import       "mantle:libbrew/win/window.odin";
-import       "mantle:libbrew/win/msg.odin";
-import       "mantle:libbrew/win/file.odin";
-import misc  "mantle:libbrew/win/misc.odin";
-import input "mantle:libbrew/win/keys.odin";
-import wgl   "mantle:libbrew/win/opengl.odin";
+import       "shared:libbrew/win/window.odin";
+import       "shared:libbrew/win/msg.odin";
+import misc  "shared:libbrew/win/misc.odin";
+import input "shared:libbrew/win/keys.odin";
+import wgl   "shared:libbrew/win/opengl.odin";
 
-import       "mantle:libbrew/string_util.odin";
-import imgui "mantle:libbrew/brew_imgui.odin";
-import       "mantle:libbrew/gl.odin";
+import       "shared:libbrew/string_util.odin";
+import imgui "shared:libbrew/brew_imgui.odin";
+import       "shared:libbrew/gl.odin";
+
+import git "libgit2.odin";
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -59,6 +62,7 @@ main :: proc() {
     wgl.swap_interval(-1);
     gl.clear_color(0.10, 0.10, 0.10, 1);
 
+
     message         : msg.Msg;
     wnd_width       := 1280;
     wnd_height      := 720;
@@ -70,8 +74,26 @@ main :: proc() {
     mpos_x          := 0;
     mpos_y          := 0;     
 
-    main_loop: 
-    for {
+    lib_ver_major   : i32;
+    lib_ver_minor   : i32;
+    lib_ver_rev     : i32;
+
+    git.lib_init();
+    lib_features := git.lib_features();
+    feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
+        return test & value == test;
+    }
+    git.lib_version(&lib_ver_major, &lib_ver_minor, &lib_ver_rev);
+    lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d", 
+                                  lib_ver_major, lib_ver_minor, lib_ver_rev);
+ 
+    repo, err := git.clone("https://github.com/odin-lang/odin-libs.git", "test/", nil);
+    if err != 0 {
+        gerr := git.err_last();
+        fmt.printf("Libgit Error: %d/%v %s\n", err, gerr.klass, gerr.message);
+    }
+
+    main_loop: for {
         for msg.poll_message(&message) {
             switch msg in message {
                 case msg.MsgQuitMessage : {
@@ -151,6 +173,7 @@ main :: proc() {
                 }
                 if imgui.begin_menu("Help") {
                     imgui.menu_item(label = "A Git Client v0.0.0a", enabled = false);
+                    imgui.menu_item(label = lib_ver_string, enabled = false);
                     imgui.end_menu();
                 }
             }
@@ -162,4 +185,6 @@ main :: proc() {
         
         window.swap_buffers(wnd_handle);
     }
+
+    git.lib_shutdown();
 }
