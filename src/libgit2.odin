@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 07:16:33
+ *  @Last Time: 12-12-2017 08:21:03
  *  
  *  @Description:
  *  
@@ -20,11 +20,11 @@ import "core:strings.odin";
 
 GIT_OID_RAWSZ :: 20;
 
-Repository :: struct #ordered {};
-Remote     :: struct #ordered {};
-Tree       :: struct #ordered {};
-Index      :: struct #ordered {};
-Transport  :: struct #ordered {};
+Repository  :: struct #ordered {};
+Remote      :: struct #ordered {};
+Tree        :: struct #ordered {};
+Index       :: struct #ordered {};
+Transport   :: struct #ordered {};
 
 Oid :: struct #ordered {
     /** raw binary formatted id */
@@ -132,6 +132,58 @@ Repository_Init_Mode :: enum u32 {
     Shared_Umask = 0,       //Use permissions configured by umask - the default.
     Shared_Group = 0002775, //Use "--shared=group" behavior, chmod'ing the new repo to be group writable and "g+sx" for sticky group assignment.
     Shared_All   = 0002777, //Use "--shared=all" behavior, adding world readability. Anything else - Set to custom value.
+}
+
+Index_Time :: struct #ordered {
+    seconds : i32,
+    /* nsec should not be stored as time_t compatible */
+    nanoseconds : u32,
+}
+
+Index_Entry :: struct #ordered {
+    ctime : Index_Time,
+    mtime : Index_Time,
+
+    dev       : u32,
+    ino       : u32,
+    mode      : u32,
+    uid       : u32,
+    gid       : u32,
+    file_size : u32,
+
+    id : Oid,
+
+    flags          : Index_Entry_Flag,
+    flags_extended : Index_Entry_Extended_Flag,
+
+    path : ^byte,
+}
+
+Index_Entry_Flag :: enum u16 {
+    Extended = 0x4000,
+    Valid    = 0x8000,
+}
+
+Index_Entry_Extended_Flag :: enum u16 {
+
+    Intent_To_Add     = (1 << 13),
+    Skip_Worktree     = (1 << 14),
+    /* Reserved for future extension */
+    Extended2         = (1 << 15),
+
+    Extended_Flags    = (Intent_To_Add | Skip_Worktree),
+    Update            = (1 << 0),
+    Remove            = (1 << 1),
+    Upto_Date         = (1 << 2),
+    Added             = (1 << 3),
+
+    Hashed            = (1 << 4),
+    Unhashed          = (1 << 5),
+    WtRemove          = (1 << 6), // remove in work directory
+    Conflicted        = (1 << 7),
+
+    Unpacked          = (1 << 8),
+    New_Skip_Worktree = (1 << 9),
 }
 
 Clone_Options :: struct #ordered {
@@ -600,12 +652,12 @@ ErrorType :: enum i32 {
 }
 
 Lib_Features :: enum i32 {
-  /**
+  /*
    * If set, libgit2 was built thread-aware and can be safely used from multiple
    * threads.
    */
     THREADS = (1 << 0),
-  /**
+  /*
    * If set, libgit2 was built with and linked against a TLS implementation.
    * Custom TLS streams may still be added by the user to support HTTPS
    * regardless of this.
@@ -702,6 +754,12 @@ foreign libgit {
 
     git_remote_lookup :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> i32 ---;
     git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
+
+    @(link_name = "git_repository_index") repository_index :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
+    git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
+    git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> i32 ---;
+    @(link_name = "git_index_entrycount")  index_entrycount   :: proc(index : ^Index) -> uint ---;
+    @(link_name = "git_index_get_byindex") index_get_byindex  :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
 }
 
 err_last        :: proc() -> Error {
@@ -764,4 +822,20 @@ remote_list   :: proc(repo : ^Repository) -> ([]string, i32) {
     }
 
     return res, err;
+}
+
+repository_index :: proc(repo : ^Repository) -> (^Index, i32) {
+    index : ^Index = nil;
+    err := repository_index(&index, repo);
+    return index, err;
+}
+
+index_add_bypath :: proc(index : ^Index, path : string) -> i32 {
+    err := git_index_add_bypath(index, _make_path_string(path));
+    return err;
+}
+
+index_remove_bypath :: proc(index : ^Index, path : string) -> i32 {
+    err := git_index_remove_bypath(index, _make_path_string(path));
+    return err;
 }
