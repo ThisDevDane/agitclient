@@ -6,7 +6,7 @@
  *  @Creation: 10-05-2017 21:11:30
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 23:54:40
+ *  @Last Time: 13-12-2017 00:00:29
  *  
  *  @Description:
  *      The console is an in engine window that can be pulled up for viewing.
@@ -311,9 +311,7 @@ enter_input :: proc(input : []u8) {
        input[0] != ' ' {
         i := _find_string_null(input[..]);
         str := string(input[0..i]);
-        log(str);
         _internal_log(LogLevel.ConsoleInput, str);
-        //TODO(Hoej): For some reason the last character is cut off????
         append(&_internal_data.history, strings.new_string(str)); 
         if !execute_command(str) {
             cmd_name, _ := string_util.split_first(str, ' ');

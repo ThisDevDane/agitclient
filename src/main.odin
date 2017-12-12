@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 23:52:52
+ *  @Last Time: 13-12-2017 00:01:55
  *  
  *  @Description:
  *  
@@ -60,8 +60,12 @@ username : string;
 password : string;
 
 set_user :: proc(args : []string) {
-    username = args[0];
-    password = args[1];
+    if len(args) >= 2 { 
+        username = args[0];
+        password = args[1];
+    } else {
+        console.log_error("You forgot to supply username AND password");
+    }
 }
 
 credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,  
