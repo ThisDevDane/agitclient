@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 06:11:26
+ *  @Last Time: 12-12-2017 07:16:33
  *  
  *  @Description:
  *  
@@ -44,12 +44,12 @@ Repository_Init_Options :: struct #ordered {
 
 Git_Error :: struct #ordered {
     message : ^byte,
-    klass : ErrorType,
+    klass   : ErrorType,
 }
 
 Error :: struct {
     message : string,
-    klass : ErrorType,
+    klass   : ErrorType,
 }
 
 Str_Array :: struct #ordered {

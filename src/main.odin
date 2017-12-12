@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 06:13:02
+ *  @Last Time: 12-12-2017 07:19:56
  *  
  *  @Description:
  *  
@@ -26,7 +26,8 @@ import       "shared:libbrew/string_util.odin";
 import imgui "shared:libbrew/brew_imgui.odin";
 import       "shared:libbrew/gl.odin";
 
-import git   "libgit2.odin";
+import git     "libgit2.odin";
+import console "console.odin";
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -35,7 +36,7 @@ set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
         res = misc.get_proc_address(lib, name);
     }   
     if res == nil {
-        fmt.println("Couldn't load:", name);
+        console.log("Couldn't load:", name);
     }
 
     (^rawptr)(p)^ = rawptr(res);
@@ -50,13 +51,14 @@ free_lib :: proc(lib : rawptr) {
 }
 
 status_callback :: proc "stdcall" (path : ^byte, status_flags : git.Status_Flags, payload : rawptr) -> i32 {
-    fmt.println(strings.to_odin_string(path), status_flags);
+    console.log(strings.to_odin_string(path), status_flags);
 
     return 0;
 }
 
 main :: proc() {
-    fmt.println("Program start...");
+    console.log("Program start...");
+    console.add_default_commands();
     app_handle := misc.get_app_handle();
     wnd_handle := window.create_window(app_handle, "A Git Client", false, 1280, 720);
     gl_ctx     := wgl.create_gl_context(wnd_handle, 3, 3);
@@ -79,6 +81,7 @@ main :: proc() {
     time_data       := misc.create_time_data();
     mpos_x          := 0;
     mpos_y          := 0;     
+    draw_log        := false;     
 
     lib_ver_major   : i32;
     lib_ver_minor   : i32;
@@ -157,13 +160,13 @@ main :: proc() {
         }
 
         dt := misc.time(&time_data);
-        new_frame_state.deltatime = f32(dt);
-        new_frame_state.mouse_x = mpos_x;
-        new_frame_state.mouse_y = mpos_y;
-        new_frame_state.window_width = wnd_width;
+        new_frame_state.deltatime     = f32(dt);
+        new_frame_state.mouse_x       = mpos_x;
+        new_frame_state.mouse_y       = mpos_y;
+        new_frame_state.window_width  = wnd_width;
         new_frame_state.window_height = wnd_height;
-        new_frame_state.left_mouse = lm_down;
-        new_frame_state.right_mouse = rm_down;
+        new_frame_state.left_mouse    = lm_down;
+        new_frame_state.right_mouse   = rm_down;
 
         gl.clear(gl.ClearFlags.COLOR_BUFFER | gl.ClearFlags.DEPTH_BUFFER);
         imgui.begin_new_frame(&new_frame_state);
@@ -186,7 +189,10 @@ main :: proc() {
                 }
             }
             imgui.end_main_menu_bar();
-            
+            console.draw_console(nil, &draw_log);
+            if draw_log {
+                console.draw_log(&draw_log);
+            }
             imgui.show_test_window();
         }
         imgui.render_proc(dear_state, wnd_width, wnd_height);
