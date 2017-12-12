@@ -6,7 +6,7 @@
  *  @Creation: 10-05-2017 21:11:30
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 22:30:15
+ *  @Last Time: 12-12-2017 23:54:40
  *  
  *  @Description:
  *      The console is an in engine window that can be pulled up for viewing.
@@ -225,7 +225,22 @@ draw_log :: proc(show : ^bool) {
     imgui.end();
 }
 
-draw_console :: proc(show : ^bool, show_log : ^bool) {
+
+draw_history :: proc(show : ^bool) {
+    imgui.begin("History", show, imgui.WindowFlags.ShowBorders |  imgui.WindowFlags.NoCollapse);
+    {
+        imgui.begin_child("Items");
+        {
+            for t in _internal_data.history {
+                imgui.text(t);
+            }
+        }
+        imgui.end_child();
+    }
+    imgui.end();
+}
+
+draw_console :: proc(show : ^bool, show_log : ^bool, show_history : ^bool) {
     imgui.begin("Console", show, imgui.WindowFlags.ShowBorders |  imgui.WindowFlags.NoCollapse | imgui.WindowFlags.MenuBar);
     {
         if imgui.begin_menu_bar() {
@@ -233,7 +248,11 @@ draw_console :: proc(show : ^bool, show_log : ^bool) {
                 if imgui.menu_item("Show Log", "", false, len(_internal_data.log) > 0) {
                     
                     show_log^ = !show_log^;
-                }              
+                }             
+                if imgui.menu_item("Show History", "", false, len(_internal_data.log) > 0) {
+                    
+                    show_history^ = !show_history^;
+                }      
                 if imgui.menu_item("Clear", "", false, len(_internal_data.current_log) > 0) {
                     clear_console();
                 }
@@ -291,9 +310,11 @@ enter_input :: proc(input : []u8) {
     if input[0] != 0 &&
        input[0] != ' ' {
         i := _find_string_null(input[..]);
-        str := string(input[0...i]);
+        str := string(input[0..i]);
+        log(str);
         _internal_log(LogLevel.ConsoleInput, str);
-        append(&_internal_data.history, strings.new_string(str));
+        //TODO(Hoej): For some reason the last character is cut off????
+        append(&_internal_data.history, strings.new_string(str)); 
         if !execute_command(str) {
             cmd_name, _ := string_util.split_first(str, ' ');
             logf_error("%s is not a command", cmd_name);
@@ -361,7 +382,7 @@ _text_edit_callback :: proc "cdecl"(data : ^imgui.TextEditCallbackData) -> i32{
                 pos := _history_pos > 0 ? _history_pos-1 : -1;  
                 slice := cast([]u8)mem.slice_ptr(&data.buf^, int(data.buf_size));
                 str := fmt.bprintf(slice, "%s", pos < 0 ? "" : history[pos]);
-                strlen := i32(len(str)-1);
+                strlen := i32(len(str));
                 data.buf_text_len = strlen;
                 data.cursor_pos = strlen;
                 data.selection_start = strlen;
