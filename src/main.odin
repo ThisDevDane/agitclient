@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 04:18:03
+ *  @Last Time: 12-12-2017 06:13:02
  *  
  *  @Description:
  *  
@@ -26,7 +26,7 @@ import       "shared:libbrew/string_util.odin";
 import imgui "shared:libbrew/brew_imgui.odin";
 import       "shared:libbrew/gl.odin";
 
-import git "libgit2.odin";
+import git   "libgit2.odin";
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -47,6 +47,12 @@ load_lib :: proc(str : string) -> rawptr {
 
 free_lib :: proc(lib : rawptr) {
     misc.free_library(misc.LibHandle(lib));
+}
+
+status_callback :: proc "stdcall" (path : ^byte, status_flags : git.Status_Flags, payload : rawptr) -> i32 {
+    fmt.println(strings.to_odin_string(path), status_flags);
+
+    return 0;
 }
 
 main :: proc() {
@@ -87,11 +93,13 @@ main :: proc() {
     lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d", 
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
  
-    repo, err := git.clone("https://github.com/odin-lang/odin-libs.git", "test/", nil);
+    repo, err := git.repository_open("E:/Odin/");
     if err != 0 {
         gerr := git.err_last();
         fmt.printf("Libgit Error: %d/%v %s\n", err, gerr.klass, gerr.message);
     }
+
+    git.status_foreach(repo, status_callback, nil);
 
     main_loop: for {
         for msg.poll_message(&message) {

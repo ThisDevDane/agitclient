@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 04:33:38
+ *  @Last Time: 12-12-2017 06:11:26
  *  
  *  @Description:
  *  
@@ -15,6 +15,7 @@
 foreign import libgit "../external/git2.lib";
 
 import "core:fmt.odin";
+import "core:mem.odin";
 import "core:strings.odin";
 
 GIT_OID_RAWSZ :: 20;
@@ -28,7 +29,7 @@ Transport  :: struct #ordered {};
 Oid :: struct #ordered {
     /** raw binary formatted id */
     id : [GIT_OID_RAWSZ]byte,
-};
+}
 
 Repository_Init_Options :: struct #ordered {
     version       : u32,
@@ -65,7 +66,7 @@ Checkout_Perfdata :: struct #ordered {
 Cred :: struct #ordered {
     credtype : Cred_Type,
     free : proc "c" (cred : ^Cred),
-};
+}
 
 Cred_Type :: enum u32 {
     /* git_cred_userpass_plaintext */
@@ -102,8 +103,6 @@ Cred_Type :: enum u32 {
 Cert :: struct #ordered {
     type_ : Cert_Type,
 }
-
-
 
 Repository_Init_Flags :: enum u32 {
     Bare              = (1 << 0), //Create a bare repository with no working directory
@@ -220,18 +219,18 @@ Checkout_Options :: struct #ordered {
      *  paths should be taken into account, otherwise all files.  Use
      *  GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH to treat as simple list.
      */
-    paths : Str_Array,
+    paths             : Str_Array,
 
     /** The expected content of the working directory; defaults to HEAD.
      *  If the working directory does not match this baseline information,
      *  that will produce a checkout conflict.
      */
-    baseline : ^Tree,
+    baseline          : ^Tree,
 
     /** Like `baseline` above, though expressed as an index.  This
      *  option overrides `baseline`.
      */
-    baseline_index : ^Index, /**< expected content of workdir, expressed as an index. */
+    baseline_index    : ^Index, /**< expected content of workdir, expressed as an index. */
 
     target_directory  : ^byte, /**< alternative checkout path to workdir */
 
@@ -633,11 +632,32 @@ Repository_Open_Flags :: enum u32 {
     From_Env  = (1 << 4),
 }
 
+Status_Flags :: enum u32 {
+    Current = 0,
+
+    IndexNew        = (1 << 0),
+    IndexModified   = (1 << 1),
+    IndexDeleted    = (1 << 2),
+    IndexRenamed    = (1 << 3),
+    IndexTypechange = (1 << 4),
+
+    WtNew           = (1 << 7),
+    WtModified      = (1 << 8),
+    WtDeleted       = (1 << 9),
+    WtTypechange    = (1 << 10),
+    WtRenamed       = (1 << 11),
+    WtUnreadable    = (1 << 12),
+
+    Ignored         = (1 << 14),
+    Conflicted      = (1 << 15),
+}
+
+
 ///////////////////////// Odin UTIL /////////////////////////
 
-_PATH_BUF_SIZE        :: 4096;
-_URL_BUF_SIZE        :: 4096;
-_MISC_BUF_SIZE        :: 4096;
+_PATH_BUF_SIZE :: 4096;
+_URL_BUF_SIZE  :: 4096;
+_MISC_BUF_SIZE :: 4096;
 
 @(thread_local) _path_buf : [_PATH_BUF_SIZE]u8;
 @(thread_local) _url_buf  : [_URL_BUF_SIZE]u8;
@@ -658,6 +678,8 @@ _make_misc_string :: proc(fmt_: string, args: ...any) -> ^byte {
     return cast(^byte)&_misc_buf[0];
 }
 
+status_cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, payload : rawptr) -> i32;
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -675,9 +697,14 @@ foreign libgit {
 
     git_repository_open :: proc(out : ^^Repository, path : ^byte) -> i32 ---;
     git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
+
+    @(link_name = "git_status_foreach") status_foreach :: proc(repo : ^Repository, callback : status_cb, payload : rawptr) -> i32 ---;
+
+    git_remote_lookup :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> i32 ---;
+    git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
 }
 
-err_last :: proc() -> Error {
+err_last        :: proc() -> Error {
     err := giterr_last();
     str := strings.to_odin_string(err.message);
     return Error{str, err.klass};
@@ -695,7 +722,7 @@ repository_init :: proc(path : string, opts : ^Repository_Init_Options) -> (^Rep
     return repo, err;
 }
 
-clone :: proc(url : string, local_path : string, options : ^Clone_Options) -> (^Repository, i32) {
+clone           :: proc(url : string, local_path : string, options : ^Clone_Options) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_clone(&repo, _make_url_string(url), _make_path_string(local_path), options);
     return repo, err;
@@ -713,10 +740,28 @@ repository_open :: proc(path : string, flags : Repository_Open_Flags, ceiling_di
     return repo, err;
 }
 
-is_repository :: proc(path : string) -> bool {
+is_repository  :: proc(path : string) -> bool {
     if git_repository_open_ext(nil, _make_path_string(path), Repository_Open_Flags.No_Search, nil) != 0 {
         return true;
     } else {
         return false;
     }
+}
+
+remote_lookup :: proc(repo : ^Repository, name : string = "origin") -> (^Remote, i32) {
+    rem : ^Remote = nil;
+    err := git_remote_lookup(&rem, repo, _make_misc_string(name));
+    return rem, err;
+}
+
+remote_list   :: proc(repo : ^Repository) -> ([]string, i32) {
+    strs := Str_Array{};
+    err := git_remote_list(&strs, repo);
+    raw_strings := mem.slice_ptr(strs.strings, int(strs.count));
+    res := make([]string, int(strs.count));
+    for _, i in res {
+        res[i] = strings.to_odin_string(raw_strings[i]);
+    }
+
+    return res, err;
 }

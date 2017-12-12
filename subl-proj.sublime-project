@@ -2,23 +2,23 @@
     "folders":
     [
         {
-            "name": "Jaze: Source",
+            "name": "AGC: Source",
             "path": "./src",
             "file_exclude_patterns": [ "*.ll", "*.bc" ],
         },
         {
-            "name": "Jaze: Main",
+            "name": "AGC: Main",
             "path": ".",
             "file_exclude_patterns": [ "nohup.out", "*.ll", "*.bc", "*.otm" ],
             "folder_exclude_patterns": [ "build", "src"],
         },
         {
-            "name": "Jaze: Build",
+            "name": "AGC: Build",
             "path": "./build",
         },
         {
-            "name": "Mantle",
-            "path": "../odin-mantle",
+            "name": "Shared",
+            "path": "E:/Odin/Shared",
         },
         {
             "name": "Odin Compiler: Core",
