@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 22:56:44
+ *  @Last Time: 12-12-2017 23:52:52
  *  
  *  @Description:
  *  
@@ -69,16 +69,16 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     test_val :: proc(test : git.Cred_Type, value : git.Cred_Type) -> bool {
         return test & value == test;
     }
-    //console.log(test_val(git.Cred_Type.Userpass_Plaintext, allowed_types));
-    //console.log(test_val(git.Cred_Type.Ssh_Key,            allowed_types));
-    //console.log(test_val(git.Cred_Type.Ssh_Custom,         allowed_types));
-    //console.log(test_val(git.Cred_Type.Default,            allowed_types));
-    //console.log(test_val(git.Cred_Type.Ssh_Interactive,    allowed_types));
-    //console.log(test_val(git.Cred_Type.Username,           allowed_types));
-    //console.log(test_val(git.Cred_Type.Ssh_Memory,         allowed_types));
-    new_cred, err := git.cred_userpass_plaintext_new(username, password);
-    cred^ = new_cred;
-    //console.log("----------------");
+    if test_val(git.Cred_Type.Userpass_Plaintext, allowed_types) {
+        new_cred, err := git.cred_userpass_plaintext_new(username, password);
+        if err != 0 {
+            return 1;
+        }
+        cred^ = new_cred;
+    } else {
+        return -1;            
+    }
+
     return 0;
 }
 
@@ -110,6 +110,7 @@ main :: proc() {
     mpos_x          := 0;
     mpos_y          := 0;     
     draw_log        := false;     
+    draw_history    := false;     
 
     lib_ver_major   : i32;
     lib_ver_minor   : i32;
@@ -266,10 +267,14 @@ main :: proc() {
                 defer imgui.end();
             }
 
-            console.draw_console(nil, &draw_log);
+            console.draw_console(nil, &draw_log, &draw_history);
             if draw_log {
                 console.draw_log(&draw_log);
             }
+            if draw_history {
+                console.draw_history(&draw_history);
+            }
+
             imgui.show_test_window();
         }
         imgui.render_proc(dear_state, wnd_width, wnd_height);
