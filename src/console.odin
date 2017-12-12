@@ -6,7 +6,7 @@
  *  @Creation: 10-05-2017 21:11:30
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 07:18:03
+ *  @Last Time: 12-12-2017 07:25:13
  *  
  *  @Description:
  *      The console is an in engine window that can be pulled up for viewing.
@@ -172,7 +172,7 @@ add_command :: proc(name : string p : CommandProc) {
 
 default_help_command :: proc(args : []string) {
     log("Available Commands: ");
-    for val, key in _internal_data.commands {
+    for key, val in _internal_data.commands {
         logf("\t%s", key);
     }
 }
