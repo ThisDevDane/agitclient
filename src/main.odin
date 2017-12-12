@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 22:44:08
+ *  @Last Time: 12-12-2017 22:56:44
  *  
  *  @Description:
  *  
@@ -215,44 +215,49 @@ main :: proc() {
             if imgui.begin("TEST") {
                 imgui.input_text("Repo Path;", path_buf[..]);
                 if imgui.button("Fetch") {
-                    repo, err := git.repository_open(strings.to_odin_string(&path_buf[0]));
-                    if err != 0 {
-                        console.log(err);
-                        gerr := git.err_last();
-                        console.logf_error("Libgit Error: %v/%v %s\n", err, gerr.klass, gerr.message);
+                    path := strings.to_odin_string(&path_buf[0]);
+                    if git.is_repository(path) {
+                        repo, err := git.repository_open(strings.to_odin_string(&path_buf[0]));
+                        if err != 0 {
+                            console.log(err);
+                            gerr := git.err_last();
+                            console.logf_error("Libgit Error: %v/%v %s", err, gerr.klass, gerr.message);
+                        } else {
+
+                        }
+
+                        remote, ok := git.remote_lookup(repo, "origin");
+                        remote_cb, _  := git.remote_init_callbacks();
+                        remote_cb.credentials = credentials_callback;
+                        ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
+                        if ok != 0 {
+                            gerr := git.err_last();
+                            console.logf_error("Libgit Error: %v/%v %s", ok, gerr.klass, gerr.message);
+                        } else {
+                            console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
+                        }
+
+                        fetch_opt := git.Fetch_Options{};
+                        fetch_cb, _  := git.remote_init_callbacks();
+                        fetch_opt.version = 1;
+                        fetch_opt.proxy_opts.version = 1;
+                        fetch_opt.callbacks = remote_cb;
+
+                        ok = git.remote_fetch(remote, nil, &fetch_opt, nil);
+                        if ok != 0 {
+                            gerr := git.err_last();
+                            console.logf_error("Libgit Error: %d/%v %s", ok, gerr.klass, gerr.message);
+                        } else {
+                            console.log("Fetch complete...");
+                        }
+                        
+                        git.status_foreach(repo, status_callback, nil);
+
+                        git.remote_free(remote);
+                        git.repository_free(repo);
                     } else {
-
+                        console.logf_error("%s is not a repo", path);
                     }
-
-                    remote, ok := git.remote_lookup(repo, "origin");
-                    remote_cb, _  := git.remote_init_callbacks();
-                    remote_cb.credentials = credentials_callback;
-                    ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
-                    if ok != 0 {
-                        gerr := git.err_last();
-                        console.logf_error("Libgit Error: %v/%v %s\n", ok, gerr.klass, gerr.message);
-                    } else {
-                        console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
-                    }
-
-                    fetch_opt := git.Fetch_Options{};
-                    fetch_cb, _  := git.remote_init_callbacks();
-                    fetch_opt.version = 1;
-                    fetch_opt.proxy_opts.version = 1;
-                    fetch_opt.callbacks = remote_cb;
-
-                    ok = git.remote_fetch(remote, nil, &fetch_opt, nil);
-                    if ok != 0 {
-                        gerr := git.err_last();
-                        console.logf_error("Libgit Error: %d/%v %s\n", ok, gerr.klass, gerr.message);
-                    } else {
-                        console.log("Fetch complete...");
-                    }
-                    
-                    git.status_foreach(repo, status_callback, nil);
-
-                    git.remote_free(remote);
-                    git.repository_free(repo);
                 }
                 imgui.end();
             }

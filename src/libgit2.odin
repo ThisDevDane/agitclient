@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 22:45:30
+ *  @Last Time: 12-12-2017 22:56:17
  *  
  *  @Description:
  *  
@@ -871,7 +871,7 @@ repository_open :: proc(path : string, flags : Repository_Open_Flags, ceiling_di
 }
 
 is_repository  :: proc(path : string) -> bool {
-    if git_repository_open_ext(nil, _make_path_string(path), Repository_Open_Flags.No_Search, nil) != 0 {
+    if git_repository_open_ext(nil, _make_path_string(path), Repository_Open_Flags.No_Search, nil) == 0 {
         return true;
     } else {
         return false;
