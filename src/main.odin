@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 23:52:52
+ *  @Last Time: 13-12-2017 00:23:05
  *  
  *  @Description:
  *  
@@ -60,8 +60,12 @@ username : string;
 password : string;
 
 set_user :: proc(args : []string) {
-    username = args[0];
-    password = args[1];
+    if len(args) >= 2 { 
+        username = args[0];
+        password = args[1];
+    } else {
+        console.log_error("You forgot to supply username AND password");
+    }
 }
 
 credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,  
@@ -82,6 +86,15 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
+log_if_err :: proc(err : i32) -> bool {
+    if err != 0 {
+        gerr := git.err_last();
+        console.logf_error("LibGit2 Error: %v | %v | %s", err, gerr.klass, gerr.message);
+        return true;
+    } else {
+        return false;
+    }
+}
 
 main :: proc() {
     console.log("Program start...");
@@ -119,14 +132,24 @@ main :: proc() {
     path_buf        : [255+1]byte;
 
     git.lib_init();
-    lib_features := git.lib_features();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
         return test & value == test;
     }
+    lib_features := git.lib_features();
+    console.log("LibGit2 build config;");
+    console.logf("\tLibGit2 is %s", 
+                 feature_set(git.Lib_Features.Threads, lib_features) ? "thread-safe." : "not thread-safe");
+    console.logf("\tHttps is %s", 
+             feature_set(git.Lib_Features.Https, lib_features) ? "supported." : "not supported");
+    console.logf("\tSSH is %s", 
+             feature_set(git.Lib_Features.Ssh, lib_features) ? "supported." : "not supported");
+    console.logf("\tNsec is %s", 
+             feature_set(git.Lib_Features.Nsec, lib_features) ? "supported." : "not supported");
+    
     git.lib_version(&lib_ver_major, &lib_ver_minor, &lib_ver_rev);
     lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d", 
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
- 
+
     main_loop: for {
         for msg.poll_message(&message) {
             switch msg in message {
@@ -219,22 +242,13 @@ main :: proc() {
                     path := strings.to_odin_string(&path_buf[0]);
                     if git.is_repository(path) {
                         repo, err := git.repository_open(strings.to_odin_string(&path_buf[0]));
-                        if err != 0 {
-                            console.log(err);
-                            gerr := git.err_last();
-                            console.logf_error("Libgit Error: %v/%v %s", err, gerr.klass, gerr.message);
-                        } else {
-
-                        }
+                        log_if_err(err);
 
                         remote, ok := git.remote_lookup(repo, "origin");
                         remote_cb, _  := git.remote_init_callbacks();
                         remote_cb.credentials = credentials_callback;
                         ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
-                        if ok != 0 {
-                            gerr := git.err_last();
-                            console.logf_error("Libgit Error: %v/%v %s", ok, gerr.klass, gerr.message);
-                        } else {
+                        if !log_if_err(ok) {
                             console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
                         }
 
@@ -244,11 +258,8 @@ main :: proc() {
                         fetch_opt.proxy_opts.version = 1;
                         fetch_opt.callbacks = remote_cb;
 
-                        ok = git.remote_fetch(remote, nil, &fetch_opt, nil);
-                        if ok != 0 {
-                            gerr := git.err_last();
-                            console.logf_error("Libgit Error: %d/%v %s", ok, gerr.klass, gerr.message);
-                        } else {
+                        ok = git.remote_fetch(remote, nil, &fetch_opt);
+                        if !log_if_err(ok) {
                             console.log("Fetch complete...");
                         }
                         

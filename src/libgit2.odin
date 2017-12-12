@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 22:56:17
+ *  @Last Time: 13-12-2017 00:29:40
  *  
  *  @Description:
  *  
@@ -662,24 +662,24 @@ Lib_Features :: enum i32 {
    * If set, libgit2 was built thread-aware and can be safely used from multiple
    * threads.
    */
-    THREADS = (1 << 0),
+    Threads = (1 << 0),
   /*
    * If set, libgit2 was built with and linked against a TLS implementation.
    * Custom TLS streams may still be added by the user to support HTTPS
    * regardless of this.
    */
-    HTTPS   = (1 << 1),
+    Https   = (1 << 1),
   /**
    * If set, libgit2 was built with and linked against libssh2. A custom
    * transport may still be added by the user to support libssh2 regardless of
    * this.
    */
-    SSH     = (1 << 2),
+    Ssh     = (1 << 2),
   /**
    * If set, libgit2 was built with support for sub-second resolution in file
    * modification times.
    */
-    NSEC    = (1 << 3),
+    Nsec    = (1 << 3),
 }
 
 Repository_Open_Flags :: enum u32 {
@@ -821,7 +821,7 @@ foreign libgit {
     @(link_name = "git_remote_disconnect")     remote_disconnect     :: proc(remote : ^Remote) ---;
     @(link_name = "git_remote_init_callbacks") remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> i32 ---;
     @(link_name = "git_remote_connected")      remote_connected      :: proc(remote : ^Remote) -> i32 ---;
-    @(link_name = "git_remote_fetch")          remote_fetch          :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> i32 ---;
+    git_remote_fetch :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> i32 ---;
     @(link_name = "git_remote_free")           remote_free           :: proc(remote : ^Remote) ---;
 
     @(link_name = "git_repository_index") repository_index :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
@@ -895,6 +895,13 @@ remote_init_callbacks :: proc() -> (Remote_Callbacks, i32) {
     cb := Remote_Callbacks{};
     err := remote_init_callbacks(&cb, 1);
     return cb, err; 
+}
+
+remote_fetch :: proc(remote : ^Remote, refspecs : []string, opts : ^Fetch_Options, reflog_message : string = nil) -> i32 {
+    if refspecs != nil && len(refspecs) > 0 {
+        //NOTIMPLEMENTED(Hoej): We gotta convert a []string to a Str_Array
+    }
+    return git_remote_fetch(remote, nil, opts, _make_misc_string(reflog_message));
 }
 
 repository_index :: proc(repo : ^Repository) -> (^Index, i32) {
