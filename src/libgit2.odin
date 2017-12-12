@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 12-12-2017 06:11:26
+ *  @Last Time: 12-12-2017 22:56:17
  *  
  *  @Description:
  *  
@@ -44,17 +44,23 @@ Repository_Init_Options :: struct #ordered {
 
 Git_Error :: struct #ordered {
     message : ^byte,
-    klass : ErrorType,
+    klass   : ErrorType,
 }
 
 Error :: struct {
     message : string,
-    klass : ErrorType,
+    klass   : ErrorType,
 }
 
 Str_Array :: struct #ordered {
     strings : ^^byte,
     count   : uint,
+}
+
+Buf :: struct #ordered {
+    ptr   : ^byte,
+    asize : uint, 
+    size  : uint,
 }
 
 Checkout_Perfdata :: struct #ordered {
@@ -132,6 +138,58 @@ Repository_Init_Mode :: enum u32 {
     Shared_Umask = 0,       //Use permissions configured by umask - the default.
     Shared_Group = 0002775, //Use "--shared=group" behavior, chmod'ing the new repo to be group writable and "g+sx" for sticky group assignment.
     Shared_All   = 0002777, //Use "--shared=all" behavior, adding world readability. Anything else - Set to custom value.
+}
+
+Index_Time :: struct #ordered {
+    seconds : i32,
+    /* nsec should not be stored as time_t compatible */
+    nanoseconds : u32,
+}
+
+Index_Entry :: struct #ordered {
+    ctime : Index_Time,
+    mtime : Index_Time,
+
+    dev       : u32,
+    ino       : u32,
+    mode      : u32,
+    uid       : u32,
+    gid       : u32,
+    file_size : u32,
+
+    id : Oid,
+
+    flags          : Index_Entry_Flag,
+    flags_extended : Index_Entry_Extended_Flag,
+
+    path : ^byte,
+}
+
+Index_Entry_Flag :: enum u16 {
+    Extended = 0x4000,
+    Valid    = 0x8000,
+}
+
+Index_Entry_Extended_Flag :: enum u16 {
+
+    Intent_To_Add     = (1 << 13),
+    Skip_Worktree     = (1 << 14),
+    /* Reserved for future extension */
+    Extended2         = (1 << 15),
+
+    Extended_Flags    = (Intent_To_Add | Skip_Worktree),
+    Update            = (1 << 0),
+    Remove            = (1 << 1),
+    Upto_Date         = (1 << 2),
+    Added             = (1 << 3),
+
+    Hashed            = (1 << 4),
+    Unhashed          = (1 << 5),
+    WtRemove          = (1 << 6), // remove in work directory
+    Conflicted        = (1 << 7),
+
+    Unpacked          = (1 << 8),
+    New_Skip_Worktree = (1 << 9),
 }
 
 Clone_Options :: struct #ordered {
@@ -243,7 +301,7 @@ Checkout_Options :: struct #ordered {
     perfdata_payload  : rawptr,
 } 
 
-Fetch_Options :: struct {
+Fetch_Options :: struct #ordered {
     version : i32,
 
     /**
@@ -304,7 +362,7 @@ Remote_Callbacks :: struct #ordered {
      * Returning GIT_PASSTHROUGH will make libgit2 behave as
      * though this field isn't set.
      */
-    credentials : proc "stdcall" (cred : ^^Cred,  url : ^byte,  username_from_url : ^byte, allowed_types : u32, payload : rawptr) -> i32,
+    credentials : proc "stdcall" (cred : ^^Cred,  url : ^byte,  username_from_url : ^byte, allowed_types : Cred_Type, payload : rawptr) -> i32,
 
     /**
      * If cert verification fails, this will be called to let the
@@ -600,12 +658,12 @@ ErrorType :: enum i32 {
 }
 
 Lib_Features :: enum i32 {
-  /**
+  /*
    * If set, libgit2 was built thread-aware and can be safely used from multiple
    * threads.
    */
     THREADS = (1 << 0),
-  /**
+  /*
    * If set, libgit2 was built with and linked against a TLS implementation.
    * Custom TLS streams may still be added by the user to support HTTPS
    * regardless of this.
@@ -652,6 +710,10 @@ Status_Flags :: enum u32 {
     Conflicted      = (1 << 15),
 }
 
+Direction :: enum i32 {
+    Fetch = 0,
+    Push  = 1
+}
 Status_Show_Flags :: enum u32 {
     IndexAndWorkdir = 0,
     IndexOnly       = 1,
@@ -670,7 +732,7 @@ Status_List :: struct #ordered {};
 
 Status_Entry :: struct #ordered {
     status           : Status_Flags,
-    head_to_index    : ^Diff_Delta
+    head_to_index    : ^Diff_Delta,
     index_to_workdir : ^Diff_Delta,
 }
 
@@ -722,8 +784,9 @@ _make_misc_string :: proc(fmt_: string, args: ...any) -> ^byte {
     return cast(^byte)&_misc_buf[0];
 }
 
-
 Status_Cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, payload : rawptr) -> i32;
+
+REMOTE_CALLBACKS_VERSION :: 1;
 
 @(default_calling_convention="stdcall")
 foreign libgit {
@@ -753,6 +816,22 @@ foreign libgit {
 
     git_remote_lookup :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> i32 ---;
     git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
+    @(link_name = "git_remote_default_branch") remote_default_branch :: proc(out : ^Buf, remote : ^Remote) -> i32 ---;
+    @(link_name = "git_remote_connect")        remote_connect        :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> i32 ---;
+    @(link_name = "git_remote_disconnect")     remote_disconnect     :: proc(remote : ^Remote) ---;
+    @(link_name = "git_remote_init_callbacks") remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> i32 ---;
+    @(link_name = "git_remote_connected")      remote_connected      :: proc(remote : ^Remote) -> i32 ---;
+    @(link_name = "git_remote_fetch")          remote_fetch          :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> i32 ---;
+    @(link_name = "git_remote_free")           remote_free           :: proc(remote : ^Remote) ---;
+
+    @(link_name = "git_repository_index") repository_index :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
+    git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
+    git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> i32 ---;
+    @(link_name = "git_index_entrycount")  index_entrycount   :: proc(index : ^Index) -> uint ---;
+    @(link_name = "git_index_get_byindex") index_get_byindex  :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
+
+    git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
+    @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
 }
 
 err_last        :: proc() -> Error {
@@ -792,7 +871,7 @@ repository_open :: proc(path : string, flags : Repository_Open_Flags, ceiling_di
 }
 
 is_repository  :: proc(path : string) -> bool {
-    if git_repository_open_ext(nil, _make_path_string(path), Repository_Open_Flags.No_Search, nil) != 0 {
+    if git_repository_open_ext(nil, _make_path_string(path), Repository_Open_Flags.No_Search, nil) == 0 {
         return true;
     } else {
         return false;
@@ -808,16 +887,48 @@ remote_lookup :: proc(repo : ^Repository, name : string = "origin") -> (^Remote,
 remote_list   :: proc(repo : ^Repository) -> ([]string, i32) {
     strs := Str_Array{};
     err := git_remote_list(&strs, repo);
-    raw_strings := mem.slice_ptr(strs.strings, int(strs.count));
-    res := make([]string, int(strs.count));
-    for _, i in res {
-        res[i] = strings.to_odin_string(raw_strings[i]);
-    }
-
+    res := _str_array_to_slice(&strs);
     return res, err;
 }
 
-status_list_new :: proc(repo : Repository, opts : ^Status_Options) -> (^Status_List, i32) {
+remote_init_callbacks :: proc() -> (Remote_Callbacks, i32) {
+    cb := Remote_Callbacks{};
+    err := remote_init_callbacks(&cb, 1);
+    return cb, err; 
+}
+
+repository_index :: proc(repo : ^Repository) -> (^Index, i32) {
+    index : ^Index = nil;
+    err := repository_index(&index, repo);
+    return index, err;
+}
+
+index_add_bypath :: proc(index : ^Index, path : string) -> i32 {
+    err := git_index_add_bypath(index, _make_path_string(path));
+    return err;
+}
+
+index_remove_bypath :: proc(index : ^Index, path : string) -> i32 {
+    err := git_index_remove_bypath(index, _make_path_string(path));
+    return err;
+}
+
+cred_userpass_plaintext_new :: proc(username : string, password : string) -> (^Cred, i32) {
+    cred : ^Cred = nil;
+    err := git_cred_userpass_plaintext_new(&cred, _make_url_string(username), _make_misc_string(password));
+    return cred, err;
+}
+
+_str_array_to_slice :: proc(stra : ^Str_Array) -> []string {
+    raw_strings := mem.slice_ptr(stra.strings, int(stra.count));
+    res := make([]string, int(stra.count));
+    for _, i in res {
+        res[i] = strings.to_odin_string(raw_strings[i]);
+    }
+    return res;
+}
+
+status_list_new :: proc(repo : ^Repository, opts : ^Status_Options) -> (^Status_List, i32) {
     out : ^Status_List = nil;
     err := git_status_list_new(&out, repo, opts);
     return out, err;
