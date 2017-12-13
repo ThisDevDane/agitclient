@@ -106,6 +106,7 @@ main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
     console.add_command("set_user", set_user);
+
     app_handle := misc.get_app_handle();
     wnd_handle := window.create_window(app_handle, "A Git Client", false, 1280, 720);
     gl_ctx     := wgl.create_gl_context(wnd_handle, 3, 3);
@@ -348,6 +349,9 @@ main :: proc() {
                 }
                 imgui.end();
             }
+
+            status_window("C:\\odin");
+            status_window("C:\\odin\\shared\\odin-glfw");
 
             if imgui.begin("foo") {
                 defer imgui.end();
