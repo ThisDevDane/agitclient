@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 20:07:28 GMT+1
+ *  @Last By:   bpunsky
+ *  @Last Time: 13-12-2017 14:57:12 UTC-5
  *  
  *  @Description:
  *  
@@ -599,7 +599,7 @@ Diff_File :: struct #ordered {
     id        : Oid,
     path      : ^byte,
     size      : i64, //NOTE(Hoej): Changes with platform, i64 on Windows
-    flags     : u32,
+    flags     : Diff_Flags,
     mode      : u16,
     id_abbrev : u16,
 }
@@ -733,6 +733,7 @@ Direction :: enum i32 {
     Fetch = 0,
     Push  = 1
 }
+
 Status_Show_Flags :: enum u32 {
     IndexAndWorkdir = 0,
     IndexOnly       = 1,
@@ -757,7 +758,7 @@ Status_Entry :: struct #ordered {
 
 Diff_Delta :: struct #ordered {
     status     : Delta,
-    flags      : u32,
+    flags      : Diff_Flags,
     similarity : u16,
     nfiles     : u16,
     old_file   : Diff_File,
@@ -777,6 +778,89 @@ Delta :: enum u32 {
     Unreadable =  9,
     Conflicted = 10,
 }
+
+Diff_Flags :: enum u32 {
+    Binary     = (1 << 0),
+    Not_Binary = (1 << 1),
+    Valid_Id   = (1 << 2),
+    Exists     = (1 << 3),
+}
+
+/**
+ * Flags to control status callbacks
+ *
+ * - GIT_STATUS_OPT_INCLUDE_UNTRACKED says that callbacks should be made
+ *   on untracked files.  These will only be made if the workdir files are
+ *   included in the status "show" option.
+ * - GIT_STATUS_OPT_INCLUDE_IGNORED says that ignored files get callbacks.
+ *   Again, these callbacks will only be made if the workdir files are
+ *   included in the status "show" option.
+ * - GIT_STATUS_OPT_INCLUDE_UNMODIFIED indicates that callback should be
+ *   made even on unmodified files.
+ * - GIT_STATUS_OPT_EXCLUDE_SUBMODULES indicates that submodules should be
+ *   skipped.  This only applies if there are no pending typechanges to
+ *   the submodule (either from or to another type).
+ * - GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS indicates that all files in
+ *   untracked directories should be included.  Normally if an entire
+ *   directory is new, then just the top-level directory is included (with
+ *   a trailing slash on the entry name).  This flag says to include all
+ *   of the individual files in the directory instead.
+ * - GIT_STATUS_OPT_DISABLE_PATHSPEC_MATCH indicates that the given path
+ *   should be treated as a literal path, and not as a pathspec pattern.
+ * - GIT_STATUS_OPT_RECURSE_IGNORED_DIRS indicates that the contents of
+ *   ignored directories should be included in the status.  This is like
+ *   doing `git ls-files -o -i --exclude-standard` with core git.
+ * - GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX indicates that rename detection
+ *   should be processed between the head and the index and enables
+ *   the GIT_STATUS_INDEX_RENAMED as a possible status flag.
+ * - GIT_STATUS_OPT_RENAMES_INDEX_TO_WORKDIR indicates that rename
+ *   detection should be run between the index and the working directory
+ *   and enabled GIT_STATUS_WT_RENAMED as a possible status flag.
+ * - GIT_STATUS_OPT_SORT_CASE_SENSITIVELY overrides the native case
+ *   sensitivity for the file system and forces the output to be in
+ *   case-sensitive order
+ * - GIT_STATUS_OPT_SORT_CASE_INSENSITIVELY overrides the native case
+ *   sensitivity for the file system and forces the output to be in
+ *   case-insensitive order
+ * - GIT_STATUS_OPT_RENAMES_FROM_REWRITES indicates that rename detection
+ *   should include rewritten files
+ * - GIT_STATUS_OPT_NO_REFRESH bypasses the default status behavior of
+ *   doing a "soft" index reload (i.e. reloading the index data if the
+ *   file on disk has been modified outside libgit2).
+ * - GIT_STATUS_OPT_UPDATE_INDEX tells libgit2 to refresh the stat cache
+ *   in the index for files that are unchanged but have out of date stat
+ *   information in the index.  It will result in less work being done on
+ *   subsequent calls to get status.  This is mutually exclusive with the
+ *   NO_REFRESH option.
+ *
+ * Calling `git_status_foreach()` is like calling the extended version
+ * with: GIT_STATUS_OPT_INCLUDE_IGNORED, GIT_STATUS_OPT_INCLUDE_UNTRACKED,
+ * and GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS.  Those options are bundled
+ * together as `GIT_STATUS_OPT_DEFAULTS` if you want them as a baseline.
+ */
+
+Status_Opt_Flags :: enum u32 {
+    Include_Untracked               = (1 <<  0),
+    Include_Ignored                 = (1 <<  1),
+    Include_Unmodified              = (1 <<  2),
+    Exclude_Submodules              = (1 <<  3),
+    Recurse_Untracked_Dirs          = (1 <<  4),
+    Disable_Pathspec_Match          = (1 <<  5),
+    Recurse_Ignored_Dirs            = (1 <<  6),
+    Renames_Head_To_Index           = (1 <<  7),
+    Renames_Index_To_Workdir        = (1 <<  8),
+    Sort_Case_Sensitively           = (1 <<  9),
+    Sort_Case_Insensitively         = (1 << 10),
+    Renames_From_Rewrites           = (1 << 11),
+    No_Refresh                      = (1 << 12),
+    Update_Index                    = (1 << 13),
+    Include_Unreadable              = (1 << 14),
+    Include_Unreadable_As_Untracked = (1 << 15),
+}
+
+Status_Opt_Defaults :: Status_Opt_Flags.Include_Ignored       |
+                       Status_Opt_Flags.Include_Untracked     |
+                       Status_Opt_Flags.Recurse_Untracked_Dirs;
 
 ///////////////////////// Odin UTIL /////////////////////////
 
