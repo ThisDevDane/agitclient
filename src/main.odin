@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 00:23:05
+ *  @Last Time: 13-12-2017 17:51:50
  *  
  *  @Description:
  *  
@@ -151,6 +151,8 @@ main :: proc() {
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
 
     main_loop: for {
+        new_frame_state.mouse_wheel = 0;
+        
         for msg.poll_message(&message) {
             switch msg in message {
                 case msg.MsgQuitMessage : {
@@ -201,6 +203,10 @@ main :: proc() {
                     wnd_height = msg.height;
                     gl.viewport(0, 0, i32(wnd_width), i32(wnd_height));
                     gl.scissor (0, 0, i32(wnd_width), i32(wnd_height));
+                }
+
+                case msg.MsgMouseWheel : {
+                    new_frame_state.mouse_wheel = msg.distance;
                 }
             }
         }
