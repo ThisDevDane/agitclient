@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 17:51:50
+ *  @Last Time: 13-12-2017 19:11:30
  *  
  *  @Description:
  *  
@@ -132,6 +132,8 @@ main :: proc() {
 
     path_buf           : [255+1]byte;
 
+    open_repo_name     : string;
+
     commit             : ^git.Commit;
     commit_hash_buf    : [1024]byte;
     commit_message     : string;
@@ -248,18 +250,28 @@ main :: proc() {
             imgui.end_main_menu_bar();
 
             if imgui.begin("TEST") {
-                imgui.input_text("Repo Path;", path_buf[..]);
-                if imgui.button("Fetch") {
-                    if repo != nil {
+                if repo == nil {
+                    imgui.input_text("Repo Path;", path_buf[..]);
+                    if imgui.button("Open") {
+                        path := strings.to_odin_string(&path_buf[0]);
+                        if git.is_repository(path) {
+                            new_repo, err := git.repository_open(path);
+                            if !log_if_err(err) {
+                                repo = new_repo;
+                                open_repo_name = strings.new_string(path); 
+                            }
+                        } else {
+                            console.logf_error("%s is not a repo", path);
+                        }
+                    }
+                } else {
+                    imgui.text("Repo: %s", open_repo_name); imgui.same_line();
+                    if imgui.button("Close Repo") {
                         git.repository_free(repo);
+                        repo = nil;
                     }
 
-                    path := strings.to_odin_string(&path_buf[0]);
-                    if git.is_repository(path) {
-                        err: i32;
-                        repo, err = git.repository_open(strings.to_odin_string(&path_buf[0]));
-                        log_if_err(err);
-
+                    if imgui.button("Fetch" ) {
                         remote, ok := git.remote_lookup(repo, "origin");
                         remote_cb, _  := git.remote_init_callbacks();
                         remote_cb.credentials = credentials_callback;
@@ -282,38 +294,35 @@ main :: proc() {
                         git.status_foreach(repo, status_callback, nil);
 
                         git.remote_free(remote);
-                    } else {
-                        console.logf_error("%s is not a repo", path);
                     }
-                }
 
-                imgui.input_text("Commit Hash;", commit_hash_buf[..]);
-                if imgui.button("Lookup") {
-                    if repo != nil {
-                        oid_str := cast(string)commit_hash_buf[..];
-                        oid: git.Oid;
-                        ok: = git.oid_from_str(&oid, &oid_str[0]);
-                        log_if_err(ok);
-                        if ok == 0 {
-                            if commit != nil {
-                                git.commit_free(commit);
-                            }
-
-                            ok = git.commit_lookup(&commit, repo, &oid);
+                    imgui.input_text("Commit Hash;", commit_hash_buf[..]);
+                    if imgui.button("Lookup") {
+                        if repo != nil {
+                            oid_str := cast(string)commit_hash_buf[..];
+                            oid: git.Oid;
+                            ok: = git.oid_from_str(&oid, &oid_str[0]);
                             log_if_err(ok);
-
                             if ok == 0 {
-                                message_c := git.commit_message(commit);
-                                commit_message = strings.to_odin_string(message_c);
+                                if commit != nil {
+                                    git.commit_free(commit);
+                                }
+
+                                ok = git.commit_lookup(&commit, repo, &oid);
+                                log_if_err(ok);
+
+                                if ok == 0 {
+                                    message_c := git.commit_message(commit);
+                                    commit_message = strings.to_odin_string(message_c);
+                                }
                             }
                         }
+                        else {
+                            console.log("You haven't fetched a repo yet!");
+                        }
                     }
-                    else {
-                        console.log("You haven't fetched a repo yet!");
-                    }
+                    imgui.text("%s: %s", "Message", commit_message);
                 }
-                imgui.text("%s: %s", "Message", commit_message);
-
                 imgui.end();
             }
 
