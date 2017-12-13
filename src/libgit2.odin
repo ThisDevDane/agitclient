@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 00:29:40
+ *  @Last Time: 13-12-2017 01:08:05
  *  
  *  @Description:
  *  
@@ -819,12 +819,12 @@ foreign libgit {
     @(link_name = "git_remote_default_branch") remote_default_branch :: proc(out : ^Buf, remote : ^Remote) -> i32 ---;
     @(link_name = "git_remote_connect")        remote_connect        :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> i32 ---;
     @(link_name = "git_remote_disconnect")     remote_disconnect     :: proc(remote : ^Remote) ---;
-    @(link_name = "git_remote_init_callbacks") remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> i32 ---;
+    git_remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> i32 ---;
     @(link_name = "git_remote_connected")      remote_connected      :: proc(remote : ^Remote) -> i32 ---;
     git_remote_fetch :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> i32 ---;
     @(link_name = "git_remote_free")           remote_free           :: proc(remote : ^Remote) ---;
 
-    @(link_name = "git_repository_index") repository_index :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
+    git_repository_index :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
     git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
     git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> i32 ---;
     @(link_name = "git_index_entrycount")  index_entrycount   :: proc(index : ^Index) -> uint ---;
@@ -840,13 +840,15 @@ err_last        :: proc() -> Error {
     return Error{str, err.klass};
 }
 
-repository_init :: proc(path : string, is_bare : bool = false) -> (^Repository, i32) {
+repository_init :: proc[repository_init_, repository_init_ext];
+
+repository_init_ :: proc(path : string, is_bare : bool = false) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_repository_init(&repo, _make_path_string(path), u32(is_bare));
     return repo, err;
 }
 
-repository_init :: proc(path : string, opts : ^Repository_Init_Options) -> (^Repository, i32) {
+repository_init_ext :: proc(path : string, opts : ^Repository_Init_Options) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_repository_init_ext(&repo, _make_path_string(path), opts);
     return repo, err;
@@ -858,13 +860,15 @@ clone           :: proc(url : string, local_path : string, options : ^Clone_Opti
     return repo, err;
 }
 
-repository_open :: proc(path : string) -> (^Repository, i32) {
+repository_open :: proc[repository_open_, repository_open_ext];
+
+repository_open_ :: proc(path : string) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_repository_open(&repo, _make_path_string(path));
     return repo, err;
 }
 
-repository_open :: proc(path : string, flags : Repository_Open_Flags, ceiling_dirs : string) -> (^Repository, i32) {
+repository_open_ext :: proc(path : string, flags : Repository_Open_Flags, ceiling_dirs : string) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_repository_open_ext(&repo, _make_path_string(path), flags, _make_misc_string(ceiling_dirs));
     return repo, err;
@@ -893,7 +897,7 @@ remote_list   :: proc(repo : ^Repository) -> ([]string, i32) {
 
 remote_init_callbacks :: proc() -> (Remote_Callbacks, i32) {
     cb := Remote_Callbacks{};
-    err := remote_init_callbacks(&cb, 1);
+    err := git_remote_init_callbacks(&cb, 1);
     return cb, err; 
 }
 
@@ -906,7 +910,7 @@ remote_fetch :: proc(remote : ^Remote, refspecs : []string, opts : ^Fetch_Option
 
 repository_index :: proc(repo : ^Repository) -> (^Index, i32) {
     index : ^Index = nil;
-    err := repository_index(&index, repo);
+    err := git_repository_index(&index, repo);
     return index, err;
 }
 
