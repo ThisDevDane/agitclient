@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 20:14:36 GMT+1
+ *  @Last By:   bpunsky
+ *  @Last Time: 13-12-2017 18:05:07 UTC-5
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -262,6 +262,8 @@ main :: proc() {
             imgui.end_main_menu_bar();
 
             if imgui.begin("TEST") {
+                defer imgui.end();
+                
                 if repo == nil {
                     imgui.input_text("Repo Path;", path_buf[..]);
                     if imgui.button("Open") {
@@ -293,68 +295,103 @@ main :: proc() {
                     if imgui.button("Close Repo") {
                         git.repository_free(repo);
                         repo = nil;
-                    }
-
-                    if imgui.button("Fetch" ) {
-                        remote, ok := git.remote_lookup(repo, "origin");
-                        remote_cb, _  := git.remote_init_callbacks();
-                        remote_cb.credentials = credentials_callback;
-                        ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
-                        if !log_if_err(ok) {
-                            console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
-                            fetch_opt := git.Fetch_Options{};
-                            fetch_cb, _  := git.remote_init_callbacks();
-                            fetch_opt.version = 1;
-                            fetch_opt.proxy_opts.version = 1;
-                            fetch_opt.callbacks = remote_cb;
-
-                            ok = git.remote_fetch(remote, nil, &fetch_opt);
+                    } else {
+                        if imgui.button("Fetch" ) {
+                            remote, ok := git.remote_lookup(repo, "origin");
+                            remote_cb, _  := git.remote_init_callbacks();
+                            remote_cb.credentials = credentials_callback;
+                            ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
                             if !log_if_err(ok) {
-                                console.log("Fetch complete...");
+                                console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
+                                fetch_opt := git.Fetch_Options{};
+                                fetch_cb, _  := git.remote_init_callbacks();
+                                fetch_opt.version = 1;
+                                fetch_opt.proxy_opts.version = 1;
+                                fetch_opt.callbacks = remote_cb;
+
+                                ok = git.remote_fetch(remote, nil, &fetch_opt);
+                                if !log_if_err(ok) {
+                                    console.log("Fetch complete...");
+                                }
                             }
+
+                            git.remote_free(remote);
                         }
 
-                        git.remote_free(remote);
-                    }
-
-                    imgui.input_text("Commit Hash;", commit_hash_buf[..]);
-                    if imgui.button("Lookup") {
-                        if repo != nil {
-                            oid_str := cast(string)commit_hash_buf[..];
-                            oid: git.Oid;
-                            ok: = git.oid_from_str(&oid, &oid_str[0]);
-                            log_if_err(ok);
-                            if ok == 0 {
-                                if commit != nil {
-                                    git.commit_free(commit);
-                                }
-
-                                ok = git.commit_lookup(&commit, repo, &oid);
+                        imgui.input_text("Commit Hash;", commit_hash_buf[..]);
+                        if imgui.button("Lookup") {
+                            if repo != nil {
+                                oid_str := cast(string)commit_hash_buf[..];
+                                oid: git.Oid;
+                                ok: = git.oid_from_str(&oid, &oid_str[0]);
                                 log_if_err(ok);
-
                                 if ok == 0 {
-                                    message_c := git.commit_message(commit);
-                                    commit_message = strings.to_odin_string(message_c);
-                                    commit_sig = git.commit_committer(commit);
+                                    if commit != nil {
+                                        git.commit_free(commit);
+                                    }
+
+                                    ok = git.commit_lookup(&commit, repo, &oid);
+                                    log_if_err(ok);
+
+                                    if ok == 0 {
+                                        message_c := git.commit_message(commit);
+                                        commit_message = strings.to_odin_string(message_c);
+                                        commit_sig = git.commit_committer(commit);
+                                    }
+                                }
+                            }
+                            else {
+                                console.log("You haven't fetched a repo yet!");
+                            }
+                        }
+                        imgui.text("Author:  %s", commit_sig.name);
+                        imgui.text("Email:   %s", commit_sig.email);
+                        imgui.text("Message: %s", commit_message);
+
+                        imgui.separator();
+                        
+                        options : git.Status_Options;
+                        git.status_init_options(&options, 1);
+
+                        if statuses, err := git.status_list_new(repo, &options); !log_if_err(err) {
+                            count := git.status_list_entrycount(statuses);
+
+                            imgui.text("Changes to be committed:");
+                            if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
+                                defer imgui.end_child();
+
+                                for i: uint = 0; i < count; i += 1 {
+                                    if entry := git.status_byindex(statuses, i); entry != nil {
+                                        if entry.head_to_index != nil {
+                                            if entry.head_to_index.old_file.path != nil {
+                                                imgui.label_text(strings.to_odin_string(entry.head_to_index.old_file.path), "%v", entry.head_to_index.status);
+                                            }
+                                        }
+                                    } else {
+                                        console.logf_error("entry nil: index %d", i);
+                                    }
+                                }
+                            }
+
+                            imgui.text("Changes not staged for commit:");
+                            if imgui.begin_child("NotStaged", imgui.Vec2{0, 100}) {
+                                defer imgui.end_child();
+
+                                for i: uint = 0; i < count; i += 1 {
+                                    if entry := git.status_byindex(statuses, i); entry != nil {
+                                        if entry.index_to_workdir != nil {
+                                            if entry.index_to_workdir.old_file.path != nil {
+                                                imgui.label_text(strings.to_odin_string(entry.index_to_workdir.old_file.path), "%v", entry.index_to_workdir.status);
+                                            }
+                                        }
+                                    } else {
+                                        console.logf_error("entry nil: index %d", i);
+                                    }
                                 }
                             }
                         }
-                        else {
-                            console.log("You haven't fetched a repo yet!");
-                        }
                     }
-                    imgui.text("Author:  %s", commit_sig.name);
-                    imgui.text("Email:   %s", commit_sig.email);
-                    imgui.text("Message: %s", commit_message);
                 }
-                imgui.end();
-            }
-
-            status_window("C:\\odin");
-            status_window("C:\\odin\\shared\\odin-glfw");
-
-            if imgui.begin("foo") {
-                defer imgui.end();
             }
 
             if draw_console {
