@@ -25,6 +25,7 @@ Remote     :: struct #ordered {};
 Tree       :: struct #ordered {};
 Index      :: struct #ordered {};
 Transport  :: struct #ordered {};
+Commit     :: struct #ordered {};
 
 Oid :: struct #ordered {
     /** raw binary formatted id */
@@ -926,6 +927,14 @@ foreign libgit {
 
     @(link_name = "git_status_list_entrycount") status_list_entrycount :: proc(statuslist: ^Status_List) -> uint ---;
     @(link_name = "git_status_byindex") status_byindex :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
+
+    // Commits
+    @(link_name = "git_commit_free") commit_free :: proc(out: ^Commit) ---;
+    @(link_name = "git_commit_lookup") commit_lookup :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
+    @(link_name = "git_commit_message") commit_message :: proc(commit: ^Commit) -> ^u8 ---;
+
+    // Oid
+    @(link_name = "git_oid_fromstr") oid_from_str :: proc(out: ^Oid, str: ^u8) -> i32 ---;
 
     git_remote_lookup :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> i32 ---;
     git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
