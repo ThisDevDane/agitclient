@@ -6,10 +6,10 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 19:11:30
+ *  @Last Time: 13-12-2017 19:30:29 GMT+1
  *  
  *  @Description:
- *  
+ *      Entry point for A Git Client.
  */
 
 import "core:fmt.odin";
@@ -28,6 +28,8 @@ import       "shared:libbrew/gl.odin";
 
 import git     "libgit2.odin";
 import console "console.odin";
+
+
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -125,6 +127,8 @@ main :: proc() {
     mpos_y             := 0;
     draw_log           := false;
     draw_history       := false;
+    draw_console       := true;
+    draw_demo_window   := false;
 
     lib_ver_major      : i32;
     lib_ver_minor      : i32;
@@ -239,6 +243,8 @@ main :: proc() {
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Preferences") {
+                    imgui.checkbox("Show Console", &draw_console);
+                    imgui.checkbox("Show Demo Window", &draw_demo_window);
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Help") {
@@ -330,7 +336,9 @@ main :: proc() {
                 defer imgui.end();
             }
 
-            console.draw_console(nil, &draw_log, &draw_history);
+            if draw_console {
+                console.draw_console(&draw_console, &draw_log, &draw_history);
+            }
             if draw_log {
                 console.draw_log(&draw_log);
             }
@@ -338,7 +346,9 @@ main :: proc() {
                 console.draw_history(&draw_history);
             }
 
-            imgui.show_test_window();
+            if draw_demo_window {
+                imgui.show_test_window(&draw_demo_window);
+            }
         }
         imgui.render_proc(dear_state, wnd_width, wnd_height);
         
