@@ -111,25 +111,30 @@ main :: proc() {
     wgl.swap_interval(-1);
     gl.clear_color(0.10, 0.10, 0.10, 1);
 
+    repo: ^git.Repository;
 
-    message         : msg.Msg;
-    wnd_width       := 1280;
-    wnd_height      := 720;
-    shift_down      := false;
-    new_frame_state := imgui.FrameState{};
-    lm_down         := false;
-    rm_down         := false;
-    time_data       := misc.create_time_data();
-    mpos_x          := 0;
-    mpos_y          := 0;     
-    draw_log        := false;     
-    draw_history    := false;     
+    message            : msg.Msg;
+    wnd_width          := 1280;
+    wnd_height         := 720;
+    shift_down         := false;
+    new_frame_state    := imgui.FrameState{};
+    lm_down            := false;
+    rm_down            := false;
+    time_data          := misc.create_time_data();
+    mpos_x             := 0;
+    mpos_y             := 0;
+    draw_log           := false;
+    draw_history       := false;
 
-    lib_ver_major   : i32;
-    lib_ver_minor   : i32;
-    lib_ver_rev     : i32;
+    lib_ver_major      : i32;
+    lib_ver_minor      : i32;
+    lib_ver_rev        : i32;
 
-    path_buf        : [255+1]byte;
+    path_buf           : [255+1]byte;
+
+    commit             : ^git.Commit;
+    commit_hash_buf    : [1024]byte;
+    commit_message     : string;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -245,9 +250,14 @@ main :: proc() {
             if imgui.begin("TEST") {
                 imgui.input_text("Repo Path;", path_buf[..]);
                 if imgui.button("Fetch") {
+                    if repo != nil {
+                        git.repository_free(repo);
+                    }
+
                     path := strings.to_odin_string(&path_buf[0]);
                     if git.is_repository(path) {
-                        repo, err := git.repository_open(strings.to_odin_string(&path_buf[0]));
+                        err: i32;
+                        repo, err = git.repository_open(strings.to_odin_string(&path_buf[0]));
                         log_if_err(err);
 
                         remote, ok := git.remote_lookup(repo, "origin");
@@ -268,15 +278,42 @@ main :: proc() {
                         if !log_if_err(ok) {
                             console.log("Fetch complete...");
                         }
-                        
+
                         git.status_foreach(repo, status_callback, nil);
 
                         git.remote_free(remote);
-                        git.repository_free(repo);
                     } else {
                         console.logf_error("%s is not a repo", path);
                     }
                 }
+
+                imgui.input_text("Commit Hash;", commit_hash_buf[..]);
+                if imgui.button("Lookup") {
+                    if repo != nil {
+                        oid_str := cast(string)commit_hash_buf[..];
+                        oid: git.Oid;
+                        ok: = git.oid_from_str(&oid, &oid_str[0]);
+                        log_if_err(ok);
+                        if ok == 0 {
+                            if commit != nil {
+                                git.commit_free(commit);
+                            }
+
+                            ok = git.commit_lookup(&commit, repo, &oid);
+                            log_if_err(ok);
+
+                            if ok == 0 {
+                                message_c := git.commit_message(commit);
+                                commit_message = strings.to_odin_string(message_c);
+                            }
+                        }
+                    }
+                    else {
+                        console.log("You haven't fetched a repo yet!");
+                    }
+                }
+                imgui.text("%s: %s", "Message", commit_message);
+
                 imgui.end();
             }
 
