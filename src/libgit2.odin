@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   bpunsky
- *  @Last Time: 13-12-2017 14:57:12 UTC-5
+ *  @Last Time: 13-12-2017 16:25:11 UTC-5
  *  
  *  @Description:
  *  
@@ -1048,6 +1048,8 @@ foreign libgit {
 
     @(link_name = "git_status_list_entrycount") status_list_entrycount :: proc(statuslist: ^Status_List) -> uint ---;
     @(link_name = "git_status_byindex") status_byindex :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
+
+    @(link_name = "git_status_init_options") status_init_options :: proc(options : ^Status_Options, version : u32) -> i32 ---;
 
     // Commits
     @(link_name = "git_commit_free")        commit_free        :: proc(out: ^Commit) ---;
