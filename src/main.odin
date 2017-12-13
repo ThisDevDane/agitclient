@@ -6,10 +6,10 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 00:23:05
+ *  @Last Time: 13-12-2017 20:14:36 GMT+1
  *  
  *  @Description:
- *  
+ *      Entry point for A Git Client.
  */
 
 import "core:fmt.odin";
@@ -28,6 +28,8 @@ import       "shared:libbrew/gl.odin";
 
 import git     "libgit2.odin";
 import console "console.odin";
+
+
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -86,10 +88,14 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
-log_if_err :: proc(err : i32) -> bool {
+log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
     if err != 0 {
         gerr := git.err_last();
-        console.logf_error("LibGit2 Error: %v | %v | %s", err, gerr.klass, gerr.message);
+        console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
+                                                                  gerr.klass, 
+                                                                  gerr.message, 
+                                                                  string_util.remove_path_from_file(loc.file_path), 
+                                                                  loc.line);
         return true;
     } else {
         return false;
@@ -111,25 +117,35 @@ main :: proc() {
     wgl.swap_interval(-1);
     gl.clear_color(0.10, 0.10, 0.10, 1);
 
+    repo: ^git.Repository;
 
-    message         : msg.Msg;
-    wnd_width       := 1280;
-    wnd_height      := 720;
-    shift_down      := false;
-    new_frame_state := imgui.FrameState{};
-    lm_down         := false;
-    rm_down         := false;
-    time_data       := misc.create_time_data();
-    mpos_x          := 0;
-    mpos_y          := 0;     
-    draw_log        := false;     
-    draw_history    := false;     
+    message            : msg.Msg;
+    wnd_width          := 1280;
+    wnd_height         := 720;
+    shift_down         := false;
+    new_frame_state    := imgui.FrameState{};
+    lm_down            := false;
+    rm_down            := false;
+    time_data          := misc.create_time_data();
+    mpos_x             := 0;
+    mpos_y             := 0;
+    draw_log           := false;
+    draw_history       := false;
+    draw_console       := true;
+    draw_demo_window   := false;
 
-    lib_ver_major   : i32;
-    lib_ver_minor   : i32;
-    lib_ver_rev     : i32;
+    lib_ver_major      : i32;
+    lib_ver_minor      : i32;
+    lib_ver_rev        : i32;
 
-    path_buf        : [255+1]byte;
+    path_buf           : [255+1]byte;
+
+    open_repo_name     : string;
+
+    commit             : ^git.Commit;
+    commit_hash_buf    : [1024]byte;
+    commit_message     : string;
+    commit_sig         : git.Signature;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -151,6 +167,8 @@ main :: proc() {
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
 
     main_loop: for {
+        new_frame_state.mouse_wheel = 0;
+        
         for msg.poll_message(&message) {
             switch msg in message {
                 case msg.MsgQuitMessage : {
@@ -202,6 +220,10 @@ main :: proc() {
                     gl.viewport(0, 0, i32(wnd_width), i32(wnd_height));
                     gl.scissor (0, 0, i32(wnd_width), i32(wnd_height));
                 }
+
+                case msg.MsgMouseWheel : {
+                    new_frame_state.mouse_wheel = msg.distance;
+                }
             }
         }
 
@@ -226,6 +248,8 @@ main :: proc() {
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Preferences") {
+                    imgui.checkbox("Show Console", &draw_console);
+                    imgui.checkbox("Show Demo Window", &draw_demo_window);
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Help") {
@@ -237,39 +261,90 @@ main :: proc() {
             imgui.end_main_menu_bar();
 
             if imgui.begin("TEST") {
-                imgui.input_text("Repo Path;", path_buf[..]);
-                if imgui.button("Fetch") {
-                    path := strings.to_odin_string(&path_buf[0]);
-                    if git.is_repository(path) {
-                        repo, err := git.repository_open(strings.to_odin_string(&path_buf[0]));
-                        log_if_err(err);
+                if repo == nil {
+                    imgui.input_text("Repo Path;", path_buf[..]);
+                    if imgui.button("Open") {
+                        path := strings.to_odin_string(&path_buf[0]);
+                        if git.is_repository(path) {
+                            new_repo, err := git.repository_open(path);
+                            if !log_if_err(err) {
+                                repo = new_repo;
+                                open_repo_name = strings.new_string(path); 
+                                oid, ok := git.reference_name_to_id(repo, "HEAD");
+                                if !log_if_err(ok) {
+                                    if commit != nil {
+                                        git.commit_free(commit);
+                                    }
+                                    ok = git.commit_lookup(&commit, repo, &oid);
+                                    if !log_if_err(ok) {
+                                        message_c := git.commit_message(commit);
+                                        commit_message = strings.to_odin_string(message_c);
+                                        commit_sig = git.commit_committer(commit);
+                                    }
+                                }
+                            }
+                        } else {
+                            console.logf_error("%s is not a repo", path);
+                        }
+                    }
+                } else {
+                    imgui.text("Repo: %s", open_repo_name); imgui.same_line();
+                    if imgui.button("Close Repo") {
+                        git.repository_free(repo);
+                        repo = nil;
+                    }
 
+                    if imgui.button("Fetch" ) {
                         remote, ok := git.remote_lookup(repo, "origin");
                         remote_cb, _  := git.remote_init_callbacks();
                         remote_cb.credentials = credentials_callback;
                         ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
                         if !log_if_err(ok) {
                             console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
-                        }
+                            fetch_opt := git.Fetch_Options{};
+                            fetch_cb, _  := git.remote_init_callbacks();
+                            fetch_opt.version = 1;
+                            fetch_opt.proxy_opts.version = 1;
+                            fetch_opt.callbacks = remote_cb;
 
-                        fetch_opt := git.Fetch_Options{};
-                        fetch_cb, _  := git.remote_init_callbacks();
-                        fetch_opt.version = 1;
-                        fetch_opt.proxy_opts.version = 1;
-                        fetch_opt.callbacks = remote_cb;
-
-                        ok = git.remote_fetch(remote, nil, &fetch_opt);
-                        if !log_if_err(ok) {
-                            console.log("Fetch complete...");
+                            ok = git.remote_fetch(remote, nil, &fetch_opt);
+                            if !log_if_err(ok) {
+                                console.log("Fetch complete...");
+                            }
                         }
-                        
-                        git.status_foreach(repo, status_callback, nil);
 
                         git.remote_free(remote);
-                        git.repository_free(repo);
-                    } else {
-                        console.logf_error("%s is not a repo", path);
                     }
+
+                    imgui.input_text("Commit Hash;", commit_hash_buf[..]);
+                    if imgui.button("Lookup") {
+                        if repo != nil {
+                            oid_str := cast(string)commit_hash_buf[..];
+                            oid: git.Oid;
+                            ok: = git.oid_from_str(&oid, &oid_str[0]);
+                            log_if_err(ok);
+                            if ok == 0 {
+                                if commit != nil {
+                                    git.commit_free(commit);
+                                }
+
+                                ok = git.commit_lookup(&commit, repo, &oid);
+                                log_if_err(ok);
+
+                                if ok == 0 {
+                                    message_c := git.commit_message(commit);
+                                    commit_message = strings.to_odin_string(message_c);
+                                    commit_sig = git.commit_committer(commit);
+                                }
+                            }
+                        }
+                        else {
+                            console.log("You haven't fetched a repo yet!");
+                        }
+                    }
+                    imgui.text("Author:  %s", commit_sig.name);
+                    imgui.text("Email:   %s", commit_sig.email);
+                    imgui.text("Message: %s", commit_message);
                 }
                 imgui.end();
             }
@@ -278,7 +353,9 @@ main :: proc() {
                 defer imgui.end();
             }
 
-            console.draw_console(nil, &draw_log, &draw_history);
+            if draw_console {
+                console.draw_console(&draw_console, &draw_log, &draw_history);
+            }
             if draw_log {
                 console.draw_log(&draw_log);
             }
@@ -286,7 +363,9 @@ main :: proc() {
                 console.draw_history(&draw_history);
             }
 
-            imgui.show_test_window();
+            if draw_demo_window {
+                imgui.show_test_window(&draw_demo_window);
+            }
         }
         imgui.render_proc(dear_state, wnd_width, wnd_height);
         

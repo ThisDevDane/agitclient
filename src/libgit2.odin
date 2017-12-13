@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 00:29:40
+ *  @Last Time: 13-12-2017 20:07:28 GMT+1
  *  
  *  @Description:
  *  
@@ -25,10 +25,23 @@ Remote     :: struct #ordered {};
 Tree       :: struct #ordered {};
 Index      :: struct #ordered {};
 Transport  :: struct #ordered {};
+Commit     :: struct #ordered {};
 
 Oid :: struct #ordered {
     /** raw binary formatted id */
     id : [GIT_OID_RAWSZ]byte,
+}
+
+Signature :: struct {
+    name      : string,   //Full name of the author
+    email     : string,   //Email of the author
+    time_when : Time, //Time when the action happened
+}
+
+Git_Signature :: struct #ordered {
+    name      : ^byte,    //Full name of the author
+    email     : ^byte,    //Email of the author
+    time_when : Time, //Time when the action happened
 }
 
 Repository_Init_Options :: struct #ordered {
@@ -138,6 +151,12 @@ Repository_Init_Mode :: enum u32 {
     Shared_Umask = 0,       //Use permissions configured by umask - the default.
     Shared_Group = 0002775, //Use "--shared=group" behavior, chmod'ing the new repo to be group writable and "g+sx" for sticky group assignment.
     Shared_All   = 0002777, //Use "--shared=all" behavior, adding world readability. Anything else - Set to custom value.
+}
+
+Time :: struct #ordered {
+    time   : i64,   //time in seconds from epoch
+    offset : i32, //timezone offset, in minutes
+    sign   : byte,  //indicator for questionable '-0000' offsets in signature
 }
 
 Index_Time :: struct #ordered {
@@ -788,65 +807,21 @@ Status_Cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, pa
 
 REMOTE_CALLBACKS_VERSION :: 1;
 
-@(default_calling_convention="stdcall")
-foreign libgit {
-    @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
-    @(link_name = "git_libgit2_shutdown") lib_shutdown :: proc() -> i32 ---;
-    @(link_name = "git_libgit2_features") lib_features :: proc() -> Lib_Features ---;
-    @(link_name = "git_libgit2_version")  lib_version  :: proc(major : ^i32, minor : ^i32, rev : ^i32) ---;
-
-    giterr_last :: proc() -> ^Git_Error ---;
-
-    git_repository_init :: proc(out : ^^Repository, path : ^byte, is_bare : u32) -> i32 ---;
-    git_repository_init_ext :: proc(out : ^^Repository, path : ^byte, pots : ^Repository_Init_Options) -> i32 ---;
-    @(link_name = "git_repository_free") repository_free :: proc(repo : ^Repository) ---;
-
-    git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
-
-    git_repository_open :: proc(out : ^^Repository, path : ^byte) -> i32 ---;
-    git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
-
-    @(link_name = "git_status_foreach") status_foreach :: proc(repo : ^Repository, callback : Status_Cb, payload : rawptr) -> i32 ---;
-    @(link_name = "git_status_foreach_ext") status_foreach_ext :: proc(repo : ^Repository, opts : ^Status_Options, callback : Status_Cb, payload : rawptr) -> i32 ---;
-
-    git_status_list_new :: proc(out : ^^Status_List, repo : ^Repository, opts : ^Status_Options) -> i32 ---;
-
-    @(link_name = "git_status_list_entrycount") status_list_entrycount :: proc(statuslist: ^Status_List) -> uint ---;
-    @(link_name = "git_status_byindex") status_byindex :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
-
-    git_remote_lookup :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> i32 ---;
-    git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
-    @(link_name = "git_remote_default_branch") remote_default_branch :: proc(out : ^Buf, remote : ^Remote) -> i32 ---;
-    @(link_name = "git_remote_connect")        remote_connect        :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> i32 ---;
-    @(link_name = "git_remote_disconnect")     remote_disconnect     :: proc(remote : ^Remote) ---;
-    @(link_name = "git_remote_init_callbacks") remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> i32 ---;
-    @(link_name = "git_remote_connected")      remote_connected      :: proc(remote : ^Remote) -> i32 ---;
-    git_remote_fetch :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> i32 ---;
-    @(link_name = "git_remote_free")           remote_free           :: proc(remote : ^Remote) ---;
-
-    @(link_name = "git_repository_index") repository_index :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
-    git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
-    git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> i32 ---;
-    @(link_name = "git_index_entrycount")  index_entrycount   :: proc(index : ^Index) -> uint ---;
-    @(link_name = "git_index_get_byindex") index_get_byindex  :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
-
-    git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
-    @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
-}
-
 err_last        :: proc() -> Error {
     err := giterr_last();
     str := strings.to_odin_string(err.message);
     return Error{str, err.klass};
 }
 
-repository_init :: proc(path : string, is_bare : bool = false) -> (^Repository, i32) {
+repository_init :: proc[repository_init_, repository_init_ext];
+
+repository_init_ :: proc(path : string, is_bare : bool = false) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_repository_init(&repo, _make_path_string(path), u32(is_bare));
     return repo, err;
 }
 
-repository_init :: proc(path : string, opts : ^Repository_Init_Options) -> (^Repository, i32) {
+repository_init_ext :: proc(path : string, opts : ^Repository_Init_Options) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_repository_init_ext(&repo, _make_path_string(path), opts);
     return repo, err;
@@ -858,13 +833,15 @@ clone           :: proc(url : string, local_path : string, options : ^Clone_Opti
     return repo, err;
 }
 
-repository_open :: proc(path : string) -> (^Repository, i32) {
+repository_open :: proc[repository_open_, repository_open_ext];
+
+repository_open_ :: proc(path : string) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_repository_open(&repo, _make_path_string(path));
     return repo, err;
 }
 
-repository_open :: proc(path : string, flags : Repository_Open_Flags, ceiling_dirs : string) -> (^Repository, i32) {
+repository_open_ext :: proc(path : string, flags : Repository_Open_Flags, ceiling_dirs : string) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_repository_open_ext(&repo, _make_path_string(path), flags, _make_misc_string(ceiling_dirs));
     return repo, err;
@@ -893,7 +870,7 @@ remote_list   :: proc(repo : ^Repository) -> ([]string, i32) {
 
 remote_init_callbacks :: proc() -> (Remote_Callbacks, i32) {
     cb := Remote_Callbacks{};
-    err := remote_init_callbacks(&cb, 1);
+    err := git_remote_init_callbacks(&cb, 1);
     return cb, err; 
 }
 
@@ -906,15 +883,17 @@ remote_fetch :: proc(remote : ^Remote, refspecs : []string, opts : ^Fetch_Option
 
 repository_index :: proc(repo : ^Repository) -> (^Index, i32) {
     index : ^Index = nil;
-    err := repository_index(&index, repo);
+    err := git_repository_index(&index, repo);
     return index, err;
 }
 
+index_add :: proc[git_index_add, index_add_bypath];
 index_add_bypath :: proc(index : ^Index, path : string) -> i32 {
     err := git_index_add_bypath(index, _make_path_string(path));
     return err;
 }
 
+index_remove :: proc[git_index_remove, index_remove_bypath];
 index_remove_bypath :: proc(index : ^Index, path : string) -> i32 {
     err := git_index_remove_bypath(index, _make_path_string(path));
     return err;
@@ -939,4 +918,86 @@ status_list_new :: proc(repo : ^Repository, opts : ^Status_Options) -> (^Status_
     out : ^Status_List = nil;
     err := git_status_list_new(&out, repo, opts);
     return out, err;
+}
+
+reference_name_to_id :: proc(repo : ^Repository, name : string) -> (Oid, i32) {
+    id := Oid{};
+    err := git_reference_name_to_id(&id, repo, _make_misc_string(name));
+    return id, err;
+}
+
+commit_committer :: proc(commit : ^Commit) -> Signature {
+    gsig := git_commit_committer(commit);
+    //NOTE(Hoej): YUCK!
+    sig := Signature {
+        strings.new_string(strings.to_odin_string(gsig.name)),
+        strings.new_string(strings.to_odin_string(gsig.email)),
+        gsig.time_when
+    };
+    git_signature_free(gsig);
+    
+    return sig;
+}
+
+@(default_calling_convention="stdcall")
+foreign libgit {
+    @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
+    @(link_name = "git_libgit2_shutdown") lib_shutdown :: proc() -> i32 ---;
+    @(link_name = "git_libgit2_features") lib_features :: proc() -> Lib_Features ---;
+    @(link_name = "git_libgit2_version")  lib_version  :: proc(major : ^i32, minor : ^i32, rev : ^i32) ---;
+
+    giterr_last :: proc() -> ^Git_Error ---;
+
+    git_repository_init :: proc(out : ^^Repository, path : ^byte, is_bare : u32) -> i32 ---;
+    git_repository_init_ext :: proc(out : ^^Repository, path : ^byte, pots : ^Repository_Init_Options) -> i32 ---;
+    @(link_name = "git_repository_free") repository_free :: proc(repo : ^Repository) ---;
+
+    git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
+
+    git_repository_open :: proc(out : ^^Repository, path : ^byte) -> i32 ---;
+    git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
+
+    @(link_name = "git_status_foreach") status_foreach :: proc(repo : ^Repository, callback : Status_Cb, payload : rawptr) -> i32 ---;
+    @(link_name = "git_status_foreach_ext") status_foreach_ext :: proc(repo : ^Repository, opts : ^Status_Options, callback : Status_Cb, payload : rawptr) -> i32 ---;
+
+    git_status_list_new :: proc(out : ^^Status_List, repo : ^Repository, opts : ^Status_Options) -> i32 ---;
+
+    @(link_name = "git_status_list_entrycount") status_list_entrycount :: proc(statuslist: ^Status_List) -> uint ---;
+    @(link_name = "git_status_byindex") status_byindex :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
+
+    // Commits
+    @(link_name = "git_commit_free")        commit_free        :: proc(out: ^Commit) ---;
+    @(link_name = "git_commit_lookup")      commit_lookup      :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
+    @(link_name = "git_commit_message")     commit_message     :: proc(commit: ^Commit) -> ^u8 ---;
+    @(link_name = "git_commit_parentcount") commit_parentcount :: proc(commit : ^Commit) -> u32 ---;
+    @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
+    git_commit_committer :: proc(commit : ^Commit) -> ^Git_Signature ---; 
+
+    git_signature_free :: proc(sig : ^Git_Signature) ---;
+
+    // Oid
+    @(link_name = "git_oid_fromstr") oid_from_str :: proc(out: ^Oid, str: ^u8) -> i32 ---;
+
+    git_remote_lookup :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> i32 ---;
+    git_remote_list   :: proc(out : ^Str_Array, repo : ^Repository) -> i32 ---;
+    @(link_name = "git_remote_default_branch") remote_default_branch :: proc(out : ^Buf, remote : ^Remote) -> i32 ---;
+    @(link_name = "git_remote_connect")        remote_connect        :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> i32 ---;
+    @(link_name = "git_remote_disconnect")     remote_disconnect     :: proc(remote : ^Remote) ---;
+    git_remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> i32 ---;
+    @(link_name = "git_remote_connected")      remote_connected      :: proc(remote : ^Remote) -> i32 ---;
+    git_remote_fetch :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> i32 ---;
+    @(link_name = "git_remote_free")           remote_free           :: proc(remote : ^Remote) ---;
+
+    git_repository_index    :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
+    git_index_add           :: proc(index : ^Index, entry : ^Index_Entry) -> i32 ---;
+    git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
+    git_index_remove        :: proc(index : ^Index, entry : ^Index_Entry) -> i32 ---;
+    git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> i32 ---;
+    @(link_name = "git_index_entrycount")  index_entrycount   :: proc(index : ^Index) -> uint ---;
+    @(link_name = "git_index_get_byindex") index_get_byindex  :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
+
+    git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
+    @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
+
+    git_reference_name_to_id :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> i32 ---;
 }
