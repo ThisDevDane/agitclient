@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 01:21:06
+ *  @Last Time: 13-12-2017 20:07:28 GMT+1
  *  
  *  @Description:
  *  
@@ -30,6 +30,18 @@ Commit     :: struct #ordered {};
 Oid :: struct #ordered {
     /** raw binary formatted id */
     id : [GIT_OID_RAWSZ]byte,
+}
+
+Signature :: struct {
+    name      : string,   //Full name of the author
+    email     : string,   //Email of the author
+    time_when : Time, //Time when the action happened
+}
+
+Git_Signature :: struct #ordered {
+    name      : ^byte,    //Full name of the author
+    email     : ^byte,    //Email of the author
+    time_when : Time, //Time when the action happened
 }
 
 Repository_Init_Options :: struct #ordered {
@@ -139,6 +151,12 @@ Repository_Init_Mode :: enum u32 {
     Shared_Umask = 0,       //Use permissions configured by umask - the default.
     Shared_Group = 0002775, //Use "--shared=group" behavior, chmod'ing the new repo to be group writable and "g+sx" for sticky group assignment.
     Shared_All   = 0002777, //Use "--shared=all" behavior, adding world readability. Anything else - Set to custom value.
+}
+
+Time :: struct #ordered {
+    time   : i64,   //time in seconds from epoch
+    offset : i32, //timezone offset, in minutes
+    sign   : byte,  //indicator for questionable '-0000' offsets in signature
 }
 
 Index_Time :: struct #ordered {
@@ -902,6 +920,25 @@ status_list_new :: proc(repo : ^Repository, opts : ^Status_Options) -> (^Status_
     return out, err;
 }
 
+reference_name_to_id :: proc(repo : ^Repository, name : string) -> (Oid, i32) {
+    id := Oid{};
+    err := git_reference_name_to_id(&id, repo, _make_misc_string(name));
+    return id, err;
+}
+
+commit_committer :: proc(commit : ^Commit) -> Signature {
+    gsig := git_commit_committer(commit);
+    //NOTE(Hoej): YUCK!
+    sig := Signature {
+        strings.new_string(strings.to_odin_string(gsig.name)),
+        strings.new_string(strings.to_odin_string(gsig.email)),
+        gsig.time_when
+    };
+    git_signature_free(gsig);
+    
+    return sig;
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -929,9 +966,14 @@ foreign libgit {
     @(link_name = "git_status_byindex") status_byindex :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
 
     // Commits
-    @(link_name = "git_commit_free") commit_free :: proc(out: ^Commit) ---;
-    @(link_name = "git_commit_lookup") commit_lookup :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
-    @(link_name = "git_commit_message") commit_message :: proc(commit: ^Commit) -> ^u8 ---;
+    @(link_name = "git_commit_free")        commit_free        :: proc(out: ^Commit) ---;
+    @(link_name = "git_commit_lookup")      commit_lookup      :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
+    @(link_name = "git_commit_message")     commit_message     :: proc(commit: ^Commit) -> ^u8 ---;
+    @(link_name = "git_commit_parentcount") commit_parentcount :: proc(commit : ^Commit) -> u32 ---;
+    @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
+    git_commit_committer :: proc(commit : ^Commit) -> ^Git_Signature ---; 
+
+    git_signature_free :: proc(sig : ^Git_Signature) ---;
 
     // Oid
     @(link_name = "git_oid_fromstr") oid_from_str :: proc(out: ^Oid, str: ^u8) -> i32 ---;
@@ -956,4 +998,6 @@ foreign libgit {
 
     git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
     @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
+
+    git_reference_name_to_id :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> i32 ---;
 }

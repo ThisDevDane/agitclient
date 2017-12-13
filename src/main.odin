@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-12-2017 19:30:29 GMT+1
+ *  @Last Time: 13-12-2017 20:14:36 GMT+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -88,10 +88,14 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
-log_if_err :: proc(err : i32) -> bool {
+log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
     if err != 0 {
         gerr := git.err_last();
-        console.logf_error("LibGit2 Error: %v | %v | %s", err, gerr.klass, gerr.message);
+        console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
+                                                                  gerr.klass, 
+                                                                  gerr.message, 
+                                                                  string_util.remove_path_from_file(loc.file_path), 
+                                                                  loc.line);
         return true;
     } else {
         return false;
@@ -141,6 +145,7 @@ main :: proc() {
     commit             : ^git.Commit;
     commit_hash_buf    : [1024]byte;
     commit_message     : string;
+    commit_sig         : git.Signature;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -265,6 +270,18 @@ main :: proc() {
                             if !log_if_err(err) {
                                 repo = new_repo;
                                 open_repo_name = strings.new_string(path); 
+                                oid, ok := git.reference_name_to_id(repo, "HEAD");
+                                if !log_if_err(ok) {
+                                    if commit != nil {
+                                        git.commit_free(commit);
+                                    }
+                                    ok = git.commit_lookup(&commit, repo, &oid);
+                                    if !log_if_err(ok) {
+                                        message_c := git.commit_message(commit);
+                                        commit_message = strings.to_odin_string(message_c);
+                                        commit_sig = git.commit_committer(commit);
+                                    }
+                                }
                             }
                         } else {
                             console.logf_error("%s is not a repo", path);
@@ -284,20 +301,17 @@ main :: proc() {
                         ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
                         if !log_if_err(ok) {
                             console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
+                            fetch_opt := git.Fetch_Options{};
+                            fetch_cb, _  := git.remote_init_callbacks();
+                            fetch_opt.version = 1;
+                            fetch_opt.proxy_opts.version = 1;
+                            fetch_opt.callbacks = remote_cb;
+
+                            ok = git.remote_fetch(remote, nil, &fetch_opt);
+                            if !log_if_err(ok) {
+                                console.log("Fetch complete...");
+                            }
                         }
-
-                        fetch_opt := git.Fetch_Options{};
-                        fetch_cb, _  := git.remote_init_callbacks();
-                        fetch_opt.version = 1;
-                        fetch_opt.proxy_opts.version = 1;
-                        fetch_opt.callbacks = remote_cb;
-
-                        ok = git.remote_fetch(remote, nil, &fetch_opt);
-                        if !log_if_err(ok) {
-                            console.log("Fetch complete...");
-                        }
-
-                        git.status_foreach(repo, status_callback, nil);
 
                         git.remote_free(remote);
                     }
@@ -320,6 +334,7 @@ main :: proc() {
                                 if ok == 0 {
                                     message_c := git.commit_message(commit);
                                     commit_message = strings.to_odin_string(message_c);
+                                    commit_sig = git.commit_committer(commit);
                                 }
                             }
                         }
@@ -327,7 +342,9 @@ main :: proc() {
                             console.log("You haven't fetched a repo yet!");
                         }
                     }
-                    imgui.text("%s: %s", "Message", commit_message);
+                    imgui.text("Author:  %s", commit_sig.name);
+                    imgui.text("Email:   %s", commit_sig.email);
+                    imgui.text("Message: %s", commit_message);
                 }
                 imgui.end();
             }
