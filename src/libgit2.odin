@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   bpunsky
- *  @Last Time: 13-12-2017 16:25:11 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 14-12-2017 01:38:25 GMT+1
  *  
  *  @Description:
  *  
@@ -1045,6 +1045,7 @@ foreign libgit {
     @(link_name = "git_status_foreach_ext") status_foreach_ext :: proc(repo : ^Repository, opts : ^Status_Options, callback : Status_Cb, payload : rawptr) -> i32 ---;
 
     git_status_list_new :: proc(out : ^^Status_List, repo : ^Repository, opts : ^Status_Options) -> i32 ---;
+    @(link_name = "git_status_list_free") status_list_free :: proc(list : ^Status_List) ---;
 
     @(link_name = "git_status_list_entrycount") status_list_entrycount :: proc(statuslist: ^Status_List) -> uint ---;
     @(link_name = "git_status_byindex") status_byindex :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
