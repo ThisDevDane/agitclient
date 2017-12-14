@@ -26,6 +26,9 @@ Tree       :: struct #ordered {};
 Index      :: struct #ordered {};
 Transport  :: struct #ordered {};
 Commit     :: struct #ordered {};
+Reference  :: struct #ordered {};
+
+Branch_Iterator  :: struct #ordered {};
 
 Oid :: struct #ordered {
     /** raw binary formatted id */
@@ -862,6 +865,12 @@ Status_Opt_Defaults :: Status_Opt_Flags.Include_Ignored       |
                        Status_Opt_Flags.Include_Untracked     |
                        Status_Opt_Flags.Recurse_Untracked_Dirs;
 
+Branch_Flags :: enum i32 {
+    Local = 1,
+    Remote = 2,
+    All = Local|Remote,
+}
+
 ///////////////////////// Odin UTIL /////////////////////////
 
 _PATH_BUF_SIZE :: 4096;
@@ -929,6 +938,12 @@ repository_open_ext :: proc(path : string, flags : Repository_Open_Flags, ceilin
     repo : ^Repository = nil;
     err := git_repository_open_ext(&repo, _make_path_string(path), flags, _make_misc_string(ceiling_dirs));
     return repo, err;
+}
+
+repository_head :: proc(repo : ^Repository) -> (^Reference, i32) {
+    ref : ^Reference = nil;
+    err := git_repository_head(&ref, repo);
+    return ref, err;
 }
 
 is_repository  :: proc(path : string) -> bool {
@@ -1023,6 +1038,43 @@ commit_committer :: proc(commit : ^Commit) -> Signature {
     return sig;
 }
 
+commit_author :: proc(commit : ^Commit) -> Signature {
+    gsig := git_commit_author(commit);
+    //NOTE(Hoej): YUCK!
+    sig := Signature {
+        strings.new_string(strings.to_odin_string(gsig.name)),
+        strings.new_string(strings.to_odin_string(gsig.email)),
+        gsig.time_when
+    };
+    git_signature_free(gsig);
+    
+    return sig;
+}
+
+commit_raw_header :: proc(commit : ^Commit) -> string {
+    ptr := git_commit_raw_header(commit);
+    return strings.to_odin_string(ptr);
+}
+
+branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Flags) -> (^Branch_Iterator, i32) {
+    iter : ^Branch_Iterator = nil;
+    err := git_branch_iterator_new(&iter, repo, list_flags);
+    return iter, err;
+}
+    
+branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Flags, i32) {
+    ref : ^Reference = nil;
+    flags : Branch_Flags;
+    err := git_branch_next(&ref, &flags, iter);
+    return ref, flags, err;
+}
+
+branch_name :: proc(ref : ^Reference) -> (string, i32) {
+    c_str : ^byte;
+    err := git_branch_name(&c_str, ref);
+    return strings.to_odin_string(c_str), err;
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -1032,19 +1084,21 @@ foreign libgit {
 
     giterr_last :: proc() -> ^Git_Error ---;
 
+    //Repository
     git_repository_init :: proc(out : ^^Repository, path : ^byte, is_bare : u32) -> i32 ---;
     git_repository_init_ext :: proc(out : ^^Repository, path : ^byte, pots : ^Repository_Init_Options) -> i32 ---;
     @(link_name = "git_repository_free") repository_free :: proc(repo : ^Repository) ---;
-
-    git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
-
     git_repository_open :: proc(out : ^^Repository, path : ^byte) -> i32 ---;
     git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
+    git_repository_head :: proc(out : ^^Reference, repo : ^Repository) -> i32 ---;
+
+    git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
 
     @(link_name = "git_status_foreach") status_foreach :: proc(repo : ^Repository, callback : Status_Cb, payload : rawptr) -> i32 ---;
     @(link_name = "git_status_foreach_ext") status_foreach_ext :: proc(repo : ^Repository, opts : ^Status_Options, callback : Status_Cb, payload : rawptr) -> i32 ---;
 
     git_status_list_new :: proc(out : ^^Status_List, repo : ^Repository, opts : ^Status_Options) -> i32 ---;
+    @(link_name = "git_status_list_free") status_list_free :: proc(list : ^Status_List) ---;
 
     @(link_name = "git_status_list_entrycount") status_list_entrycount :: proc(statuslist: ^Status_List) -> uint ---;
     @(link_name = "git_status_byindex") status_byindex :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
@@ -1058,6 +1112,8 @@ foreign libgit {
     @(link_name = "git_commit_parentcount") commit_parentcount :: proc(commit : ^Commit) -> u32 ---;
     @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
     git_commit_committer :: proc(commit : ^Commit) -> ^Git_Signature ---; 
+    git_commit_author    :: proc(commit : ^Commit) -> ^Git_Signature ---; 
+    git_commit_raw_header :: proc(commit : ^Commit) -> ^byte ---;
 
     git_signature_free :: proc(sig : ^Git_Signature) ---;
 
@@ -1086,4 +1142,11 @@ foreign libgit {
     @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
 
     git_reference_name_to_id :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> i32 ---;
+
+    //Branch
+    git_branch_name :: proc(out : ^^byte, ref : ^Reference) -> i32 ---;
+    git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Flags) -> i32 ---;
+    @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
+    git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Flags, iter : ^Branch_Iterator) -> i32 ---;
+
 }

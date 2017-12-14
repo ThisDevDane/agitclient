@@ -30,6 +30,13 @@ import git     "libgit2.odin";
 import console "console.odin";
 using import _ "debug.odin";
 
+Commit :: struct {
+    git_commit : ^git.Commit,
+    author     : git.Signature,
+    commiter   : git.Signature,
+    message    : string,
+}
+
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
     res := wgl.get_proc_address(name);
@@ -87,6 +94,55 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
+log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
+    if err != 0 {
+        fmt.println(err);
+        gerr := git.err_last();
+        console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
+                                                                  gerr.klass, 
+                                                                  gerr.message, 
+                                                                  string_util.remove_path_from_file(loc.file_path), 
+                                                                  loc.line);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+get_all_branch_names :: proc(repo : ^git.Repository) -> ([]string, []git.Branch_Flags) {
+    GIT_ITEROVER :: -31;
+    result_t : [dynamic]git.Branch_Flags;
+    result : [dynamic]string;
+    iter, err := git.branch_iterator_new(repo, git.Branch_Flags.All);
+    over : i32 = 0;
+    for over != GIT_ITEROVER {
+        ref, btype, over := git.branch_next(iter);
+        if over == GIT_ITEROVER do break;
+        if !log_if_err(over) {
+            name, suc := git.branch_name(ref);
+            append(&result, name);
+            append(&result_t, btype);
+        }
+    }
+
+    git.branch_iterator_free(iter);
+    return result[..], result_t[..];
+} 
+
+get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
+    result : Commit;
+
+    err := git.commit_lookup(&result.git_commit, repo, &oid);
+    if !log_if_err(err) {
+        c_str := git.commit_message(result.git_commit);
+        result.message = strings.to_odin_string(c_str);
+        result.commiter = git.commit_committer(result.git_commit);
+        result.author = git.commit_author(result.git_commit);
+    }
+
+    return result;
+}
+
 main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
@@ -130,10 +186,12 @@ main :: proc() {
 
     open_repo_name     : string;
 
-    commit             : ^git.Commit;
+    current_commit     : Commit;
     commit_hash_buf    : [1024]byte;
-    commit_message     : string;
-    commit_sig         : git.Signature;
+
+    branch_name      : string;
+    branch_names     : []string;
+    branch_types     : []git.Branch_Flags;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -269,19 +327,19 @@ main :: proc() {
                                 open_repo_name = strings.new_string(path); 
                                 oid, ok := git.reference_name_to_id(repo, "HEAD");
                                 if !log_if_err(ok) {
-                                    if commit != nil {
-                            debug();
-                                        git.commit_free(commit);
-                            debug();
-                                        commit = nil;
+                                    if current_commit.git_commit != nil {
+                                        git.commit_free(current_commit.git_commit);
                                     }
-                                    ok = git.commit_lookup(&commit, repo, &oid);
-                                    if !log_if_err(ok) {
-                                        message_c := git.commit_message(commit);
-                                        commit_message = strings.to_odin_string(message_c);
-                                        commit_sig = git.commit_committer(commit);
-                                    }
+                                    current_commit = get_commit(repo, oid);
                                 }
+                                ref : ^git.Reference;
+                                ref, ok = git.repository_head(repo);
+                                if !log_if_err(ok) {
+                                    branch_name, err = git.branch_name(ref);
+                                }
+
+                                branch_names, branch_types = get_all_branch_names(repo);
+
                             }
 
                         } else {
@@ -293,6 +351,9 @@ main :: proc() {
                     if imgui.button("Close Repo") {
                         git.repository_free(repo);
                         repo = nil;
+                        free(branch_names);
+                        free(branch_types);
+                        branch_names = nil;
                     } else {
                         if imgui.button("Fetch" ) {
                             remote, ok := git.remote_lookup(repo, "origin");
@@ -318,28 +379,94 @@ main :: proc() {
 
                         imgui.input_text("Commit Hash;", commit_hash_buf[..]);
                         if imgui.button("Lookup") {
-                            oid_str := cast(string)commit_hash_buf[..];
-                            oid: git.Oid;
-                            ok: = git.oid_from_str(&oid, &oid_str[0]);
-                            log_if_err(ok);
-                            if ok == 0 {
-                                if commit != nil {
-                                    git.commit_free(commit);
-                                }
+                            if repo != nil {
+                                oid_str := cast(string)commit_hash_buf[..];
+                                oid: git.Oid;
+                                ok: = git.oid_from_str(&oid, &oid_str[0]);
+                                
+                                if !log_if_err(ok) {
+                                    if current_commit.git_commit != nil {
+                                        git.commit_free(current_commit.git_commit);
+                                    }
 
-                                ok = git.commit_lookup(&commit, repo, &oid);
-                                log_if_err(ok);
-
-                                if ok == 0 {
-                                    message_c := git.commit_message(commit);
-                                    commit_message = strings.to_odin_string(message_c);
-                                    commit_sig = git.commit_committer(commit);
+                                    current_commit = get_commit(repo, oid);
                                 }
                             }
+                            else {
+                                console.log("You haven't fetched a repo yet!");
+                            }
                         }
-                        imgui.text("Author:  %s", commit_sig.name);
-                        imgui.text("Email:   %s", commit_sig.email);
-                        imgui.text("Message: %s", commit_message);
+
+                        imgui.text("Branch: %s",         branch_name);
+                        imgui.text("Commiter: %s",       current_commit.commiter.name);
+                        imgui.text("Commiter Email: %s", current_commit.commiter.email);
+                        imgui.text("Author: %s",         current_commit.author.name);
+                        imgui.text("Author Email: %s",   current_commit.author.email);
+                        imgui.text("Message: %s",        current_commit.message);
+
+                        imgui.separator();
+
+                        if imgui.button("Status") {
+                            if statuses != nil {
+                                git.status_list_free(statuses);
+                            }
+                            options : git.Status_Options;
+                            git.status_init_options(&options, 1);
+                            err : i32;
+                            statuses, err = git.status_list_new(repo, &options); 
+                            log_if_err(err);
+                        }
+                        
+
+                        if statuses != nil {
+                            count := git.status_list_entrycount(statuses);
+
+                            imgui.text("Changes to be committed:");
+                            if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
+                                imgui.columns(count = 2, border = false);
+                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
+                                for i: uint = 0; i < count; i += 1 {
+                                    if entry := git.status_byindex(statuses, i); entry != nil {
+                                        if entry.head_to_index != nil {
+                                            if entry.head_to_index.old_file.path != nil {
+                                                imgui.set_column_width(-1, 100);
+                                                imgui.text("%v", entry.head_to_index.status);
+                                                imgui.next_column();
+                                                imgui.text(strings.to_odin_string(entry.head_to_index.old_file.path));
+                                                imgui.next_column();
+                                            }
+                                        }
+                                    } else {
+                                        console.logf_error("entry nil: index %d", i);
+                                    }
+                                }
+                                imgui.pop_style_color();
+                            }
+                            imgui.end_child();
+
+                            imgui.text("Changes not staged for commit:");
+                            if imgui.begin_child("NotStaged", imgui.Vec2{0, 100}) {
+                                imgui.columns(count = 2, border = false);
+                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+                                for i: uint = 0; i < count; i += 1 {
+                                    if entry := git.status_byindex(statuses, i); entry != nil {
+                                        if entry.index_to_workdir != nil {
+                                            if entry.index_to_workdir.old_file.path != nil {
+                                                imgui.set_column_width(-1, 100);
+                                                imgui.text("%v", entry.index_to_workdir.status);
+                                                imgui.next_column();
+                                                imgui.text(strings.to_odin_string(entry.index_to_workdir.old_file.path));
+                                                imgui.next_column();
+                                            }
+                                        }
+                                    } else {
+                                        console.logf_error("entry nil: index %d", i);
+                                    }
+                                }
+                                imgui.pop_style_color();
+                            }
+                            imgui.end_child();
+                        }
 
                         imgui.separator();
 
@@ -406,6 +533,18 @@ main :: proc() {
                             }
                             imgui.end_child();
                         }
+                    }
+                }
+            }
+
+            if len(branch_names) > 0 {
+                if imgui.begin("Branches") {
+                    defer imgui.end();
+
+                    for name, i in branch_names {
+                        btype := branch_types[i];
+                        imgui.text("%v", btype); imgui.same_line();
+                        imgui.text(name);
                     }
                 }
             }
