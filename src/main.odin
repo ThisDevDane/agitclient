@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 04:37:43 UTC+1
+ *  @Last Time: 14-12-2017 04:47:12 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -188,7 +188,7 @@ main :: proc() {
     current_commit     : Commit;
     commit_hash_buf    : [1024]byte;
 
-    branch_c           : ^byte;
+    branch_name      : string;
     branch_names     : []string;
     branch_types     : []git.Branch_Flags;
 
@@ -327,7 +327,7 @@ main :: proc() {
                                 ref : ^git.Reference;
                                 ref, ok = git.repository_head(repo);
                                 if !log_if_err(ok) {
-                                    git.git_branch_name(&branch_c, ref);
+                                    branch_name, err = git.branch_name(ref);
                                 }
 
                                 branch_names, branch_types = get_all_branch_names(repo);
@@ -388,7 +388,7 @@ main :: proc() {
                             }
                         }
 
-                        imgui.text("Branch: %s",         strings.to_odin_string(branch_c));
+                        imgui.text("Branch: %s",         branch_name);
                         imgui.text("Commiter: %s",       current_commit.commiter.name);
                         imgui.text("Commiter Email: %s", current_commit.commiter.email);
                         imgui.text("Author: %s",         current_commit.author.name);
