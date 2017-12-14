@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 05:22:14 UTC+1
+ *  @Last By:   bpunsky
+ *  @Last Time: 13-12-2017 23:26:30 UTC-5
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -101,7 +101,6 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
-get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Flags) -> []Branch {
     GIT_ITEROVER :: -31;
     result : [dynamic]Branch;
     iter, err := git.branch_iterator_new(repo, btype);
@@ -406,70 +405,6 @@ main :: proc() {
                         if imgui.button("Status") {
                             if statuses != nil {
                                 git.status_list_free(statuses);
-                            }
-                            options : git.Status_Options;
-                            git.status_init_options(&options, 1);
-                            err : i32;
-                            statuses, err = git.status_list_new(repo, &options); 
-                            log_if_err(err);
-                        }
-                        
-
-                        if statuses != nil {
-                            count := git.status_list_entrycount(statuses);
-
-                            imgui.text("Changes to be committed:");
-                            if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
-                                imgui.columns(count = 2, border = false);
-                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                                for i: uint = 0; i < count; i += 1 {
-                                    if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.head_to_index != nil {
-                                            if entry.head_to_index.old_file.path != nil {
-                                                imgui.set_column_width(-1, 100);
-                                                imgui.text("%v", entry.head_to_index.status);
-                                                imgui.next_column();
-                                                imgui.text(strings.to_odin_string(entry.head_to_index.old_file.path));
-                                                imgui.next_column();
-                                            }
-                                        }
-                                    } else {
-                                        console.logf_error("entry nil: index %d", i);
-                                    }
-                                }
-                                imgui.pop_style_color();
-                            }
-                            imgui.end_child();
-
-                            imgui.text("Changes not staged for commit:");
-                            if imgui.begin_child("NotStaged", imgui.Vec2{0, 100}) {
-                                imgui.columns(count = 2, border = false);
-                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
-                                for i: uint = 0; i < count; i += 1 {
-                                    if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.index_to_workdir != nil {
-                                            if entry.index_to_workdir.old_file.path != nil {
-                                                imgui.set_column_width(-1, 100);
-                                                imgui.text("%v", entry.index_to_workdir.status);
-                                                imgui.next_column();
-                                                imgui.text(strings.to_odin_string(entry.index_to_workdir.old_file.path));
-                                                imgui.next_column();
-                                            }
-                                        }
-                                    } else {
-                                        console.logf_error("entry nil: index %d", i);
-                                    }
-                                }
-                                imgui.pop_style_color();
-                            }
-                            imgui.end_child();
-                        }
-
-                        imgui.separator();
-
-                        if imgui.button("Status") {
-                            if statuses != nil {
-                                git.status_list_free(statuses);
                                 statuses = nil;
                             } else {
                                 options : git.Status_Options;
@@ -480,7 +415,6 @@ main :: proc() {
                             }
                         }
                         
-
                         if statuses != nil {
                             count := git.status_list_entrycount(statuses);
 
