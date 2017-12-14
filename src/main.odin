@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 06:10:13 UTC+1
+ *  @Last By:   bpunsky
+ *  @Last Time: 14-12-2017 00:23:35 UTC-5
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -320,7 +320,6 @@ main :: proc() {
                     imgui.input_text("Repo Path;", path_buf[..]);
                     if imgui.button("Open") {
                         path := strings.to_odin_string(&path_buf[0]);
-                        debug(path);
                         if git.is_repository(path) {
                             new_repo, err := git.repository_open(path);
                             if !log_if_err(err) {
