@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 04:28:15 UTC+1
+ *  @Last Time: 14-12-2017 04:37:43 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -28,6 +28,13 @@ import       "shared:libbrew/gl.odin";
 
 import git     "libgit2.odin";
 import console "console.odin";
+
+Commit :: struct {
+    git_commit : ^git.Commit,
+    author     : git.Signature,
+    commiter   : git.Signature,
+    message    : string,
+}
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -121,6 +128,20 @@ get_all_branch_names :: proc(repo : ^git.Repository) -> ([]string, []git.Branch_
     return result[..], result_t[..];
 } 
 
+get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
+    result : Commit;
+
+    err := git.commit_lookup(&result.git_commit, repo, &oid);
+    if !log_if_err(err) {
+        c_str := git.commit_message(result.git_commit);
+        result.message = strings.to_odin_string(c_str);
+        result.commiter = git.commit_committer(result.git_commit);
+        result.author = git.commit_author(result.git_commit);
+    }
+
+    return result;
+}
+
 main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
@@ -164,11 +185,8 @@ main :: proc() {
 
     open_repo_name     : string;
 
-    commit             : ^git.Commit;
+    current_commit     : Commit;
     commit_hash_buf    : [1024]byte;
-    commit_message     : string;
-    commit_sig         : git.Signature;
-    author_sig         : git.Signature;
 
     branch_c           : ^byte;
     branch_names     : []string;
@@ -301,16 +319,10 @@ main :: proc() {
                                 open_repo_name = strings.new_string(path); 
                                 oid, ok := git.reference_name_to_id(repo, "HEAD");
                                 if !log_if_err(ok) {
-                                    if commit != nil {
-                                        git.commit_free(commit);
+                                    if current_commit.git_commit != nil {
+                                        git.commit_free(current_commit.git_commit);
                                     }
-                                    ok = git.commit_lookup(&commit, repo, &oid);
-                                    if !log_if_err(ok) {
-                                        message_c := git.commit_message(commit);
-                                        commit_message = strings.to_odin_string(message_c);
-                                        commit_sig = git.commit_committer(commit);
-                                        author_sig = git.commit_author(commit);
-                                    }
+                                    current_commit = get_commit(repo, oid);
                                 }
                                 ref : ^git.Reference;
                                 ref, ok = git.repository_head(repo);
@@ -362,23 +374,13 @@ main :: proc() {
                                 oid_str := cast(string)commit_hash_buf[..];
                                 oid: git.Oid;
                                 ok: = git.oid_from_str(&oid, &oid_str[0]);
-                                log_if_err(ok);
-                                if ok == 0 {
-                                    if commit != nil {
-                                        git.commit_free(commit);
+                                
+                                if !log_if_err(ok) {
+                                    if current_commit.git_commit != nil {
+                                        git.commit_free(current_commit.git_commit);
                                     }
 
-
-
-                                    ok = git.commit_lookup(&commit, repo, &oid);
-                                    log_if_err(ok);
-
-                                    if ok == 0 {
-                                        message_c := git.commit_message(commit);
-                                        commit_message = strings.to_odin_string(message_c);
-                                        commit_sig = git.commit_committer(commit);
-                                        author_sig = git.commit_author(commit);
-                                    }
+                                    current_commit = get_commit(repo, oid);
                                 }
                             }
                             else {
@@ -387,11 +389,11 @@ main :: proc() {
                         }
 
                         imgui.text("Branch: %s",         strings.to_odin_string(branch_c));
-                        imgui.text("Commiter: %s",       commit_sig.name);
-                        imgui.text("Commiter Email: %s", commit_sig.email);
-                        imgui.text("Author: %s",         author_sig.name);
-                        imgui.text("Author Email: %s",   author_sig.email);
-                        imgui.text("Message: %s",        commit_message);
+                        imgui.text("Commiter: %s",       current_commit.commiter.name);
+                        imgui.text("Commiter Email: %s", current_commit.commiter.email);
+                        imgui.text("Author: %s",         current_commit.author.name);
+                        imgui.text("Author Email: %s",   current_commit.author.email);
+                        imgui.text("Message: %s",        current_commit.message);
 
                         imgui.separator();
 
