@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 05:58:19 UTC+1
+ *  @Last Time: 14-12-2017 06:10:13 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -136,6 +136,12 @@ get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
     }
 
     return result;
+}
+
+free_commit :: proc(commit : ^Commit) {
+    if commit.git_commit == nil do return;
+    git.commit_free(commit.git_commit);
+    commit.git_commit = nil;
 }
 
 main :: proc() {
@@ -322,9 +328,7 @@ main :: proc() {
                                 open_repo_name = strings.new_string(path); 
                                 oid, ok := git.reference_name_to_id(repo, "HEAD");
                                 if !log_if_err(ok) {
-                                    if current_commit.git_commit != nil {
-                                        git.commit_free(current_commit.git_commit);
-                                    }
+                                    free_commit(&current_commit);
                                     current_commit = get_commit(repo, oid);
                                 }
                                 ref : ^git.Reference;
@@ -345,12 +349,12 @@ main :: proc() {
                 } else {
                     imgui.text("Repo: %s", open_repo_name); imgui.same_line();
                     if imgui.button("Close Repo") {
-                        git.repository_free(repo);
-                        repo = nil;
                         free(local_branches);
                         free(remote_branches);
                         local_branches = nil;
                         remote_branches = nil;
+                        git.repository_free(repo);
+                        repo = nil;
                     } else {
                         if imgui.button("Fetch" ) {
                             remote, ok := git.remote_lookup(repo, "origin");
@@ -382,10 +386,7 @@ main :: proc() {
                                 ok: = git.oid_from_str(&oid, &oid_str[0]);
                                 
                                 if !log_if_err(ok) {
-                                    if current_commit.git_commit != nil {
-                                        git.commit_free(current_commit.git_commit);
-                                    }
-
+                                    free_commit(&current_commit);
                                     current_commit = get_commit(repo, oid);
                                 }
                             }
