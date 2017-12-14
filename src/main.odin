@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   bpunsky
- *  @Last Time: 13-12-2017 18:05:07 UTC-5
+ *  @Last Time: 13-12-2017 23:07:58 UTC-5
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -28,8 +28,7 @@ import       "shared:libbrew/gl.odin";
 
 import git     "libgit2.odin";
 import console "console.odin";
-
-
+using import _ "debug.odin";
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -88,20 +87,6 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
-log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
-    if err != 0 {
-        gerr := git.err_last();
-        console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
-                                                                  gerr.klass, 
-                                                                  gerr.message, 
-                                                                  string_util.remove_path_from_file(loc.file_path), 
-                                                                  loc.line);
-        return true;
-    } else {
-        return false;
-    }
-}
-
 main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
@@ -139,6 +124,8 @@ main :: proc() {
     lib_ver_minor      : i32;
     lib_ver_rev        : i32;
 
+    statuses           : ^git.Status_List;
+
     path_buf           : [255+1]byte;
 
     open_repo_name     : string;
@@ -167,7 +154,13 @@ main :: proc() {
     lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d", 
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
 
+    settings := debug_get_settings();
+    settings.print_location = true;
+    debug_set_settings(settings);
+
     main_loop: for {
+        debug_reset();
+
         new_frame_state.mouse_wheel = 0;
         
         for msg.poll_message(&message) {
@@ -240,8 +233,9 @@ main :: proc() {
         gl.clear(gl.ClearFlags.COLOR_BUFFER | gl.ClearFlags.DEPTH_BUFFER);
         imgui.begin_new_frame(&new_frame_state);
         { //RENDER
-            imgui.begin_main_menu_bar();
-            {
+            if imgui.begin_main_menu_bar() {
+                defer imgui.end_main_menu_bar();
+                
                 if imgui.begin_menu("Menu") {
                     if imgui.menu_item("Close", "Shift+ESC") {
                         break main_loop;
@@ -259,7 +253,6 @@ main :: proc() {
                     imgui.end_menu();
                 }
             }
-            imgui.end_main_menu_bar();
 
             if imgui.begin("TEST") {
                 defer imgui.end();
@@ -268,6 +261,7 @@ main :: proc() {
                     imgui.input_text("Repo Path;", path_buf[..]);
                     if imgui.button("Open") {
                         path := strings.to_odin_string(&path_buf[0]);
+                        debug(path);
                         if git.is_repository(path) {
                             new_repo, err := git.repository_open(path);
                             if !log_if_err(err) {
@@ -276,7 +270,10 @@ main :: proc() {
                                 oid, ok := git.reference_name_to_id(repo, "HEAD");
                                 if !log_if_err(ok) {
                                     if commit != nil {
+                            debug();
                                         git.commit_free(commit);
+                            debug();
+                                        commit = nil;
                                     }
                                     ok = git.commit_lookup(&commit, repo, &oid);
                                     if !log_if_err(ok) {
@@ -286,6 +283,7 @@ main :: proc() {
                                     }
                                 }
                             }
+
                         } else {
                             console.logf_error("%s is not a repo", path);
                         }
@@ -320,28 +318,23 @@ main :: proc() {
 
                         imgui.input_text("Commit Hash;", commit_hash_buf[..]);
                         if imgui.button("Lookup") {
-                            if repo != nil {
-                                oid_str := cast(string)commit_hash_buf[..];
-                                oid: git.Oid;
-                                ok: = git.oid_from_str(&oid, &oid_str[0]);
-                                log_if_err(ok);
-                                if ok == 0 {
-                                    if commit != nil {
-                                        git.commit_free(commit);
-                                    }
-
-                                    ok = git.commit_lookup(&commit, repo, &oid);
-                                    log_if_err(ok);
-
-                                    if ok == 0 {
-                                        message_c := git.commit_message(commit);
-                                        commit_message = strings.to_odin_string(message_c);
-                                        commit_sig = git.commit_committer(commit);
-                                    }
+                            oid_str := cast(string)commit_hash_buf[..];
+                            oid: git.Oid;
+                            ok: = git.oid_from_str(&oid, &oid_str[0]);
+                            log_if_err(ok);
+                            if ok == 0 {
+                                if commit != nil {
+                                    git.commit_free(commit);
                                 }
-                            }
-                            else {
-                                console.log("You haven't fetched a repo yet!");
+
+                                ok = git.commit_lookup(&commit, repo, &oid);
+                                log_if_err(ok);
+
+                                if ok == 0 {
+                                    message_c := git.commit_message(commit);
+                                    commit_message = strings.to_odin_string(message_c);
+                                    commit_sig = git.commit_committer(commit);
+                                }
                             }
                         }
                         imgui.text("Author:  %s", commit_sig.name);
@@ -349,46 +342,69 @@ main :: proc() {
                         imgui.text("Message: %s", commit_message);
 
                         imgui.separator();
-                        
-                        options : git.Status_Options;
-                        git.status_init_options(&options, 1);
 
-                        if statuses, err := git.status_list_new(repo, &options); !log_if_err(err) {
+                        if imgui.button("Status") {
+                            if statuses != nil {
+                                git.status_list_free(statuses);
+                                statuses = nil;
+                            } else {
+                                options : git.Status_Options;
+                                git.status_init_options(&options, 1);
+                                err : i32;
+                                statuses, err = git.status_list_new(repo, &options); 
+                                log_if_err(err);
+                            }
+                        }
+                        
+
+                        if statuses != nil {
                             count := git.status_list_entrycount(statuses);
 
                             imgui.text("Changes to be committed:");
                             if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
-                                defer imgui.end_child();
-
+                                imgui.columns(count = 2, border = false);
+                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
                                 for i: uint = 0; i < count; i += 1 {
                                     if entry := git.status_byindex(statuses, i); entry != nil {
                                         if entry.head_to_index != nil {
                                             if entry.head_to_index.old_file.path != nil {
-                                                imgui.label_text(strings.to_odin_string(entry.head_to_index.old_file.path), "%v", entry.head_to_index.status);
+                                                imgui.set_column_width(-1, 100);
+                                                imgui.text("%v", entry.head_to_index.status);
+                                                imgui.next_column();
+                                                imgui.text(strings.to_odin_string(entry.head_to_index.old_file.path));
+                                                imgui.next_column();
                                             }
                                         }
                                     } else {
                                         console.logf_error("entry nil: index %d", i);
                                     }
                                 }
+                                imgui.pop_style_color();
                             }
+                            imgui.end_child();
 
                             imgui.text("Changes not staged for commit:");
                             if imgui.begin_child("NotStaged", imgui.Vec2{0, 100}) {
-                                defer imgui.end_child();
-
+                                imgui.columns(count = 2, border = false);
+                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                                 for i: uint = 0; i < count; i += 1 {
                                     if entry := git.status_byindex(statuses, i); entry != nil {
                                         if entry.index_to_workdir != nil {
                                             if entry.index_to_workdir.old_file.path != nil {
-                                                imgui.label_text(strings.to_odin_string(entry.index_to_workdir.old_file.path), "%v", entry.index_to_workdir.status);
+                                                imgui.set_column_width(-1, 100);
+                                                imgui.text("%v", entry.index_to_workdir.status);
+                                                imgui.next_column();
+                                                imgui.text(strings.to_odin_string(entry.index_to_workdir.old_file.path));
+                                                imgui.next_column();
                                             }
                                         }
                                     } else {
                                         console.logf_error("entry nil: index %d", i);
                                     }
                                 }
+                                imgui.pop_style_color();
                             }
+                            imgui.end_child();
                         }
                     }
                 }
