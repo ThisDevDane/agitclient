@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 06:10:13 UTC+1
+ *  @Last By:   bpunsky
+ *  @Last Time: 14-12-2017 01:14:50 UTC-5
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -320,7 +320,6 @@ main :: proc() {
                     imgui.input_text("Repo Path;", path_buf[..]);
                     if imgui.button("Open") {
                         path := strings.to_odin_string(&path_buf[0]);
-                        debug(path);
                         if git.is_repository(path) {
                             new_repo, err := git.repository_open(path);
                             if !log_if_err(err) {
@@ -411,6 +410,7 @@ main :: proc() {
                             } else {
                                 options : git.Status_Options;
                                 git.status_init_options(&options, 1);
+                                options.flags = git.Status_Opt_Flags.Include_Untracked;
                                 err : i32;
                                 statuses, err = git.status_list_new(repo, &options); 
                                 log_if_err(err);
@@ -449,7 +449,30 @@ main :: proc() {
                                 imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                                 for i: uint = 0; i < count; i += 1 {
                                     if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.index_to_workdir != nil {
+                                        if entry.index_to_workdir != nil && entry.index_to_workdir.status != git.Delta.Untracked {
+                                            if entry.index_to_workdir.old_file.path != nil {
+                                                imgui.set_column_width(-1, 100);
+                                                imgui.text("%v", entry.index_to_workdir.status);
+                                                imgui.next_column();
+                                                imgui.text(strings.to_odin_string(entry.index_to_workdir.old_file.path));
+                                                imgui.next_column();
+                                            }
+                                        }
+                                    } else {
+                                        console.logf_error("entry nil: index %d", i);
+                                    }
+                                }
+                                imgui.pop_style_color();
+                            }
+                            imgui.end_child();
+
+                            imgui.text("Untracked files:");
+                            if imgui.begin_child("Untracked", imgui.Vec2{0, 100}) {
+                                imgui.columns(count = 2, border = false);
+                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+                                for i: uint = 0; i < count; i += 1 {
+                                    if entry := git.status_byindex(statuses, i); entry != nil {
+                                        if entry.index_to_workdir != nil && entry.index_to_workdir.status == git.Delta.Untracked {
                                             if entry.index_to_workdir.old_file.path != nil {
                                                 imgui.set_column_width(-1, 100);
                                                 imgui.text("%v", entry.index_to_workdir.status);

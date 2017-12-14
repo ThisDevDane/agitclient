@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 06:15:43 UTC+1
+ *  @Last By:   bpunsky
+ *  @Last Time: 14-12-2017 00:40:33 UTC-5
  *  
  *  @Description:
  *  
@@ -746,7 +746,7 @@ Status_Show_Flags :: enum u32 {
 Status_Options :: struct #packed {
     version  : u32,
     show     : Status_Show_Flags,
-    flags    : u32,
+    flags    : Status_Opt_Flags,
     pathspec : Str_Array,
     baseline : ^Tree,
 }
