@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   bpunsky
- *  @Last Time: 14-12-2017 01:12:54 UTC-5
+ *  @Last Time: 14-12-2017 01:14:50 UTC-5
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -410,6 +410,7 @@ main :: proc() {
                             } else {
                                 options : git.Status_Options;
                                 git.status_init_options(&options, 1);
+                                options.flags = git.Status_Opt_Flags.Include_Untracked;
                                 err : i32;
                                 statuses, err = git.status_list_new(repo, &options); 
                                 log_if_err(err);
