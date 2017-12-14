@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 04:47:12 UTC+1
+ *  @Last Time: 14-12-2017 05:22:14 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -36,6 +36,12 @@ Commit :: struct {
     message    : string,
 }
 
+Branch :: struct {
+    ref   : ^git.Reference,
+    name  : string,
+    btype : git.Branch_Flags,
+}
+
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
     res := wgl.get_proc_address(name);
@@ -48,6 +54,7 @@ set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
 
     (^rawptr)(p)^ = rawptr(res);
 }
+
 
 load_lib :: proc(str : string) -> rawptr {
     return rawptr(misc.load_library(str));
@@ -108,25 +115,28 @@ log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
     }
 }
 
-get_all_branch_names :: proc(repo : ^git.Repository) -> ([]string, []git.Branch_Flags) {
+get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Flags) -> []Branch {
     GIT_ITEROVER :: -31;
-    result_t : [dynamic]git.Branch_Flags;
-    result : [dynamic]string;
-    iter, err := git.branch_iterator_new(repo, git.Branch_Flags.All);
+    result : [dynamic]Branch;
+    iter, err := git.branch_iterator_new(repo, btype);
     over : i32 = 0;
     for over != GIT_ITEROVER {
         ref, btype, over := git.branch_next(iter);
         if over == GIT_ITEROVER do break;
         if !log_if_err(over) {
             name, suc := git.branch_name(ref);
-            append(&result, name);
-            append(&result_t, btype);
+            b := Branch {
+                ref,
+                name,
+                btype,
+            };
+            append(&result, b);
         }
     }
 
     git.branch_iterator_free(iter);
-    return result[..], result_t[..];
-} 
+    return result[..];
+}
 
 get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
     result : Commit;
@@ -188,9 +198,9 @@ main :: proc() {
     current_commit     : Commit;
     commit_hash_buf    : [1024]byte;
 
-    branch_name      : string;
-    branch_names     : []string;
-    branch_types     : []git.Branch_Flags;
+    branch_name        : string;
+    local_branches     : []Branch;
+    remote_branches    : []Branch;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -330,7 +340,8 @@ main :: proc() {
                                     branch_name, err = git.branch_name(ref);
                                 }
 
-                                branch_names, branch_types = get_all_branch_names(repo);
+                                local_branches = get_all_branches(repo, git.Branch_Flags.Local);
+                                remote_branches = get_all_branches(repo, git.Branch_Flags.Remote);
 
                             }
                         } else {
@@ -342,9 +353,10 @@ main :: proc() {
                     if imgui.button("Close Repo") {
                         git.repository_free(repo);
                         repo = nil;
-                        free(branch_names);
-                        free(branch_types);
-                        branch_names = nil;
+                        free(local_branches);
+                        free(remote_branches);
+                        local_branches = nil;
+                        remote_branches = nil;
                     } else {
                         if imgui.button("Fetch" ) {
                             remote, ok := git.remote_lookup(repo, "origin");
@@ -459,17 +471,31 @@ main :: proc() {
                             imgui.end_child();
                         }
                     }
-                }
-            }
 
-            if len(branch_names) > 0 {
-                if imgui.begin("Branches") {
-                    defer imgui.end();
+                    if imgui.begin("Branches") {
+                        defer imgui.end();
 
-                    for name, i in branch_names {
-                        btype := branch_types[i];
-                        imgui.text("%v", btype); imgui.same_line();
-                        imgui.text(name);
+                        imgui.text("Local Branches:");
+                        imgui.indent();
+                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
+                        for b in local_branches {
+                            imgui.text(b.name); 
+                            if git.branch_is_checked_out(b.ref) {
+                                imgui.same_line();
+                                imgui.text("(current)");
+                            }
+                        }
+                        imgui.pop_style_color();
+                        imgui.unindent();
+
+                        imgui.text("Remote Branches:");
+                        imgui.indent();
+                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+                        for b in remote_branches {
+                            imgui.text(b.name);
+                        }
+                        imgui.pop_style_color();
+                        imgui.unindent();
                     }
                 }
             }

@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 04:24:18 UTC+1
+ *  @Last Time: 14-12-2017 05:21:33 UTC+1
  *  
  *  @Description:
  *  
@@ -1148,5 +1148,6 @@ foreign libgit {
     git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Flags) -> i32 ---;
     @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
     git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Flags, iter : ^Branch_Iterator) -> i32 ---;
+    @(link_name = "git_branch_is_checked_out") branch_is_checked_out :: proc(branch : ^Reference) -> bool ---;
 
 }
