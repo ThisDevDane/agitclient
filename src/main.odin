@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 05:22:14 UTC+1
+ *  @Last By:   bpunsky
+ *  @Last Time: 13-12-2017 23:26:30 UTC-5
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -28,6 +28,7 @@ import       "shared:libbrew/gl.odin";
 
 import git     "libgit2.odin";
 import console "console.odin";
+using import _ "debug.odin";
 
 Commit :: struct {
     git_commit : ^git.Commit,
@@ -100,22 +101,6 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
-log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
-    if err != 0 {
-        fmt.println(err);
-        gerr := git.err_last();
-        console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
-                                                                  gerr.klass, 
-                                                                  gerr.message, 
-                                                                  string_util.remove_path_from_file(loc.file_path), 
-                                                                  loc.line);
-        return true;
-    } else {
-        return false;
-    }
-}
-
-get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Flags) -> []Branch {
     GIT_ITEROVER :: -31;
     result : [dynamic]Branch;
     iter, err := git.branch_iterator_new(repo, btype);
@@ -221,7 +206,13 @@ main :: proc() {
     lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d", 
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
 
+    settings := debug_get_settings();
+    settings.print_location = true;
+    debug_set_settings(settings);
+
     main_loop: for {
+        debug_reset();
+
         new_frame_state.mouse_wheel = 0;
         
         for msg.poll_message(&message) {
@@ -294,8 +285,9 @@ main :: proc() {
         gl.clear(gl.ClearFlags.COLOR_BUFFER | gl.ClearFlags.DEPTH_BUFFER);
         imgui.begin_new_frame(&new_frame_state);
         { //RENDER
-            imgui.begin_main_menu_bar();
-            {
+            if imgui.begin_main_menu_bar() {
+                defer imgui.end_main_menu_bar();
+                
                 if imgui.begin_menu("Menu") {
                     if imgui.menu_item("Close", "Shift+ESC") {
                         break main_loop;
@@ -313,7 +305,6 @@ main :: proc() {
                     imgui.end_menu();
                 }
             }
-            imgui.end_main_menu_bar();
 
             if imgui.begin("TEST") {
                 defer imgui.end();
@@ -322,6 +313,7 @@ main :: proc() {
                     imgui.input_text("Repo Path;", path_buf[..]);
                     if imgui.button("Open") {
                         path := strings.to_odin_string(&path_buf[0]);
+                        debug(path);
                         if git.is_repository(path) {
                             new_repo, err := git.repository_open(path);
                             if !log_if_err(err) {
@@ -344,6 +336,7 @@ main :: proc() {
                                 remote_branches = get_all_branches(repo, git.Branch_Flags.Remote);
 
                             }
+
                         } else {
                             console.logf_error("%s is not a repo", path);
                         }
@@ -412,15 +405,16 @@ main :: proc() {
                         if imgui.button("Status") {
                             if statuses != nil {
                                 git.status_list_free(statuses);
+                                statuses = nil;
+                            } else {
+                                options : git.Status_Options;
+                                git.status_init_options(&options, 1);
+                                err : i32;
+                                statuses, err = git.status_list_new(repo, &options); 
+                                log_if_err(err);
                             }
-                            options : git.Status_Options;
-                            git.status_init_options(&options, 1);
-                            err : i32;
-                            statuses, err = git.status_list_new(repo, &options); 
-                            log_if_err(err);
                         }
                         
-
                         if statuses != nil {
                             count := git.status_list_entrycount(statuses);
 
