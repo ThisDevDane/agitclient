@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   bpunsky
- *  @Last Time: 13-12-2017 23:07:58 UTC-5
+ *  @Last Time: 13-12-2017 23:18:17 UTC-5
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -92,21 +92,6 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     }
 
     return 0;
-}
-
-log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
-    if err != 0 {
-        fmt.println(err);
-        gerr := git.err_last();
-        console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
-                                                                  gerr.klass, 
-                                                                  gerr.message, 
-                                                                  string_util.remove_path_from_file(loc.file_path), 
-                                                                  loc.line);
-        return true;
-    } else {
-        return false;
-    }
 }
 
 get_all_branch_names :: proc(repo : ^git.Repository) -> ([]string, []git.Branch_Flags) {
