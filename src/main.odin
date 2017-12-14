@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   bpunsky
- *  @Last Time: 14-12-2017 01:14:50 UTC-5
+ *  @Last Time: 14-12-2017 07:44:22 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -491,19 +491,44 @@ main :: proc() {
                         }
                     }
 
+                    update_branches := false;
                     if imgui.begin("Branches") {
                         defer imgui.end();
+
+                        print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool) {
+                            for b in branches {
+                                imgui.selectable(b.name); 
+                                imgui.push_id(b.name);
+                                defer imgui.pop_id();
+                                if imgui.begin_popup_context_item("branch_context", 1) {
+                                    defer imgui.end_popup();
+                                    if imgui.selectable("Checkout") {
+                                        obj, err := git.revparse_single(repo, b.name);
+                                        if !log_if_err(err) {
+                                            opts := git.Checkout_Options{};
+                                            opts.version = 1;
+                                            opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
+                                            err = git.checkout_tree(repo, obj, &opts);
+                                            refname := git.reference_name(b.ref);
+                                            if !log_if_err(err) { 
+                                                err = git.repository_set_head(repo, refname);
+                                                if !log_if_err(err) do update_branches^ = true;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref) {
+                                    imgui.same_line();
+                                    imgui.text("(current)");
+                                }
+                            }
+                        }
 
                         imgui.text("Local Branches:");
                         imgui.indent();
                         imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                        for b in local_branches {
-                            imgui.text(b.name); 
-                            if git.branch_is_checked_out(b.ref) {
-                                imgui.same_line();
-                                imgui.text("(current)");
-                            }
-                        }
+                        print_branches(repo, local_branches, &update_branches);
                         imgui.pop_style_color();
                         imgui.unindent();
 
@@ -515,6 +540,11 @@ main :: proc() {
                         }
                         imgui.pop_style_color();
                         imgui.unindent();
+                    }
+
+                    if update_branches {
+                        local_branches = get_all_branches(repo, git.Branch_Flags.Local);
+                        remote_branches = get_all_branches(repo, git.Branch_Flags.Remote);
                     }
                 }
             }
