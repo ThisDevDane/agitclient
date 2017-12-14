@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 06:15:43 UTC+1
+ *  @Last Time: 14-12-2017 06:49:32 UTC+1
  *  
  *  @Description:
  *  
@@ -27,6 +27,7 @@ Index      :: struct #ordered {};
 Transport  :: struct #ordered {};
 Commit     :: struct #ordered {};
 Reference  :: struct #ordered {};
+Object     :: struct #ordered {};
 
 Branch_Iterator  :: struct #ordered {};
 
@@ -768,6 +769,7 @@ Diff_Delta :: struct #ordered {
     new_file   : Diff_File,
 }
 
+
 Delta :: enum u32 {
     Unmodified =  0,
     Added      =  1,
@@ -1073,6 +1075,12 @@ branch_name :: proc(ref : ^Reference) -> (string, i32) {
     return strings.to_odin_string(c_str), err;
 }
 
+revparse_single :: proc(repo : ^Repository, spec : string) -> (^Object, i32) {
+    obj : ^Object = nil;
+    err := git_revparse_single(&obj, repo, _make_misc_string(spec));
+    return obj, err;
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -1147,5 +1155,10 @@ foreign libgit {
     @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
     git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Flags, iter : ^Branch_Iterator) -> i32 ---;
     @(link_name = "git_branch_is_checked_out") branch_is_checked_out :: proc(branch : ^Reference) -> bool ---;
+
+    git_revparse_single :: proc(out : ^^Object, repo : ^Repository, spec : ^byte) -> i32 ---;
+
+    //Checkout
+    @(link_name = "git_checkout_tree") checkout_tree :: proc(repo : ^Repository, treeish : ^Object, opts : ^Checkout_Options) -> i32 ---;
 
 }
