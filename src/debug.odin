@@ -68,7 +68,7 @@ debug_format :: proc(format : string, args : ...any, loc := #caller_location) {
 
     if _state.settings.print_location {
         if space do fmt.sbprint(&buf, " ");
-        fmt.sbprintf(&buf, "%s:(%d,%d)", loc.file_path, loc.line, loc.column);
+        fmt.sbprintf(&buf, "%s:(%d,%d)", string_util.remove_path_from_file(loc.file_path), loc.line, loc.column);
         space = true;
     }
 

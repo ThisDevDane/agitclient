@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   bpunsky
- *  @Last Time: 13-12-2017 23:26:30 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 14-12-2017 05:58:19 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -101,6 +101,7 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
+get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Flags) -> []Branch {
     GIT_ITEROVER :: -31;
     result : [dynamic]Branch;
     iter, err := git.branch_iterator_new(repo, btype);
