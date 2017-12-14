@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 06:58:23 UTC+1
+ *  @Last Time: 14-12-2017 07:01:56 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -488,7 +488,8 @@ main :: proc() {
                                         opts.version = 1;
                                         err = git.checkout_tree(repo, obj, &opts);
                                         if !log_if_err(err) { 
-                                            update_branches = true;
+                                            err = git.repository_set_head(repo, b.name);
+                                            if !log_if_err(err) do update_branches = true;
                                         }
                                     }
                                 }

@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 06:49:32 UTC+1
+ *  @Last Time: 14-12-2017 07:01:13 UTC+1
  *  
  *  @Description:
  *  
@@ -948,6 +948,10 @@ repository_head :: proc(repo : ^Repository) -> (^Reference, i32) {
     return ref, err;
 }
 
+repository_set_head :: proc(repo : ^Repository, refname : string) -> i32 {
+    return git_repository_set_head(repo, _make_misc_string(refname));
+}
+
 is_repository  :: proc(path : string) -> bool {
     if git_repository_open_ext(nil, _make_path_string(path), Repository_Open_Flags.No_Search, nil) == 0 {
         return true;
@@ -1097,6 +1101,7 @@ foreign libgit {
     git_repository_open :: proc(out : ^^Repository, path : ^byte) -> i32 ---;
     git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
     git_repository_head :: proc(out : ^^Reference, repo : ^Repository) -> i32 ---;
+    git_repository_set_head :: proc(repo : ^Repository, refname : ^byte) -> i32 ---;
 
     git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
 
