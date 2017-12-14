@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 01:42:47 GMT+1
+ *  @Last Time: 14-12-2017 02:48:51 GMT+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -147,6 +147,7 @@ main :: proc() {
     commit_hash_buf    : [1024]byte;
     commit_message     : string;
     commit_sig         : git.Signature;
+    branch_c           : ^byte;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -285,6 +286,12 @@ main :: proc() {
                                         commit_sig = git.commit_committer(commit);
                                     }
                                 }
+                                ref : ^git.Reference;
+                                ref, ok = git.repository_head(repo);
+                                if !log_if_err(ok) {
+                                    git.git_branch_name(&branch_c, ref);
+                                }
+
                             }
                         } else {
                             console.logf_error("%s is not a repo", path);
@@ -330,6 +337,8 @@ main :: proc() {
                                         git.commit_free(commit);
                                     }
 
+
+
                                     ok = git.commit_lookup(&commit, repo, &oid);
                                     log_if_err(ok);
 
@@ -344,9 +353,11 @@ main :: proc() {
                                 console.log("You haven't fetched a repo yet!");
                             }
                         }
-                        imgui.text("Author:  %s", commit_sig.name);
-                        imgui.text("Email:   %s", commit_sig.email);
-                        imgui.text("Message: %s", commit_message);
+
+                        imgui.text("Branch: %s",         strings.to_odin_string(branch_c));
+                        imgui.text("Commiter: %s",       commit_sig.name);
+                        imgui.text("Commiter Email: %s", commit_sig.email);
+                        imgui.text("Message: %s",        commit_message);
 
                         imgui.separator();
 
