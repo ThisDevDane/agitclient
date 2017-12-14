@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 07:01:13 UTC+1
+ *  @Last Time: 14-12-2017 07:37:03 UTC+1
  *  
  *  @Description:
  *  
@@ -278,10 +278,73 @@ Clone_Options :: struct #ordered {
     remote_cb_payload : rawptr,
 }
 
+Checkout_Strategy_Flags :: enum u32 {
+    None = 0, /**< default is a dry run, no actual updates */
+
+    /** Allow safe updates that cannot overwrite uncommitted data */
+    Safe = (1 << 0),
+
+    /** Allow all updates to force working directory to look like index */
+    Force = (1 << 1),
+
+
+    /** Allow checkout to recreate missing files */
+    Recreate_Missing = (1 << 2),
+
+    /** Allow checkout to make safe updates even if conflicts are found */
+    Allow_Conflicts = (1 << 4),
+
+    /** Remove untracked files not in index (that are not ignored) */
+    Remove_Untracked = (1 << 5),
+
+    /** Remove ignored files not in index */
+    Remove_Ignored = (1 << 6),
+
+    /** Only update existing files, don't create new ones */
+    Update_Only = (1 << 7),
+
+    /**
+     * Normally checkout updates index entries as it goes; this stops that.
+     * Implies `DontWriteIndex`.
+     */
+    Dont_Update_Index = (1 << 8),
+
+    /** Don't refresh index/config/etc before doing checkout */
+    No_Refresh = (1 << 9),
+
+    /** Allow checkout to skip unmerged files */
+    Skip_Unmerged = (1 << 10),
+    /** For unmerged files, checkout stage 2 from index */
+    Use_Ours = (1 << 11),
+    /** For unmerged files, checkout stage 3 from index */
+    Use_Theirs = (1 << 12),
+
+    /** Treat pathspec as simple list of exact match file paths */
+    Disable_Pathspec_Match = (1 << 13),
+
+    /** Ignore directories in use, they will be left empty */
+    Skip_Locked_Directories = (1 << 18),
+
+    /** Don't overwrite ignored files that exist in the checkout target */
+    Dont_Overwrite_Ignored = (1 << 19),
+
+    /** Write normal merge files for conflicts */
+    Conflict_Style_Merge = (1 << 20),
+
+    /** Include common ancestor data in diff3 format files for conflicts */
+    Conflict_Style_Diff3 = (1 << 21),
+
+    /** Don't overwrite existing files or folders */
+    Dont_Remove_Existing = (1 << 22),
+
+    /** Normally checkout writes the index upon completion; this prevents that. */
+    Dont_Write_Index = (1 << 23),
+}
+
 Checkout_Options :: struct #ordered {
     version           : u32,
 
-    checkout_strategy : u32, // default will be a dry run
+    checkout_strategy : Checkout_Strategy_Flags, // default will be a dry run
 
     disable_filters   : i32, // don't apply filters like CRLF conversion
     dir_mode          : u32, // default is 0755
@@ -949,7 +1012,7 @@ repository_head :: proc(repo : ^Repository) -> (^Reference, i32) {
 }
 
 repository_set_head :: proc(repo : ^Repository, refname : string) -> i32 {
-    return git_repository_set_head(repo, _make_misc_string(refname));
+    return git_repository_set_head(repo, _make_misc_string("%s", refname));
 }
 
 is_repository  :: proc(path : string) -> bool {
@@ -1029,6 +1092,16 @@ reference_name_to_id :: proc(repo : ^Repository, name : string) -> (Oid, i32) {
     id := Oid{};
     err := git_reference_name_to_id(&id, repo, _make_misc_string(name));
     return id, err;
+}
+
+reference_symbolic_target :: proc(ref : ^Reference) -> string {
+    c_str := git_reference_symbolic_target(ref);
+    return strings.to_odin_string(c_str);
+}
+
+reference_name :: proc(ref : ^Reference) -> string {
+    c_str := git_reference_name(ref);
+    return strings.to_odin_string(c_str);
 }
 
 commit_committer :: proc(commit : ^Commit) -> Signature {
@@ -1152,7 +1225,11 @@ foreign libgit {
     git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
     @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
 
+    //Reference
     git_reference_name_to_id :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> i32 ---;
+    git_reference_symbolic_target :: proc(ref : ^Reference) -> ^byte ---;
+    git_reference_name :: proc(ref : ^Reference) -> ^byte ---;
+    @(link_name = "git_reference_is_branch") reference_is_branch :: proc(ref : ^Reference) -> bool ---;
 
     //Branch
     git_branch_name :: proc(out : ^^byte, ref : ^Reference) -> i32 ---;

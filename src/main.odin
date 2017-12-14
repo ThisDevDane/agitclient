@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 07:01:56 UTC+1
+ *  @Last Time: 14-12-2017 07:44:22 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -472,34 +472,40 @@ main :: proc() {
                     if imgui.begin("Branches") {
                         defer imgui.end();
 
-                        imgui.text("Local Branches:");
-                        imgui.indent();
-                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                        for b in local_branches {
-                            imgui.selectable(b.name); 
-                            imgui.push_id(b.name);
-                            defer imgui.pop_id();
-                            if imgui.begin_popup_context_item("branch_context", 1) {
-                                defer imgui.end_popup();
-                                if imgui.selectable("Checkout") {
-                                    obj, err := git.revparse_single(repo, b.name);
-                                    if !log_if_err(err) {
-                                        opts := git.Checkout_Options{};
-                                        opts.version = 1;
-                                        err = git.checkout_tree(repo, obj, &opts);
-                                        if !log_if_err(err) { 
-                                            err = git.repository_set_head(repo, b.name);
-                                            if !log_if_err(err) do update_branches = true;
+                        print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool) {
+                            for b in branches {
+                                imgui.selectable(b.name); 
+                                imgui.push_id(b.name);
+                                defer imgui.pop_id();
+                                if imgui.begin_popup_context_item("branch_context", 1) {
+                                    defer imgui.end_popup();
+                                    if imgui.selectable("Checkout") {
+                                        obj, err := git.revparse_single(repo, b.name);
+                                        if !log_if_err(err) {
+                                            opts := git.Checkout_Options{};
+                                            opts.version = 1;
+                                            opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
+                                            err = git.checkout_tree(repo, obj, &opts);
+                                            refname := git.reference_name(b.ref);
+                                            if !log_if_err(err) { 
+                                                err = git.repository_set_head(repo, refname);
+                                                if !log_if_err(err) do update_branches^ = true;
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            if git.branch_is_checked_out(b.ref) {
-                                imgui.same_line();
-                                imgui.text("(current)");
+                                if git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref) {
+                                    imgui.same_line();
+                                    imgui.text("(current)");
+                                }
                             }
                         }
+
+                        imgui.text("Local Branches:");
+                        imgui.indent();
+                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
+                        print_branches(repo, local_branches, &update_branches);
                         imgui.pop_style_color();
                         imgui.unindent();
 
@@ -507,7 +513,7 @@ main :: proc() {
                         imgui.indent();
                         imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                         for b in remote_branches {
-                            imgui.selectable(b.name);
+                            imgui.text(b.name);
                         }
                         imgui.pop_style_color();
                         imgui.unindent();
