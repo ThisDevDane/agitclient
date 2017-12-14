@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   bpunsky
- *  @Last Time: 14-12-2017 07:44:22 UTC+1
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 14-12-2017 08:49:25 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -34,13 +34,15 @@ Commit :: struct {
     git_commit : ^git.Commit,
     author     : git.Signature,
     commiter   : git.Signature,
+    summary    : string,
     message    : string,
 }
 
 Branch :: struct {
-    ref   : ^git.Reference,
-    name  : string,
-    btype : git.Branch_Flags,
+    ref           : ^git.Reference,
+    name          : string,
+    btype         : git.Branch_Flags,
+    current_commit : Commit,
 }
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
@@ -111,10 +113,15 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Flags) -> []
         if over == GIT_ITEROVER do break;
         if !log_if_err(over) {
             name, suc := git.branch_name(ref);
+            refname := git.reference_name(ref);
+            oid, ok := git.reference_name_to_id(repo, refname);
+
+            commit := get_commit(repo, oid);
             b := Branch {
                 ref,
                 name,
                 btype,
+                commit,
             };
             append(&result, b);
         }
@@ -129,13 +136,54 @@ get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
 
     err := git.commit_lookup(&result.git_commit, repo, &oid);
     if !log_if_err(err) {
-        c_str := git.commit_message(result.git_commit);
-        result.message = strings.to_odin_string(c_str);
+        result.message  = git.commit_message(result.git_commit);
+        result.summary  = git.commit_summary(result.git_commit);
         result.commiter = git.commit_committer(result.git_commit);
-        result.author = git.commit_author(result.git_commit);
+        result.author   = git.commit_author(result.git_commit);
     }
 
     return result;
+}
+
+checkout_branch :: proc(repo : ^git.Repository, b : Branch) -> bool {
+    obj, err := git.revparse_single(repo, b.name);
+    if !log_if_err(err) {
+        opts := git.Checkout_Options{};
+        opts.version = 1;
+        opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
+        err = git.checkout_tree(repo, obj, &opts);
+        refname := git.reference_name(b.ref);
+        if !log_if_err(err) { 
+            err = git.repository_set_head(repo, refname);
+            if !log_if_err(err) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    return false;
+}
+
+create_branch :: proc(repo : ^git.Repository, b : Branch, force := false) -> Branch {
+    ref, err := git.branch_create(repo, b.name, b.current_commit.git_commit, force);
+    if !log_if_err(err) {
+        name, suc := git.branch_name(ref);
+        refname := git.reference_name(ref);
+        oid, ok := git.reference_name_to_id(repo, refname);
+        commit := get_commit(repo, oid);
+        b := Branch {
+            ref,
+            name,
+            git.Branch_Flags.Local,
+            commit,
+        };
+
+        return b;
+    }
+
+    return Branch{};
 }
 
 free_commit :: proc(commit : ^Commit) {
@@ -190,7 +238,6 @@ main :: proc() {
     current_commit     : Commit;
     commit_hash_buf    : [1024]byte;
 
-    branch_name        : string;
     local_branches     : []Branch;
     remote_branches    : []Branch;
 
@@ -330,15 +377,16 @@ main :: proc() {
                                     free_commit(&current_commit);
                                     current_commit = get_commit(repo, oid);
                                 }
-                                ref : ^git.Reference;
-                                ref, ok = git.repository_head(repo);
-                                if !log_if_err(ok) {
-                                    branch_name, err = git.branch_name(ref);
-                                }
 
                                 local_branches = get_all_branches(repo, git.Branch_Flags.Local);
                                 remote_branches = get_all_branches(repo, git.Branch_Flags.Remote);
 
+                                options : git.Status_Options;
+                                git.status_init_options(&options, 1);
+                                options.flags = git.Status_Opt_Flags.Include_Untracked;
+                                err : i32;
+                                statuses, err = git.status_list_new(repo, &options); 
+                                log_if_err(err);
                             }
 
                         } else {
@@ -394,7 +442,6 @@ main :: proc() {
                             }
                         }
 
-                        imgui.text("Branch: %s",         branch_name);
                         imgui.text("Commiter: %s",       current_commit.commiter.name);
                         imgui.text("Commiter Email: %s", current_commit.commiter.email);
                         imgui.text("Author: %s",         current_commit.author.name);
@@ -497,26 +544,18 @@ main :: proc() {
 
                         print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool) {
                             for b in branches {
-                                imgui.selectable(b.name); 
+                                imgui.selectable(b.name); imgui.same_line();
                                 imgui.push_id(b.name);
                                 defer imgui.pop_id();
                                 if imgui.begin_popup_context_item("branch_context", 1) {
                                     defer imgui.end_popup();
                                     if imgui.selectable("Checkout") {
-                                        obj, err := git.revparse_single(repo, b.name);
-                                        if !log_if_err(err) {
-                                            opts := git.Checkout_Options{};
-                                            opts.version = 1;
-                                            opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
-                                            err = git.checkout_tree(repo, obj, &opts);
-                                            refname := git.reference_name(b.ref);
-                                            if !log_if_err(err) { 
-                                                err = git.repository_set_head(repo, refname);
-                                                if !log_if_err(err) do update_branches^ = true;
-                                            }
+                                        if checkout_branch(repo, b) {
+                                            update_branches^ = true;
                                         }
                                     }
                                 }
+                                imgui.text(b.current_commit.summary); 
 
                                 if git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref) {
                                     imgui.same_line();
@@ -524,7 +563,7 @@ main :: proc() {
                                 }
                             }
                         }
-
+                        if imgui.button("Update") do update_branches = true;
                         imgui.text("Local Branches:");
                         imgui.indent();
                         imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
@@ -536,7 +575,19 @@ main :: proc() {
                         imgui.indent();
                         imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                         for b in remote_branches {
-                            imgui.text(b.name);
+                            imgui.selectable(b.name); 
+                            imgui.push_id(b.name);
+                            defer imgui.pop_id();
+                            if imgui.begin_popup_context_item("branch_context", 1) {
+                                defer imgui.end_popup();
+                                if imgui.selectable("Checkout") {
+                                    branch := create_branch(repo, b);
+                                    checkout_branch(repo, branch);
+                                    update_branches = true;
+                                }
+                            }
+                            imgui.same_line();
+                            imgui.text(b.current_commit.summary); 
                         }
                         imgui.pop_style_color();
                         imgui.unindent();
