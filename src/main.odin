@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 02:48:51 GMT+1
+ *  @Last Time: 14-12-2017 03:53:35 GMT+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -88,6 +88,7 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
 
 log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
     if err != 0 {
+        fmt.println(err);
         gerr := git.err_last();
         console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
                                                                   gerr.klass, 
@@ -99,6 +100,26 @@ log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
         return false;
     }
 }
+
+get_all_branch_names :: proc(repo : ^git.Repository) -> ([]string, []git.Branch_Flags) {
+    GIT_ITEROVER :: -31;
+    result_t : [dynamic]git.Branch_Flags;
+    result : [dynamic]string;
+    iter, err := git.branch_iterator_new(repo, git.Branch_Flags.All);
+    over : i32 = 0;
+    for over != GIT_ITEROVER {
+        ref, btype, over := git.branch_next(iter);
+        if over == GIT_ITEROVER do break;
+        if !log_if_err(over) {
+            name, suc := git.branch_name(ref);
+            append(&result, name);
+            append(&result_t, btype);
+        }
+    }
+
+    git.branch_iterator_free(iter);
+    return result[..], result_t[..];
+} 
 
 main :: proc() {
     console.log("Program start...");
@@ -148,6 +169,9 @@ main :: proc() {
     commit_message     : string;
     commit_sig         : git.Signature;
     branch_c           : ^byte;
+
+    branch_names     : []string;
+    branch_types     : []git.Branch_Flags;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -292,6 +316,8 @@ main :: proc() {
                                     git.git_branch_name(&branch_c, ref);
                                 }
 
+                                branch_names, branch_types = get_all_branch_names(repo);
+
                             }
                         } else {
                             console.logf_error("%s is not a repo", path);
@@ -302,6 +328,9 @@ main :: proc() {
                     if imgui.button("Close Repo") {
                         git.repository_free(repo);
                         repo = nil;
+                        free(branch_names);
+                        free(branch_types);
+                        branch_names = nil;
                     } else {
                         if imgui.button("Fetch" ) {
                             remote, ok := git.remote_lookup(repo, "origin");
@@ -422,6 +451,18 @@ main :: proc() {
                             }
                             imgui.end_child();
                         }
+                    }
+                }
+            }
+
+            if len(branch_names) > 0 {
+                if imgui.begin("Branches") {
+                    defer imgui.end();
+
+                    for name, i in branch_names {
+                        btype := branch_types[i];
+                        imgui.text("%v", btype); imgui.same_line();
+                        imgui.text(name);
                     }
                 }
             }

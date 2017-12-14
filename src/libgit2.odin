@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 02:44:01 GMT+1
+ *  @Last Time: 14-12-2017 03:32:38 GMT+1
  *  
  *  @Description:
  *  
@@ -27,6 +27,8 @@ Index      :: struct #ordered {};
 Transport  :: struct #ordered {};
 Commit     :: struct #ordered {};
 Reference  :: struct #ordered {};
+
+Branch_Iterator  :: struct #ordered {};
 
 Oid :: struct #ordered {
     /** raw binary formatted id */
@@ -863,6 +865,12 @@ Status_Opt_Defaults :: Status_Opt_Flags.Include_Ignored       |
                        Status_Opt_Flags.Include_Untracked     |
                        Status_Opt_Flags.Recurse_Untracked_Dirs;
 
+Branch_Flags :: enum i32 {
+    Local = 1,
+    Remote = 2,
+    All = Local|Remote,
+}
+
 ///////////////////////// Odin UTIL /////////////////////////
 
 _PATH_BUF_SIZE :: 4096;
@@ -1043,6 +1051,25 @@ commit_author :: proc(commit : ^Commit) -> Signature {
     return sig;
 }
 
+branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Flags) -> (^Branch_Iterator, i32) {
+    iter : ^Branch_Iterator = nil;
+    err := git_branch_iterator_new(&iter, repo, list_flags);
+    return iter, err;
+}
+    
+branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Flags, i32) {
+    ref : ^Reference = nil;
+    flags : Branch_Flags;
+    err := git_branch_next(&ref, &flags, iter);
+    return ref, flags, err;
+}
+
+branch_name :: proc(ref : ^Reference) -> (string, i32) {
+    c_str : ^byte;
+    err := git_branch_name(&c_str, ref);
+    return strings.to_odin_string(c_str), err;
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -1110,5 +1137,10 @@ foreign libgit {
 
     git_reference_name_to_id :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> i32 ---;
 
+    //Branch
     git_branch_name :: proc(out : ^^byte, ref : ^Reference) -> i32 ---;
+    git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Flags) -> i32 ---;
+    @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
+    git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Flags, iter : ^Branch_Iterator) -> i32 ---;
+
 }
