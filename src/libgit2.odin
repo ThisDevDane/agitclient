@@ -810,7 +810,7 @@ Status_Show_Flags :: enum u32 {
 Status_Options :: struct #packed {
     version  : u32,
     show     : Status_Show_Flags,
-    flags    : u32,
+    flags    : Status_Opt_Flags,
     pathspec : Str_Array,
     baseline : ^Tree,
 }
