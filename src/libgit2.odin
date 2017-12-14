@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   bpunsky
- *  @Last Time: 13-12-2017 16:25:11 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 14-12-2017 06:15:43 UTC+1
  *  
  *  @Description:
  *  
@@ -1033,7 +1033,6 @@ commit_committer :: proc(commit : ^Commit) -> Signature {
         strings.new_string(strings.to_odin_string(gsig.email)),
         gsig.time_when
     };
-    git_signature_free(gsig);
     
     return sig;
 }
@@ -1046,7 +1045,6 @@ commit_author :: proc(commit : ^Commit) -> Signature {
         strings.new_string(strings.to_odin_string(gsig.email)),
         gsig.time_when
     };
-    git_signature_free(gsig);
     
     return sig;
 }
