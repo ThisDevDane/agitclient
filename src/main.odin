@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 03:53:35 GMT+1
+ *  @Last Time: 14-12-2017 04:28:15 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -168,8 +168,9 @@ main :: proc() {
     commit_hash_buf    : [1024]byte;
     commit_message     : string;
     commit_sig         : git.Signature;
-    branch_c           : ^byte;
+    author_sig         : git.Signature;
 
+    branch_c           : ^byte;
     branch_names     : []string;
     branch_types     : []git.Branch_Flags;
 
@@ -308,6 +309,7 @@ main :: proc() {
                                         message_c := git.commit_message(commit);
                                         commit_message = strings.to_odin_string(message_c);
                                         commit_sig = git.commit_committer(commit);
+                                        author_sig = git.commit_author(commit);
                                     }
                                 }
                                 ref : ^git.Reference;
@@ -375,6 +377,7 @@ main :: proc() {
                                         message_c := git.commit_message(commit);
                                         commit_message = strings.to_odin_string(message_c);
                                         commit_sig = git.commit_committer(commit);
+                                        author_sig = git.commit_author(commit);
                                     }
                                 }
                             }
@@ -386,6 +389,8 @@ main :: proc() {
                         imgui.text("Branch: %s",         strings.to_odin_string(branch_c));
                         imgui.text("Commiter: %s",       commit_sig.name);
                         imgui.text("Commiter Email: %s", commit_sig.email);
+                        imgui.text("Author: %s",         author_sig.name);
+                        imgui.text("Author Email: %s",   author_sig.email);
                         imgui.text("Message: %s",        commit_message);
 
                         imgui.separator();

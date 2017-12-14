@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 03:32:38 GMT+1
+ *  @Last Time: 14-12-2017 04:24:18 UTC+1
  *  
  *  @Description:
  *  
@@ -1051,6 +1051,11 @@ commit_author :: proc(commit : ^Commit) -> Signature {
     return sig;
 }
 
+commit_raw_header :: proc(commit : ^Commit) -> string {
+    ptr := git_commit_raw_header(commit);
+    return strings.to_odin_string(ptr);
+}
+
 branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Flags) -> (^Branch_Iterator, i32) {
     iter : ^Branch_Iterator = nil;
     err := git_branch_iterator_new(&iter, repo, list_flags);
@@ -1108,6 +1113,7 @@ foreign libgit {
     @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
     git_commit_committer :: proc(commit : ^Commit) -> ^Git_Signature ---; 
     git_commit_author    :: proc(commit : ^Commit) -> ^Git_Signature ---; 
+    git_commit_raw_header :: proc(commit : ^Commit) -> ^byte ---;
 
     git_signature_free :: proc(sig : ^Git_Signature) ---;
 
