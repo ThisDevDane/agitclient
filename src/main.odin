@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 08:49:25 UTC+1
+ *  @Last Time: 15-12-2017 03:29:09 UTC+1
  *  
  *  @Description:
  *      Entry point for A Git Client.
@@ -150,6 +150,7 @@ checkout_branch :: proc(repo : ^git.Repository, b : Branch) -> bool {
     if !log_if_err(err) {
         opts := git.Checkout_Options{};
         opts.version = 1;
+        opts.disable_filters = 1; //NOTE(Hoej): User option later
         opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
         err = git.checkout_tree(repo, obj, &opts);
         refname := git.reference_name(b.ref);
@@ -576,7 +577,7 @@ main :: proc() {
                         imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                         for b in remote_branches {
                             imgui.selectable(b.name); 
-                            imgui.push_id(b.name);
+                            imgui.push_id(git.reference_name(b.ref));
                             defer imgui.pop_id();
                             if imgui.begin_popup_context_item("branch_context", 1) {
                                 defer imgui.end_popup();
