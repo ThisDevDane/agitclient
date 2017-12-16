@@ -1,13 +1,13 @@
 /*
  *  @Name:     main
- *  
+ *
  *  @Author:   Mikkel Hjortshoej
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   bpunsky
  *  @Last Time: 14-12-2017 07:44:22 UTC+1
- *  
+ *
  *  @Description:
  *      Entry point for A Git Client.
  */
@@ -48,7 +48,7 @@ set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     res := wgl.get_proc_address(name);
     if res == nil {
         res = misc.get_proc_address(lib, name);
-    }   
+    }
     if res == nil {
         console.log("Couldn't load:", name);
     }
@@ -75,7 +75,7 @@ username : string;
 password : string;
 
 set_user :: proc(args : []string) {
-    if len(args) >= 2 { 
+    if len(args) >= 2 {
         username = args[0];
         password = args[1];
     } else {
@@ -83,7 +83,7 @@ set_user :: proc(args : []string) {
     }
 }
 
-credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,  
+credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
                               username_from_url : ^byte, allowed_types : git.Cred_Type, payload : rawptr) -> i32 {
     test_val :: proc(test : git.Cred_Type, value : git.Cred_Type) -> bool {
         return test & value == test;
@@ -95,7 +95,7 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
         }
         cred^ = new_cred;
     } else {
-        return -1;            
+        return -1;
     }
 
     return 0;
@@ -200,17 +200,17 @@ main :: proc() {
     }
     lib_features := git.lib_features();
     console.log("LibGit2 build config;");
-    console.logf("\tLibGit2 is %s", 
+    console.logf("\tLibGit2 is %s",
                  feature_set(git.Lib_Features.Threads, lib_features) ? "thread-safe." : "not thread-safe");
-    console.logf("\tHttps is %s", 
+    console.logf("\tHttps is %s",
              feature_set(git.Lib_Features.Https, lib_features) ? "supported." : "not supported");
-    console.logf("\tSSH is %s", 
+    console.logf("\tSSH is %s",
              feature_set(git.Lib_Features.Ssh, lib_features) ? "supported." : "not supported");
-    console.logf("\tNsec is %s", 
+    console.logf("\tNsec is %s",
              feature_set(git.Lib_Features.Nsec, lib_features) ? "supported." : "not supported");
-    
+
     git.lib_version(&lib_ver_major, &lib_ver_minor, &lib_ver_rev);
-    lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d", 
+    lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d",
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
 
     settings := debug_get_settings();
@@ -221,7 +221,7 @@ main :: proc() {
         debug_reset();
 
         new_frame_state.mouse_wheel = 0;
-        
+
         for msg.poll_message(&message) {
             switch msg in message {
                 case msg.MsgQuitMessage : {
@@ -294,7 +294,7 @@ main :: proc() {
         { //RENDER
             if imgui.begin_main_menu_bar() {
                 defer imgui.end_main_menu_bar();
-                
+
                 if imgui.begin_menu("Menu") {
                     if imgui.menu_item("Close", "Shift+ESC") {
                         break main_loop;
@@ -315,7 +315,7 @@ main :: proc() {
 
             if imgui.begin("TEST") {
                 defer imgui.end();
-                
+
                 if repo == nil {
                     imgui.input_text("Repo Path;", path_buf[..]);
                     if imgui.button("Open") {
@@ -324,7 +324,7 @@ main :: proc() {
                             new_repo, err := git.repository_open(path);
                             if !log_if_err(err) {
                                 repo = new_repo;
-                                open_repo_name = strings.new_string(path); 
+                                open_repo_name = strings.new_string(path);
                                 oid, ok := git.reference_name_to_id(repo, "HEAD");
                                 if !log_if_err(ok) {
                                     free_commit(&current_commit);
@@ -383,7 +383,7 @@ main :: proc() {
                                 oid_str := cast(string)commit_hash_buf[..];
                                 oid: git.Oid;
                                 ok: = git.oid_from_str(&oid, &oid_str[0]);
-                                
+
                                 if !log_if_err(ok) {
                                     free_commit(&current_commit);
                                     current_commit = get_commit(repo, oid);
@@ -412,11 +412,11 @@ main :: proc() {
                                 git.status_init_options(&options, 1);
                                 options.flags = git.Status_Opt_Flags.Include_Untracked;
                                 err : i32;
-                                statuses, err = git.status_list_new(repo, &options); 
+                                statuses, err = git.status_list_new(repo, &options);
                                 log_if_err(err);
                             }
                         }
-                        
+
                         if statuses != nil {
                             count := git.status_list_entrycount(statuses);
 
@@ -496,32 +496,47 @@ main :: proc() {
                         defer imgui.end();
 
                         print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool) {
+                            branch_to_delete: Branch;
                             for b in branches {
-                                imgui.selectable(b.name); 
+                                imgui.selectable(b.name);
                                 imgui.push_id(b.name);
                                 defer imgui.pop_id();
+
+                                is_current_branch := git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref);
+
                                 if imgui.begin_popup_context_item("branch_context", 1) {
                                     defer imgui.end_popup();
-                                    if imgui.selectable("Checkout") {
-                                        obj, err := git.revparse_single(repo, b.name);
-                                        if !log_if_err(err) {
-                                            opts := git.Checkout_Options{};
-                                            opts.version = 1;
-                                            opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
-                                            err = git.checkout_tree(repo, obj, &opts);
-                                            refname := git.reference_name(b.ref);
-                                            if !log_if_err(err) { 
-                                                err = git.repository_set_head(repo, refname);
-                                                if !log_if_err(err) do update_branches^ = true;
+                                    if !is_current_branch {
+                                        if imgui.selectable("Checkout") {
+                                            obj, err := git.revparse_single(repo, b.name);
+                                            if !log_if_err(err) {
+                                                opts := git.Checkout_Options{};
+                                                opts.version = 1;
+                                                opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
+                                                err = git.checkout_tree(repo, obj, &opts);
+                                                refname := git.reference_name(b.ref);
+                                                if !log_if_err(err) {
+                                                    err = git.repository_set_head(repo, refname);
+                                                    if !log_if_err(err) do update_branches^ = true;
+                                                }
                                             }
+                                        }
+
+                                        if imgui.selectable("Delete") {
+                                            branch_to_delete = b;
                                         }
                                     }
                                 }
 
-                                if git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref) {
+                                if is_current_branch {
                                     imgui.same_line();
                                     imgui.text("(current)");
                                 }
+                            }
+
+                            if branch_to_delete.ref != nil {
+                                update_branches^ = true;
+                                git.branch_delete(branch_to_delete.ref);
                             }
                         }
 
@@ -564,7 +579,7 @@ main :: proc() {
             }
         }
         imgui.render_proc(dear_state, wnd_width, wnd_height);
-        
+
         window.swap_buffers(wnd_handle);
     }
 
