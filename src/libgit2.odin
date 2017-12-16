@@ -1,15 +1,15 @@
 /*
  *  @Name:     libgit2
- *  
+ *
  *  @Author:   Mikkel Hjortshoej
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
  *  @Last Time: 14-12-2017 07:37:03 UTC+1
- *  
+ *
  *  @Description:
- *  
+ *
  */
 
 foreign import libgit "../external/git2.lib";
@@ -76,7 +76,7 @@ Str_Array :: struct #ordered {
 
 Buf :: struct #ordered {
     ptr   : ^byte,
-    asize : uint, 
+    asize : uint,
     size  : uint,
 }
 
@@ -130,24 +130,24 @@ Cert :: struct #ordered {
 Repository_Init_Flags :: enum u32 {
     Bare              = (1 << 0), //Create a bare repository with no working directory
     No_Reinit         = (1 << 1), //Return an GIT_EEXISTS error if the repo_path appears to already be an git repository
-   
-    No_Dotgit_Dir     = (1 << 2), //Normally a "/.git/" will be appended to the repo 
-                                  //path for non-bare repos (if it is not already there), but 
+
+    No_Dotgit_Dir     = (1 << 2), //Normally a "/.git/" will be appended to the repo
+                                  //path for non-bare repos (if it is not already there), but
                                   //passing this flag prevents that behavior.
-   
+
     Mkdir             = (1 << 3), //Make the repo_path (and workdir_path) as needed.  Init is
                                   //always willing to create the ".git" directory even without this
                                   //flag.  This flag tells init to create the trailing component of
                                   //the repo and workdir paths as needed.
 
     Mkpath            = (1 << 4), //Recursively make all components of the repo and workdir paths as necessary.
-    
+
     External_Template = (1 << 5), //libgit2 normally uses internal templates to
                                   //initialize a new repo.  This flags enables external templates,
                                   //looking the "template_path" from the options if set, or the
                                   //`init.templatedir` global config if not, or falling back on
                                   //"/usr/share/git-core/templates" if it exists.
-    
+
     Relative_Gitlink  = (1 << 6), //If an alternate workdir is specified, use relative paths for the gitdir and core.worktree.
 }
 
@@ -385,7 +385,7 @@ Checkout_Options :: struct #ordered {
     /** Optional callback to notify the consumer of performance data. */
     perfdata_cb       : proc "stdcall" (perfdata : ^Checkout_Perfdata, payload : rawptr),
     perfdata_payload  : rawptr,
-} 
+}
 
 Fetch_Options :: struct #ordered {
     version : i32,
@@ -565,7 +565,7 @@ Cert_Type :: enum i32 {
      * curl.
      */
     Str_array,
-}  
+}
 
 Fetch_Prune_Flags :: enum i32 {
     /**
@@ -1039,7 +1039,7 @@ remote_list   :: proc(repo : ^Repository) -> ([]string, i32) {
 remote_init_callbacks :: proc() -> (Remote_Callbacks, i32) {
     cb := Remote_Callbacks{};
     err := git_remote_init_callbacks(&cb, 1);
-    return cb, err; 
+    return cb, err;
 }
 
 remote_fetch :: proc(remote : ^Remote, refspecs : []string, opts : ^Fetch_Options, reflog_message : string = nil) -> i32 {
@@ -1112,7 +1112,7 @@ commit_committer :: proc(commit : ^Commit) -> Signature {
         strings.new_string(strings.to_odin_string(gsig.email)),
         gsig.time_when
     };
-    
+
     return sig;
 }
 
@@ -1124,7 +1124,7 @@ commit_author :: proc(commit : ^Commit) -> Signature {
         strings.new_string(strings.to_odin_string(gsig.email)),
         gsig.time_when
     };
-    
+
     return sig;
 }
 
@@ -1138,7 +1138,7 @@ branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Flags) -> (^
     err := git_branch_iterator_new(&iter, repo, list_flags);
     return iter, err;
 }
-    
+
 branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Flags, i32) {
     ref : ^Reference = nil;
     flags : Branch_Flags;
@@ -1195,8 +1195,8 @@ foreign libgit {
     @(link_name = "git_commit_message")     commit_message     :: proc(commit: ^Commit) -> ^u8 ---;
     @(link_name = "git_commit_parentcount") commit_parentcount :: proc(commit : ^Commit) -> u32 ---;
     @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
-    git_commit_committer :: proc(commit : ^Commit) -> ^Git_Signature ---; 
-    git_commit_author    :: proc(commit : ^Commit) -> ^Git_Signature ---; 
+    git_commit_committer :: proc(commit : ^Commit) -> ^Git_Signature ---;
+    git_commit_author    :: proc(commit : ^Commit) -> ^Git_Signature ---;
     git_commit_raw_header :: proc(commit : ^Commit) -> ^byte ---;
 
     git_signature_free :: proc(sig : ^Git_Signature) ---;
@@ -1236,6 +1236,7 @@ foreign libgit {
     git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Flags) -> i32 ---;
     @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
     git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Flags, iter : ^Branch_Iterator) -> i32 ---;
+    @(link_name = "git_branch_delete") branch_delete :: proc(branch : ^Reference) -> i32 ---;
     @(link_name = "git_branch_is_checked_out") branch_is_checked_out :: proc(branch : ^Reference) -> bool ---;
 
     git_revparse_single :: proc(out : ^^Object, repo : ^Repository, spec : ^byte) -> i32 ---;
