@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 16-12-2017 22:47:19 UTC-8
+ *  @Last Time: 16-12-2017 18:18:02 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -191,6 +191,8 @@ main :: proc() {
     commit_hash_buf    : [1024]byte;
 
     branch_name        : string;
+    create_branch_name : [1024]byte;
+
     local_branches     : []Branch;
     remote_branches    : []Branch;
 
@@ -517,6 +519,29 @@ main :: proc() {
                     if imgui.begin("Branches") {
                         defer imgui.end();
 
+                        checkout_branch :: proc(repo: ^git.Repository, reference: ^git.Reference) -> bool {
+                            branch_name, err := git.branch_name(reference);
+                            if !log_if_err(err) {
+                                obj, err := git.revparse_single(repo, branch_name);
+                                if !log_if_err(err) {
+                                    opts := git.Checkout_Options{};
+                                    opts.version = 1;
+                                    opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
+                                    err = git.checkout_tree(repo, obj, &opts);
+                                    refname := git.reference_name(reference);
+                                    if !log_if_err(err) {
+                                        err = git.repository_set_head(repo, refname);
+                                        if !log_if_err(err) {
+                                            // TODO(josh): free the current b.ref?
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+
+                            return false;
+                        }
+
                         print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool) {
                             branch_to_delete: Branch;
                             for b in branches {
@@ -530,17 +555,8 @@ main :: proc() {
                                     defer imgui.end_popup();
                                     if !is_current_branch {
                                         if imgui.selectable("Checkout") {
-                                            obj, err := git.revparse_single(repo, b.name);
-                                            if !log_if_err(err) {
-                                                opts := git.Checkout_Options{};
-                                                opts.version = 1;
-                                                opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
-                                                err = git.checkout_tree(repo, obj, &opts);
-                                                refname := git.reference_name(b.ref);
-                                                if !log_if_err(err) {
-                                                    err = git.repository_set_head(repo, refname);
-                                                    if !log_if_err(err) do update_branches^ = true;
-                                                }
+                                            if checkout_branch(repo, b.ref) {
+                                                update_branches^ = true;
                                             }
                                         }
 
@@ -560,6 +576,23 @@ main :: proc() {
                                 update_branches^ = true;
                                 git.branch_delete(branch_to_delete.ref);
                             }
+                        }
+
+                        imgui.input_text("", create_branch_name[..]);
+                        imgui.same_line();
+                        if imgui.button("Create branch") {
+                            branch_name_str := cast(string)create_branch_name[..];
+
+                            // NOTE(josh): The docs say that `reference` needs to be freed by the user, but I'm not sure when. :thinking:
+                            reference: ^git.Reference;
+                            err := git.branch_create(&reference, repo, branch_name_str, current_commit.git_commit, 0);
+                            if !log_if_err(err) {
+                                if checkout_branch(repo, reference) {
+                                    update_branches = true;
+                                }
+                            }
+
+                            create_branch_name = [1024]u8{};
                         }
 
                         imgui.text("Local Branches:");
