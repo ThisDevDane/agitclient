@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 17-12-2017 09:36:38 UTC-8
+ *  @Last Time: 16-12-2017 14:45:35 UTC-8
  *
  *  @Description:
  *
@@ -213,6 +213,81 @@ Index_Entry_Extended_Flag :: enum u16 {
 
     Unpacked          = (1 << 8),
     New_Skip_Worktree = (1 << 9),
+}
+
+Stash_Apply_Flags :: enum i32 {
+    Default         = 0 << 0,
+
+    /* Try to reinstate not only the working tree's changes,
+     * but also the index's changes.
+     */
+    Reinstate_Index = 1 << 0,
+}
+
+Stash_Flags :: enum u32 {
+    /**
+     * No option, default
+     */
+    Default           = 0 << 0,
+
+    /**
+     * All changes already added to the index are left intact in
+     * the working directory
+     */
+    Keep_Index        = 1 << 0,
+
+    /**
+     * All untracked files are also stashed and then cleaned up
+     * from the working directory
+     */
+    Include_Untracked = 1 << 1,
+
+    /**
+     * All ignored files are also stashed and then cleaned up from
+     * the working directory
+     */
+    Include_Ignored   = 1 << 2,
+}
+
+Stash_Apply_Progress_CB :: #type proc(progress: Stash_Apply_Progress, payload: rawptr) -> i32;
+Stash_CB :: #type proc(index: uint, message: ^byte, stash_id: Oid, payload: rawptr) -> i32;
+
+Stash_Apply_Progress :: enum i32 {
+    None = 0,
+
+    /** Loading the stashed data from the object database. */
+    Loading_Stash,
+
+    /** The stored index is being analyzed. */
+    Analyze_Index,
+
+    /** The modified files are being analyzed. */
+    Analyze_Modified,
+
+    /** The untracked and ignored files are being analyzed. */
+    Analyze_Untracked,
+
+    /** The untracked files are being written to disk. */
+    Checkout_Untracked,
+
+    /** The modified files are being written to disk. */
+    Checkout_Modified,
+
+    /** The stash was applied successfully. */
+    Done,
+}
+
+Stash_Apply_Options :: struct #ordered {
+    version: u32,
+
+    flags: Stash_Apply_Flags,
+
+    /** Options to use when writing files to the working directory. */
+    checkout_options: Checkout_Options,
+
+    /** Optional callback to notify the consumer of application progress. */
+    progress_cb: Stash_Apply_Progress_CB,
+    progress_payload: rawptr,
 }
 
 Clone_Options :: struct {
@@ -1146,6 +1221,10 @@ branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Flags, i32) 
     return ref, flags, err;
 }
 
+branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : string, target : ^Commit, force : i32) -> i32 {
+    return git_branch_create(out, repo, _make_misc_string(branch_name), target, force);
+}
+
 branch_name :: proc(ref : ^Reference) -> (string, i32) {
     c_str : ^byte;
     err := git_branch_name(&c_str, ref);
@@ -1156,6 +1235,14 @@ revparse_single :: proc(repo : ^Repository, spec : string) -> (^Object, i32) {
     obj : ^Object = nil;
     err := git_revparse_single(&obj, repo, _make_misc_string(spec));
     return obj, err;
+}
+
+stash_save :: proc(out : ^Oid, repo : ^Repository, stasher : ^Signature, message : string, flags : Stash_Flags) -> i32 {
+    return git_stash_save(out, repo, stasher, _make_misc_string(message), flags);
+}
+
+signature_now :: proc(out : ^^Signature, name, email : string) -> i32 {
+    return git_signature_now(out, _make_misc_string(name), _make_misc_string(email));
 }
 
 @(default_calling_convention="stdcall")
@@ -1199,6 +1286,7 @@ foreign libgit {
     git_commit_author    :: proc(commit : ^Commit) -> ^Git_Signature ---;
     git_commit_raw_header :: proc(commit : ^Commit) -> ^byte ---;
 
+    git_signature_now :: proc(out : ^^Signature, name, email : ^byte) -> i32 ---;
     git_signature_free :: proc(sig : ^Git_Signature) ---;
 
     // Oid
@@ -1232,6 +1320,7 @@ foreign libgit {
     @(link_name = "git_reference_is_branch") reference_is_branch :: proc(ref : ^Reference) -> bool ---;
 
     //Branch
+    git_branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> i32 ---;
     git_branch_name :: proc(out : ^^byte, ref : ^Reference) -> i32 ---;
     git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Flags) -> i32 ---;
     @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
@@ -1244,4 +1333,11 @@ foreign libgit {
     //Checkout
     @(link_name = "git_checkout_tree") checkout_tree :: proc(repo : ^Repository, treeish : ^Object, opts : ^Checkout_Options) -> i32 ---;
 
+    // Stash
+    git_stash_save :: proc(out : ^Oid, repo : ^Repository, stasher : ^Signature, message : ^byte, flags : Stash_Flags) -> i32 ---;
+    @(link_name = "git_stash_apply") stash_apply :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> i32 ---;
+    @(link_name = "git_stash_pop") stash_pop :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> i32 ---;
+    @(link_name = "git_stash_drop") stash_drop :: proc(repo : ^Repository, index : uint) -> i32 ---;
+    @(link_name = "git_stash_foreach") stash_foreach :: proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> i32 ---;
+    @(link_name = "git_stash_apply_init_options") stash_apply_init_options :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
 }
