@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 07:37:03 UTC+1
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 17-12-2017 09:36:38 UTC-8
  *
  *  @Description:
  *
@@ -20,18 +20,18 @@ import "core:strings.odin";
 
 GIT_OID_RAWSZ :: 20;
 
-Repository :: struct #ordered {};
-Remote     :: struct #ordered {};
-Tree       :: struct #ordered {};
-Index      :: struct #ordered {};
-Transport  :: struct #ordered {};
-Commit     :: struct #ordered {};
-Reference  :: struct #ordered {};
-Object     :: struct #ordered {};
+Repository :: struct {};
+Remote     :: struct {};
+Tree       :: struct {};
+Index      :: struct {};
+Transport  :: struct {};
+Commit     :: struct {};
+Reference  :: struct {};
+Object     :: struct {};
 
-Branch_Iterator  :: struct #ordered {};
+Branch_Iterator  :: struct {};
 
-Oid :: struct #ordered {
+Oid :: struct {
     /** raw binary formatted id */
     id : [GIT_OID_RAWSZ]byte,
 }
@@ -42,13 +42,13 @@ Signature :: struct {
     time_when : Time, //Time when the action happened
 }
 
-Git_Signature :: struct #ordered {
+Git_Signature :: struct {
     name      : ^byte,    //Full name of the author
     email     : ^byte,    //Email of the author
     time_when : Time, //Time when the action happened
 }
 
-Repository_Init_Options :: struct #ordered {
+Repository_Init_Options :: struct {
     version       : u32,
     flags         : u32,
     mode          : Repository_Init_Mode,
@@ -59,7 +59,7 @@ Repository_Init_Options :: struct #ordered {
     origin_url    : ^byte,
 }
 
-Git_Error :: struct #ordered {
+Git_Error :: struct {
     message : ^byte,
     klass   : ErrorType,
 }
@@ -69,24 +69,24 @@ Error :: struct {
     klass   : ErrorType,
 }
 
-Str_Array :: struct #ordered {
+Str_Array :: struct {
     strings : ^^byte,
     count   : uint,
 }
 
-Buf :: struct #ordered {
+Buf :: struct {
     ptr   : ^byte,
     asize : uint,
     size  : uint,
 }
 
-Checkout_Perfdata :: struct #ordered {
+Checkout_Perfdata :: struct {
     mkdir_calls : u32,
     stat_calls  : u32,
     chmod_calls : u32,
 }
 
-Cred :: struct #ordered {
+Cred :: struct {
     credtype : Cred_Type,
     free : proc "c" (cred : ^Cred),
 }
@@ -123,7 +123,7 @@ Cred_Type :: enum u32 {
     Ssh_Memory = (1 << 6),
 }
 
-Cert :: struct #ordered {
+Cert :: struct {
     type_ : Cert_Type,
 }
 
@@ -157,19 +157,19 @@ Repository_Init_Mode :: enum u32 {
     Shared_All   = 0002777, //Use "--shared=all" behavior, adding world readability. Anything else - Set to custom value.
 }
 
-Time :: struct #ordered {
+Time :: struct {
     time   : i64,   //time in seconds from epoch
     offset : i32, //timezone offset, in minutes
     sign   : byte,  //indicator for questionable '-0000' offsets in signature
 }
 
-Index_Time :: struct #ordered {
+Index_Time :: struct {
     seconds : i32,
     /* nsec should not be stored as time_t compatible */
     nanoseconds : u32,
 }
 
-Index_Entry :: struct #ordered {
+Index_Entry :: struct {
     ctime : Index_Time,
     mtime : Index_Time,
 
@@ -215,7 +215,7 @@ Index_Entry_Extended_Flag :: enum u16 {
     New_Skip_Worktree = (1 << 9),
 }
 
-Clone_Options :: struct #ordered {
+Clone_Options :: struct {
     version : u32,
 
     /**
@@ -341,7 +341,7 @@ Checkout_Strategy_Flags :: enum u32 {
     Dont_Write_Index = (1 << 23),
 }
 
-Checkout_Options :: struct #ordered {
+Checkout_Options :: struct {
     version           : u32,
 
     checkout_strategy : Checkout_Strategy_Flags, // default will be a dry run
@@ -387,7 +387,7 @@ Checkout_Options :: struct #ordered {
     perfdata_payload  : rawptr,
 }
 
-Fetch_Options :: struct #ordered {
+Fetch_Options :: struct {
     version : i32,
 
     /**
@@ -426,7 +426,7 @@ Fetch_Options :: struct #ordered {
     custom_headers : Str_Array,
 }
 
-Remote_Callbacks :: struct #ordered {
+Remote_Callbacks :: struct {
     version : u32,
     /**
      * Textual progress from the remote. Text send over the
@@ -510,7 +510,7 @@ Remote_Callbacks :: struct #ordered {
     payload : rawptr,
 }
 
-Transfer_Progress :: struct #ordered {
+Transfer_Progress :: struct {
     total_objects    : u32,
     indexed_objects  : u32,
     received_objects : u32,
@@ -520,7 +520,7 @@ Transfer_Progress :: struct #ordered {
     received_bytes   : uint,
 }
 
-Push_Update :: struct #ordered {
+Push_Update :: struct {
     /**
      * The source name of the reference
      */
@@ -625,7 +625,7 @@ Clone_Local_Flags :: enum i32 {
     LOCAL_NO_LINKS,
 }
 
-Proxy_Options :: struct #ordered {
+Proxy_Options :: struct {
     version : u32,
 
     /**
@@ -662,7 +662,7 @@ Proxy_Options :: struct #ordered {
     payload : rawptr,
 }
 
-Diff_File :: struct #ordered {
+Diff_File :: struct {
     id        : Oid,
     path      : ^byte,
     size      : i64, //NOTE(Hoej): Changes with platform, i64 on Windows
@@ -815,15 +815,15 @@ Status_Options :: struct #packed {
     baseline : ^Tree,
 }
 
-Status_List :: struct #ordered {};
+Status_List :: struct {};
 
-Status_Entry :: struct #ordered {
+Status_Entry :: struct {
     status           : Status_Flags,
     head_to_index    : ^Diff_Delta,
     index_to_workdir : ^Diff_Delta,
 }
 
-Diff_Delta :: struct #ordered {
+Diff_Delta :: struct {
     status     : Delta,
     flags      : Diff_Flags,
     similarity : u16,
