@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   bpunsky
- *  @Last Time: 14-12-2017 07:44:22 UTC+1
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 16-12-2017 17:54:35 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -191,6 +191,7 @@ main :: proc() {
     commit_hash_buf    : [1024]byte;
 
     branch_name        : string;
+    create_branch_name : [1024]byte;
     local_branches     : []Branch;
     remote_branches    : []Branch;
 
@@ -537,6 +538,19 @@ main :: proc() {
                             if branch_to_delete.ref != nil {
                                 update_branches^ = true;
                                 git.branch_delete(branch_to_delete.ref);
+                            }
+                        }
+
+                        imgui.input_text("", create_branch_name[..]);
+                        imgui.same_line();
+                        if imgui.button("Create branch") {
+                            branch_name_str := cast(string)create_branch_name[..];
+
+                            // TODO: Do something with `reference`?
+                            reference: ^git.Reference;
+                            err := git.branch_create(&reference, repo, branch_name_str, current_commit.git_commit, 0);
+                            if !log_if_err(err) {
+                                update_branches = true;
                             }
                         }
 

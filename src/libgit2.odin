@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 07:37:03 UTC+1
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 16-12-2017 14:45:35 UTC-8
  *
  *  @Description:
  *
@@ -1146,6 +1146,10 @@ branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Flags, i32) 
     return ref, flags, err;
 }
 
+branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : string, target : ^Commit, force : i32) -> i32 {
+    return git_branch_create(out, repo, _make_misc_string(branch_name), target, force);
+}
+
 branch_name :: proc(ref : ^Reference) -> (string, i32) {
     c_str : ^byte;
     err := git_branch_name(&c_str, ref);
@@ -1232,6 +1236,7 @@ foreign libgit {
     @(link_name = "git_reference_is_branch") reference_is_branch :: proc(ref : ^Reference) -> bool ---;
 
     //Branch
+    git_branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> i32 ---;
     git_branch_name :: proc(out : ^^byte, ref : ^Reference) -> i32 ---;
     git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Flags) -> i32 ---;
     @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
