@@ -420,6 +420,28 @@ main :: proc() {
                         }
 
                         if statuses != nil {
+                            if imgui.button("Stash") {
+                                oid: git.Oid;
+                                sig: ^git.Signature;
+
+                                // TODO(josh): Get the stashers real name and email
+                                err := git.signature_now(&sig, current_commit.commiter.name, current_commit.commiter.email);
+                                if !log_if_err(err) {
+                                    // TODO(josh): Stash messages
+                                    // TODO(josh): Stash options
+                                    err = git.stash_save(&oid, repo, sig, "temp message", git.Stash_Flags.Default);
+                                    log_if_err(err);
+                                }
+                            }
+
+                            imgui.same_line();
+
+                            if imgui.button("Pop") {
+                                opts : git.Stash_Apply_Options;
+                                git.stash_apply_init_options(&opts, 1);
+                                git.stash_pop(repo, 0, &opts);
+                            }
+
                             count := git.status_list_entrycount(statuses);
 
                             imgui.text("Changes to be committed:");
