@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-12-2017 08:25:03 UTC+1
+ *  @Last Time: 17-12-2017 03:24:43 UTC+1
  *
  *  @Description:
  *
@@ -37,15 +37,15 @@ Oid :: struct #ordered {
 }
 
 Signature :: struct {
-    name      : string,   //Full name of the author
-    email     : string,   //Email of the author
-    time_when : Time, //Time when the action happened
+    name      : string, //Full name of the author
+    email     : string, //Email of the author
+    time_when : Time,   //Time when the action happened
 }
 
 Git_Signature :: struct #ordered {
-    name      : ^byte,    //Full name of the author
-    email     : ^byte,    //Email of the author
-    time_when : Time, //Time when the action happened
+    name      : ^byte, //Full name of the author
+    email     : ^byte, //Email of the author
+    time_when : Time,  //Time when the action happened
 }
 
 Repository_Init_Options :: struct #ordered {
@@ -930,7 +930,7 @@ Status_Opt_Defaults :: Status_Opt_Flags.Include_Ignored       |
                        Status_Opt_Flags.Include_Untracked     |
                        Status_Opt_Flags.Recurse_Untracked_Dirs;
 
-Branch_Flags :: enum i32 {
+Branch_Type :: enum i32 {
     Local = 1,
     Remote = 2,
     All = Local|Remote,
@@ -1143,15 +1143,15 @@ commit_raw_header :: proc(commit : ^Commit) -> string {
     return strings.to_odin_string(ptr);
 }
 
-branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Flags) -> (^Branch_Iterator, i32) {
+branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Type) -> (^Branch_Iterator, i32) {
     iter : ^Branch_Iterator = nil;
     err := git_branch_iterator_new(&iter, repo, list_flags);
     return iter, err;
 }
 
-branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Flags, i32) {
+branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Type, i32) {
     ref : ^Reference = nil;
-    flags : Branch_Flags;
+    flags : Branch_Type;
     err := git_branch_next(&ref, &flags, iter);
     return ref, flags, err;
 }
@@ -1250,9 +1250,9 @@ foreign libgit {
 
     //Branch
     git_branch_name :: proc(out : ^^byte, ref : ^Reference) -> i32 ---;
-    git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Flags) -> i32 ---;
+    git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Type) -> i32 ---;
     @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
-    git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Flags, iter : ^Branch_Iterator) -> i32 ---;
+    git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> i32 ---;
     @(link_name = "git_branch_delete") branch_delete :: proc(branch : ^Reference) -> i32 ---;
     @(link_name = "git_branch_is_checked_out") branch_is_checked_out :: proc(branch : ^Reference) -> bool ---;
     git_branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> i32 ---;

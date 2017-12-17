@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   bpunsky
- *  @Last Time: 14-12-2017 07:44:22 UTC+1
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 17-12-2017 03:22:49 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -41,7 +41,7 @@ Commit :: struct {
 Branch :: struct {
     ref           : ^git.Reference,
     name          : string,
-    btype         : git.Branch_Flags,
+    btype         : git.Branch_Type,
     current_commit : Commit,
 }
 
@@ -103,7 +103,7 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
-get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Flags) -> []Branch {
+get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []Branch {
     GIT_ITEROVER :: -31;
     result : [dynamic]Branch;
     iter, err := git.branch_iterator_new(repo, btype);
@@ -177,7 +177,7 @@ create_branch :: proc(repo : ^git.Repository, b : Branch, force := false) -> Bra
         b := Branch {
             ref,
             name,
-            git.Branch_Flags.Local,
+            git.Branch_Type.Local,
             commit,
         };
 
@@ -361,7 +361,11 @@ main :: proc() {
                 }
             }
 
-            if imgui.begin("TEST") {
+            imgui.set_next_window_pos(imgui.Vec2{160, 18});
+                    imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
+            if imgui.begin("Repo", nil, imgui.WindowFlags.NoResize |
+                                        imgui.WindowFlags.NoMove |
+                                        imgui.WindowFlags.NoCollapse) {
                 defer imgui.end();
 
                 if repo == nil {
@@ -379,8 +383,8 @@ main :: proc() {
                                     current_commit = get_commit(repo, oid);
                                 }
 
-                                local_branches = get_all_branches(repo, git.Branch_Flags.Local);
-                                remote_branches = get_all_branches(repo, git.Branch_Flags.Remote);
+                                local_branches = get_all_branches(repo, git.Branch_Type.Local);
+                                remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
 
                                 options : git.Status_Options;
                                 git.status_init_options(&options, 1);
@@ -431,15 +435,14 @@ main :: proc() {
                             if repo != nil {
                                 oid_str := cast(string)commit_hash_buf[..];
                                 oid: git.Oid;
-                                ok: = git.oid_from_str(&oid, &oid_str[0]);
-
+                                ok := git.oid_from_str(&oid, &oid_str[0]);
                                 if !log_if_err(ok) {
                                     free_commit(&current_commit);
                                     current_commit = get_commit(repo, oid);
                                 }
                             }
                             else {
-                                console.log("You haven't fetched a repo yet!");
+                                console.log_error("You haven't opened a repo yet!");
                             }
                         }
 
@@ -540,24 +543,46 @@ main :: proc() {
                     }
 
                     update_branches := false;
-                    if imgui.begin("Branches") {
+                    imgui.set_next_window_pos(imgui.Vec2{0, 18});
+                    imgui.set_next_window_size(imgui.Vec2{160, f32(wnd_height-18)});
+                    if imgui.begin("Branches", nil, imgui.WindowFlags.NoResize |
+                                                    imgui.WindowFlags.NoMove |
+                                                    imgui.WindowFlags.NoCollapse | 
+                                                    imgui.WindowFlags.MenuBar) {
                         defer imgui.end();
+                        if imgui.begin_menu_bar() {  
+                            defer imgui.end_menu_bar();
+                            if imgui.begin_menu("Misc") {
+                                defer imgui.end_menu();
+                                if imgui.menu_item("Update") {
+                                    update_branches = true;
+                                }
+                            }
+                        }
+
+                        pos := imgui.get_window_pos();
+                        size := imgui.get_window_size();
 
                         print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool) {
                             branch_to_delete: Branch;
                             for b in branches {
-                                imgui.selectable(b.name);
+                                is_current_branch := git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref);
+                                imgui.selectable(b.name, is_current_branch);
+                                if imgui.is_item_clicked(0) && imgui.is_mouse_double_clicked(0) {
+                                    if checkout_branch(repo, b) {
+                                        update_branches^ = true;
+                                    }
+                                }
                                 imgui.push_id(b.name);
                                 defer imgui.pop_id();
 
-                                is_current_branch := git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref);
 
-                                if imgui.begin_popup_context_item("branch_context", 1) {
-                                    defer imgui.end_popup();
-                                    if !is_current_branch {
+                                if !is_current_branch {
+                                    if imgui.begin_popup_context_item("branch_context", 1) {
+                                        defer imgui.end_popup();
                                         if imgui.selectable("Checkout") {
-                                        if checkout_branch(repo, b) {
-                                            update_branches^ = true;
+                                            if checkout_branch(repo, b) {
+                                                update_branches^ = true;
                                             }
                                         }
 
@@ -566,7 +591,6 @@ main :: proc() {
                                         }
                                     }
                                 }
-                                imgui.text(b.current_commit.summary); 
 
                                 if is_current_branch {
                                     imgui.same_line();
@@ -579,7 +603,6 @@ main :: proc() {
                                 git.branch_delete(branch_to_delete.ref);
                             }
                         }
-                        if imgui.button("Update") do update_branches = true;
                         imgui.text("Local Branches:");
                         imgui.indent();
                         imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
@@ -591,6 +614,7 @@ main :: proc() {
                         imgui.indent();
                         imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                         for b in remote_branches {
+                            if b.name == "origin/HEAD" do continue;
                             imgui.selectable(b.name); 
                             imgui.push_id(git.reference_name(b.ref));
                             defer imgui.pop_id();
@@ -602,16 +626,14 @@ main :: proc() {
                                     update_branches = true;
                                 }
                             }
-                            imgui.same_line();
-                            imgui.text(b.current_commit.summary); 
                         }
                         imgui.pop_style_color();
                         imgui.unindent();
                     }
 
                     if update_branches {
-                        local_branches = get_all_branches(repo, git.Branch_Flags.Local);
-                        remote_branches = get_all_branches(repo, git.Branch_Flags.Remote);
+                        local_branches = get_all_branches(repo, git.Branch_Type.Local);
+                        remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
                     }
                 }
             }
