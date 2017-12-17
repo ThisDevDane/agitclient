@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 16-12-2017 22:46:39 UTC-8
+ *  @Last Time: 16-12-2017 22:47:19 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -421,6 +421,7 @@ main :: proc() {
                             if imgui.button("Stash") {
                                 oid: git.Oid;
                                 sig: ^git.Signature;
+
                                 // TODO(josh): Get the stashers real name and email
                                 err := git.signature_now(&sig, current_commit.commiter.name, current_commit.commiter.email);
                                 if !log_if_err(err) {
