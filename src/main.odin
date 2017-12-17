@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 16-12-2017 22:43:53 UTC-8
+ *  @Last Time: 16-12-2017 22:46:39 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -419,14 +419,16 @@ main :: proc() {
 
                         if statuses != nil {
                             if imgui.button("Stash") {
-                                stash_save :: proc(out : ^git.Oid, repo : ^git.Repository, stasher : ^git.Signature, message : string, flags : u32) -> i32;
                                 oid: git.Oid;
                                 sig: ^git.Signature;
                                 // TODO(josh): Get the stashers real name and email
-                                git.signature_now(&sig, current_commit.commiter.name, current_commit.commiter.email);
-                                // TODO(josh): Stash messages
-                                // TODO(josh): Stash options
-                                git.stash_save(&oid, repo, sig, "temp message", git.Stash_Flags.Default);
+                                err := git.signature_now(&sig, current_commit.commiter.name, current_commit.commiter.email);
+                                if !log_if_err(err) {
+                                    // TODO(josh): Stash messages
+                                    // TODO(josh): Stash options
+                                    err = git.stash_save(&oid, repo, sig, "temp message", git.Stash_Flags.Default);
+                                    log_if_err(err);
+                                }
                             }
 
                             imgui.same_line();
