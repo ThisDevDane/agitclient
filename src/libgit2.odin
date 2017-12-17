@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 16-12-2017 14:45:35 UTC-8
+ *  @Last Time: 17-12-2017 10:05:33 UTC-8
  *
  *  @Description:
  *
@@ -277,7 +277,7 @@ Stash_Apply_Progress :: enum i32 {
     Done,
 }
 
-Stash_Apply_Options :: struct #ordered {
+Stash_Apply_Options :: struct {
     version: u32,
 
     flags: Stash_Apply_Flags,
