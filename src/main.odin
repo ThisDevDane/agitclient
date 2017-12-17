@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   bpunsky
- *  @Last Time: 14-12-2017 07:44:22 UTC+1
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 16-12-2017 22:43:53 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -418,6 +418,25 @@ main :: proc() {
                         }
 
                         if statuses != nil {
+                            if imgui.button("Stash") {
+                                stash_save :: proc(out : ^git.Oid, repo : ^git.Repository, stasher : ^git.Signature, message : string, flags : u32) -> i32;
+                                oid: git.Oid;
+                                sig: ^git.Signature;
+                                // TODO(josh): Get the stashers real name and email
+                                git.signature_now(&sig, current_commit.commiter.name, current_commit.commiter.email);
+                                // TODO(josh): Stash messages
+                                // TODO(josh): Stash options
+                                git.stash_save(&oid, repo, sig, "temp message", git.Stash_Flags.Default);
+                            }
+
+                            imgui.same_line();
+
+                            if imgui.button("Pop") {
+                                opts : git.Stash_Apply_Options;
+                                git.stash_apply_init_options(&opts, 1);
+                                git.stash_pop(repo, 0, &opts);
+                            }
+
                             count := git.status_list_entrycount(statuses);
 
                             imgui.text("Changes to be committed:");
