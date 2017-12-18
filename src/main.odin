@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 20:58:33 UTC+1
+ *  @Last Time: 18-12-2017 21:59:31 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -133,8 +133,8 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
 
 get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
     result : Commit;
-
-    err := git.commit_lookup(&result.git_commit, repo, &oid);
+    err : i32;
+    result.git_commit, err = git.commit_lookup(repo, &oid);
     if !log_if_err(err) {
         result.message  = git.commit_message(result.git_commit);
         result.summary  = git.commit_summary(result.git_commit);
@@ -307,7 +307,7 @@ main :: proc() {
 
     open_repo_name     : string;
 
-    current_commit     : Commit;
+    current_branch     : Branch;
     commit_hash_buf    : [1024]byte;
 
     create_branch_name  : [1024]byte;
@@ -436,7 +436,7 @@ main :: proc() {
             }
 
             imgui.set_next_window_pos(imgui.Vec2{160, 18});
-                    imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
+            imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
             if imgui.begin("Repo", nil, imgui.WindowFlags.NoResize |
                                         imgui.WindowFlags.NoMove |
                                         imgui.WindowFlags.NoCollapse) {
@@ -453,8 +453,22 @@ main :: proc() {
                                 open_repo_name = strings.new_string(path);
                                 oid, ok := git.reference_name_to_id(repo, "HEAD");
                                 if !log_if_err(ok) {
-                                    free_commit(&current_commit);
-                                    current_commit = get_commit(repo, oid);
+                                    free_commit(&current_branch.current_commit);
+                                    current_branch.current_commit = get_commit(repo, oid);
+                                }
+
+                                ref, err := git.repository_head(repo);
+                                if !log_if_err(err) {
+                                    bname, err := git.branch_name(ref);
+                                    refname := git.reference_name(ref);
+                                    oid, ok := git.reference_name_to_id(repo, refname);
+                                    commit := get_commit(repo, oid);
+                                    current_branch = Branch{
+                                        ref,
+                                        bname,
+                                        git.Branch_Type.Local,
+                                        commit,
+                                    };
                                 }
 
                                 local_branches = get_all_branches(repo, git.Branch_Type.Local);
@@ -463,7 +477,6 @@ main :: proc() {
                                 options : git.Status_Options;
                                 git.status_init_options(&options, 1);
                                 options.flags = git.Status_Opt_Flags.Include_Untracked;
-                                err : i32;
                                 statuses, err = git.status_list_new(repo, &options); 
                                 log_if_err(err);
                             }
@@ -511,8 +524,8 @@ main :: proc() {
                                 oid: git.Oid;
                                 ok := git.oid_from_str(&oid, &oid_str[0]);
                                 if !log_if_err(ok) {
-                                    free_commit(&current_commit);
-                                    current_commit = get_commit(repo, oid);
+                                    free_commit(&current_branch.current_commit);
+                                    current_branch.current_commit = get_commit(repo, oid);
                                 }
                             }
                             else {
@@ -520,11 +533,11 @@ main :: proc() {
                             }
                         }
 
-                        imgui.text("Commiter: %s",       current_commit.commiter.name);
-                        imgui.text("Commiter Email: %s", current_commit.commiter.email);
-                        imgui.text("Author: %s",         current_commit.author.name);
-                        imgui.text("Author Email: %s",   current_commit.author.email);
-                        imgui.text("Message: %s",        current_commit.message);
+                        imgui.text("Commiter: %s",       current_branch.current_commit.commiter.name);
+                        imgui.text("Commiter Email: %s", current_branch.current_commit.commiter.email);
+                        imgui.text("Author: %s",         current_branch.current_commit.author.name);
+                        imgui.text("Author Email: %s",   current_branch.current_commit.author.email);
+                        imgui.text("Message: %s",        current_branch.current_commit.message);
 
                         imgui.separator();
 
@@ -548,7 +561,7 @@ main :: proc() {
                                 sig: ^git.Signature;
 
                                 // TODO(josh): Get the stashers real name and email
-                                err := git.signature_now(&sig, current_commit.commiter.name, current_commit.commiter.email);
+                                err := git.signature_now(&sig, current_branch.current_commit.commiter.name, current_branch.current_commit.commiter.email);
                                 if !log_if_err(err) {
                                     // TODO(josh): Stash messages
                                     // TODO(josh): Stash options
@@ -674,7 +687,7 @@ main :: proc() {
                             imgui.separator();
                             if imgui.button("Create", imgui.Vec2{160, 0}) {
                                 branch_name_str := cast(string)create_branch_name[..];
-                                b := create_branch(repo, branch_name_str, current_commit);
+                                b := create_branch(repo, branch_name_str, current_branch.current_commit);
                                 if checkout_new_branch {
                                     checkout_branch(repo, b);
                                 }
@@ -692,7 +705,7 @@ main :: proc() {
                         pos := imgui.get_window_pos();
                         size := imgui.get_window_size();
 
-                        print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool) {
+                        print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool, curb : ^Branch) {
                             branch_to_delete: Branch;
                             for b in branches {
                                 is_current_branch := git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref);
@@ -712,6 +725,7 @@ main :: proc() {
                                         if imgui.selectable("Checkout") {
                                             if checkout_branch(repo, b) {
                                                 update_branches^ = true;
+                                                curb^ = b;
                                             }
                                         }
 
@@ -736,7 +750,7 @@ main :: proc() {
                         if imgui.tree_node("Local Branches:") {
                             defer imgui.tree_pop();
                             imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                            print_branches(repo, local_branches, &update_branches);
+                            print_branches(repo, local_branches, &update_branches, &current_branch);
                             imgui.pop_style_color();
                         }
 
@@ -755,6 +769,7 @@ main :: proc() {
                                         branch := create_branch(repo, b);
                                         if checkout_branch(repo, branch) {
                                             update_branches = true;
+                                            current_branch = branch;
                                         }
                                     }
                                 }
@@ -766,6 +781,32 @@ main :: proc() {
                     if update_branches {
                         local_branches = get_all_branches(repo, git.Branch_Type.Local);
                         remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
+                    }
+
+                    if imgui.begin("Log") {
+                        defer imgui.end();
+                        GIT_ITEROVER :: -31;
+                        walker, err := git.revwalk_new(repo);
+                        if !log_if_err(err) {
+                            //err = git.revwalk_push_range(walker, "HEAD~20..HEAD");
+                            err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
+                            log_if_err(err);
+                        }
+
+                        for i in 0..20 {
+                            id, err := git.revwalk_next(walker);
+                            if err == GIT_ITEROVER {
+                                break;
+                            }
+                            commit := get_commit(repo, id);
+                            imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%d %v", i+1, commit.author.name); imgui.same_line();
+                            imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "<%v>", commit.author.email);
+                            imgui.indent();
+                            imgui.text("%v", commit.summary);
+                            imgui.unindent();
+                            imgui.separator();
+                        }
+                        git.revwalk_free(walker);
                     }
                 }
             }

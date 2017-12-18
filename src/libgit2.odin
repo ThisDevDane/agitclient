@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 20:03:15 UTC+1
+ *  @Last Time: 18-12-2017 21:53:16 UTC+1
  *
  *  @Description:
  *
@@ -28,6 +28,7 @@ Transport  :: struct {};
 Commit     :: struct {};
 Reference  :: struct {};
 Object     :: struct {};
+Revwalk    :: struct {};
 
 Branch_Iterator  :: struct {};
 
@@ -1179,6 +1180,12 @@ reference_name :: proc(ref : ^Reference) -> string {
     return strings.to_odin_string(c_str);
 }
 
+commit_lookup :: proc(repo : ^Repository, id : ^Oid) -> (^Commit, i32) {
+    commit : ^Commit = nil;
+    err := git_commit_lookup(&commit, repo, id);
+    return commit, err;
+}
+
 commit_committer :: proc(commit : ^Commit) -> Signature {
     gsig := git_commit_committer(commit);
     //NOTE(Hoej): YUCK!
@@ -1257,6 +1264,26 @@ signature_now :: proc(out : ^^Signature, name, email : string) -> i32 {
     return git_signature_now(out, _make_misc_string(name), _make_misc_string(email));
 }
 
+revwalk_new :: proc(repo : ^Repository) -> (^Revwalk, i32) {
+    ptr : ^Revwalk = nil;
+    err := git_revwalk_new(&ptr, repo);
+    return ptr, err;
+}
+
+revwalk_next :: proc(walk : ^Revwalk) -> (Oid, i32) {
+    id : Oid;
+    err := git_revwalk_next(&id, walk);
+    return id, err;
+}
+
+revwalk_push_range :: proc(walk : ^Revwalk, range : string) -> i32 {
+    return git_revwalk_push_range(walk, _make_misc_string(range));
+}
+
+revwalk_push_ref :: proc(walk : ^Revwalk, refname : string) -> i32 {
+    return git_revwalk_push_ref(walk, _make_misc_string(refname));
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -1290,7 +1317,7 @@ foreign libgit {
 
     // Commits
     @(link_name = "git_commit_free")        commit_free        :: proc(out: ^Commit) ---;
-    @(link_name = "git_commit_lookup")      commit_lookup      :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
+    git_commit_lookup      :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
     @(link_name = "git_commit_parentcount") commit_parentcount :: proc(commit : ^Commit) -> u32 ---;
     @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
     git_commit_message    :: proc(commit: ^Commit) -> ^u8 ---;
@@ -1353,4 +1380,11 @@ foreign libgit {
     @(link_name = "git_stash_drop") stash_drop :: proc(repo : ^Repository, index : uint) -> i32 ---;
     @(link_name = "git_stash_foreach") stash_foreach :: proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> i32 ---;
     @(link_name = "git_stash_apply_init_options") stash_apply_init_options :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
+
+    //Revwalk
+    git_revwalk_new        :: proc(out : ^^Revwalk, repo : ^Repository) -> i32 ---;
+    git_revwalk_next       :: proc(out : ^Oid, walk : ^Revwalk) -> i32 ---;
+    git_revwalk_push_range :: proc(walk : ^Revwalk, range : ^byte) -> i32 ---;
+    git_revwalk_push_ref   :: proc(walk : ^Revwalk, refname : ^byte) -> i32 ---;
+    @(link_name = "git_revwalk_free") revwalk_free :: proc(walk : ^Revwalk) ---;
 }
