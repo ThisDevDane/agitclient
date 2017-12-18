@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 21:59:31 UTC+1
+ *  @Last Time: 18-12-2017 22:25:17 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -15,6 +15,7 @@
 import "core:fmt.odin";
 import "core:strings.odin";
 import "core:os.odin";
+import win32 "core:sys/windows.odin"; //FIXME(Hoej): NO! BAD! STOP! DONT! DO! IT!
 
 import       "shared:libbrew/win/window.odin";
 import       "shared:libbrew/win/msg.odin";
@@ -517,7 +518,7 @@ main :: proc() {
                             git.remote_free(remote);
                         }
 
-                        imgui.input_text("Commit Hash;", commit_hash_buf[..]);
+                        /*imgui.input_text("Commit Hash;", commit_hash_buf[..]);
                         if imgui.button("Lookup") {
                             if repo != nil {
                                 oid_str := cast(string)commit_hash_buf[..];
@@ -531,13 +532,7 @@ main :: proc() {
                             else {
                                 console.log_error("You haven't opened a repo yet!");
                             }
-                        }
-
-                        imgui.text("Commiter: %s",       current_branch.current_commit.commiter.name);
-                        imgui.text("Commiter Email: %s", current_branch.current_commit.commiter.email);
-                        imgui.text("Author: %s",         current_branch.current_commit.author.name);
-                        imgui.text("Author Email: %s",   current_branch.current_commit.author.email);
-                        imgui.text("Message: %s",        current_branch.current_commit.message);
+                        }*/
 
                         imgui.separator();
 
@@ -785,28 +780,50 @@ main :: proc() {
 
                     if imgui.begin("Log") {
                         defer imgui.end();
-                        GIT_ITEROVER :: -31;
-                        walker, err := git.revwalk_new(repo);
-                        if !log_if_err(err) {
-                            //err = git.revwalk_push_range(walker, "HEAD~20..HEAD");
-                            err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
-                            log_if_err(err);
-                        }
-
-                        for i in 0..20 {
-                            id, err := git.revwalk_next(walker);
-                            if err == GIT_ITEROVER {
-                                break;
+                        if imgui.begin_child("gitlog") {
+                            defer imgui.end_child();
+                            GIT_ITEROVER :: -31;
+                            walker, err := git.revwalk_new(repo);
+                            if !log_if_err(err) {
+                                //err = git.revwalk_push_range(walker, "HEAD~20..HEAD");
+                                err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
+                                log_if_err(err);
                             }
-                            commit := get_commit(repo, id);
-                            imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%d %v", i+1, commit.author.name); imgui.same_line();
-                            imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "<%v>", commit.author.email);
-                            imgui.indent();
-                            imgui.text("%v", commit.summary);
-                            imgui.unindent();
-                            imgui.separator();
+
+                            for _ in 0..20 {
+                                id, err := git.revwalk_next(walker);
+                                if err == GIT_ITEROVER {
+                                    break;
+                                }
+                                commit := get_commit(repo, id);
+
+                                filetime := win32.Filetime{};
+                                systime := win32.Systemtime{};
+                                
+
+                                ll := ((commit.author.time_when.time + i64(commit.author.time_when.offset) * 60) * 10000000) + 116444736000000000;
+                                filetime.lo = u32(ll);
+                                filetime.hi = u32(ll >> 32);
+                                win32.file_time_to_system_time(&filetime, &systime);
+
+                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v", commit.author.name); imgui.same_line();
+                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "<%v>", commit.author.email);
+                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, 
+                                                   "%d/%d/%d %2d:%2d:%2d UTC%s%d", systime.day, 
+                                                                        systime.month, 
+                                                                        systime.year,
+                                                                        systime.hour,
+                                                                        systime.minute,
+                                                                        systime.second,
+                                                                        commit.author.time_when.offset < 0 ? "" : "+",
+                                                                        commit.author.time_when.offset/60);
+                                imgui.indent();
+                                imgui.text("%v", commit.summary);
+                                imgui.unindent();
+                                imgui.separator();
+                            }
+                            git.revwalk_free(walker);
                         }
-                        git.revwalk_free(walker);
                     }
                 }
             }
