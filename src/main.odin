@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 22:25:17 UTC+1
+ *  @Last Time: 18-12-2017 22:41:19 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -708,6 +708,7 @@ main :: proc() {
                                 if imgui.is_item_clicked(0) && imgui.is_mouse_double_clicked(0) {
                                     if checkout_branch(repo, b) {
                                         update_branches^ = true;
+                                        curb^ = b;
                                     }
                                 }
                                 imgui.push_id(b.name);
