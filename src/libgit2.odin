@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 17-12-2017 03:24:43 UTC+1
+ *  @Last Time: 18-12-2017 20:03:15 UTC+1
  *
  *  @Description:
  *
@@ -20,18 +20,18 @@ import "core:strings.odin";
 
 GIT_OID_RAWSZ :: 20;
 
-Repository :: struct #ordered {};
-Remote     :: struct #ordered {};
-Tree       :: struct #ordered {};
-Index      :: struct #ordered {};
-Transport  :: struct #ordered {};
-Commit     :: struct #ordered {};
-Reference  :: struct #ordered {};
-Object     :: struct #ordered {};
+Repository :: struct {};
+Remote     :: struct {};
+Tree       :: struct {};
+Index      :: struct {};
+Transport  :: struct {};
+Commit     :: struct {};
+Reference  :: struct {};
+Object     :: struct {};
 
-Branch_Iterator  :: struct #ordered {};
+Branch_Iterator  :: struct {};
 
-Oid :: struct #ordered {
+Oid :: struct {
     /** raw binary formatted id */
     id : [GIT_OID_RAWSZ]byte,
 }
@@ -42,13 +42,13 @@ Signature :: struct {
     time_when : Time,   //Time when the action happened
 }
 
-Git_Signature :: struct #ordered {
+Git_Signature :: struct {
     name      : ^byte, //Full name of the author
     email     : ^byte, //Email of the author
     time_when : Time,  //Time when the action happened
 }
 
-Repository_Init_Options :: struct #ordered {
+Repository_Init_Options :: struct {
     version       : u32,
     flags         : u32,
     mode          : Repository_Init_Mode,
@@ -59,7 +59,7 @@ Repository_Init_Options :: struct #ordered {
     origin_url    : ^byte,
 }
 
-Git_Error :: struct #ordered {
+Git_Error :: struct {
     message : ^byte,
     klass   : ErrorType,
 }
@@ -69,24 +69,24 @@ Error :: struct {
     klass   : ErrorType,
 }
 
-Str_Array :: struct #ordered {
+Str_Array :: struct {
     strings : ^^byte,
     count   : uint,
 }
 
-Buf :: struct #ordered {
+Buf :: struct {
     ptr   : ^byte,
     asize : uint,
     size  : uint,
 }
 
-Checkout_Perfdata :: struct #ordered {
+Checkout_Perfdata :: struct {
     mkdir_calls : u32,
     stat_calls  : u32,
     chmod_calls : u32,
 }
 
-Cred :: struct #ordered {
+Cred :: struct {
     credtype : Cred_Type,
     free : proc "c" (cred : ^Cred),
 }
@@ -123,7 +123,7 @@ Cred_Type :: enum u32 {
     Ssh_Memory = (1 << 6),
 }
 
-Cert :: struct #ordered {
+Cert :: struct {
     type_ : Cert_Type,
 }
 
@@ -157,19 +157,19 @@ Repository_Init_Mode :: enum u32 {
     Shared_All   = 0002777, //Use "--shared=all" behavior, adding world readability. Anything else - Set to custom value.
 }
 
-Time :: struct #ordered {
+Time :: struct {
     time   : i64,   //time in seconds from epoch
     offset : i32, //timezone offset, in minutes
     sign   : byte,  //indicator for questionable '-0000' offsets in signature
 }
 
-Index_Time :: struct #ordered {
+Index_Time :: struct {
     seconds : i32,
     /* nsec should not be stored as time_t compatible */
     nanoseconds : u32,
 }
 
-Index_Entry :: struct #ordered {
+Index_Entry :: struct {
     ctime : Index_Time,
     mtime : Index_Time,
 
@@ -215,7 +215,82 @@ Index_Entry_Extended_Flag :: enum u16 {
     New_Skip_Worktree = (1 << 9),
 }
 
-Clone_Options :: struct #ordered {
+Stash_Apply_Flags :: enum i32 {
+    Default         = 0 << 0,
+
+    /* Try to reinstate not only the working tree's changes,
+     * but also the index's changes.
+     */
+    Reinstate_Index = 1 << 0,
+}
+
+Stash_Flags :: enum u32 {
+    /**
+     * No option, default
+     */
+    Default           = 0 << 0,
+
+    /**
+     * All changes already added to the index are left intact in
+     * the working directory
+     */
+    Keep_Index        = 1 << 0,
+
+    /**
+     * All untracked files are also stashed and then cleaned up
+     * from the working directory
+     */
+    Include_Untracked = 1 << 1,
+
+    /**
+     * All ignored files are also stashed and then cleaned up from
+     * the working directory
+     */
+    Include_Ignored   = 1 << 2,
+}
+
+Stash_Apply_Progress_CB :: #type proc(progress: Stash_Apply_Progress, payload: rawptr) -> i32;
+Stash_CB :: #type proc(index: uint, message: ^byte, stash_id: Oid, payload: rawptr) -> i32;
+
+Stash_Apply_Progress :: enum i32 {
+    None = 0,
+
+    /** Loading the stashed data from the object database. */
+    Loading_Stash,
+
+    /** The stored index is being analyzed. */
+    Analyze_Index,
+
+    /** The modified files are being analyzed. */
+    Analyze_Modified,
+
+    /** The untracked and ignored files are being analyzed. */
+    Analyze_Untracked,
+
+    /** The untracked files are being written to disk. */
+    Checkout_Untracked,
+
+    /** The modified files are being written to disk. */
+    Checkout_Modified,
+
+    /** The stash was applied successfully. */
+    Done,
+}
+
+Stash_Apply_Options :: struct {
+    version: u32,
+
+    flags: Stash_Apply_Flags,
+
+    /** Options to use when writing files to the working directory. */
+    checkout_options: Checkout_Options,
+
+    /** Optional callback to notify the consumer of application progress. */
+    progress_cb: Stash_Apply_Progress_CB,
+    progress_payload: rawptr,
+}
+
+Clone_Options :: struct {
     version : u32,
 
     /**
@@ -341,7 +416,7 @@ Checkout_Strategy_Flags :: enum u32 {
     Dont_Write_Index = (1 << 23),
 }
 
-Checkout_Options :: struct #ordered {
+Checkout_Options :: struct {
     version           : u32,
 
     checkout_strategy : Checkout_Strategy_Flags, // default will be a dry run
@@ -387,7 +462,7 @@ Checkout_Options :: struct #ordered {
     perfdata_payload  : rawptr,
 }
 
-Fetch_Options :: struct #ordered {
+Fetch_Options :: struct {
     version : i32,
 
     /**
@@ -426,7 +501,7 @@ Fetch_Options :: struct #ordered {
     custom_headers : Str_Array,
 }
 
-Remote_Callbacks :: struct #ordered {
+Remote_Callbacks :: struct {
     version : u32,
     /**
      * Textual progress from the remote. Text send over the
@@ -510,7 +585,7 @@ Remote_Callbacks :: struct #ordered {
     payload : rawptr,
 }
 
-Transfer_Progress :: struct #ordered {
+Transfer_Progress :: struct {
     total_objects    : u32,
     indexed_objects  : u32,
     received_objects : u32,
@@ -520,7 +595,7 @@ Transfer_Progress :: struct #ordered {
     received_bytes   : uint,
 }
 
-Push_Update :: struct #ordered {
+Push_Update :: struct {
     /**
      * The source name of the reference
      */
@@ -625,7 +700,7 @@ Clone_Local_Flags :: enum i32 {
     LOCAL_NO_LINKS,
 }
 
-Proxy_Options :: struct #ordered {
+Proxy_Options :: struct {
     version : u32,
 
     /**
@@ -662,7 +737,7 @@ Proxy_Options :: struct #ordered {
     payload : rawptr,
 }
 
-Diff_File :: struct #ordered {
+Diff_File :: struct {
     id        : Oid,
     path      : ^byte,
     size      : i64, //NOTE(Hoej): Changes with platform, i64 on Windows
@@ -815,15 +890,15 @@ Status_Options :: struct #packed {
     baseline : ^Tree,
 }
 
-Status_List :: struct #ordered {};
+Status_List :: struct {};
 
-Status_Entry :: struct #ordered {
+Status_Entry :: struct {
     status           : Status_Flags,
     head_to_index    : ^Diff_Delta,
     index_to_workdir : ^Diff_Delta,
 }
 
-Diff_Delta :: struct #ordered {
+Diff_Delta :: struct {
     status     : Delta,
     flags      : Diff_Flags,
     similarity : u16,
@@ -1174,6 +1249,14 @@ revparse_single :: proc(repo : ^Repository, spec : string) -> (^Object, i32) {
     return obj, err;
 }
 
+stash_save :: proc(out : ^Oid, repo : ^Repository, stasher : ^Signature, message : string, flags : Stash_Flags) -> i32 {
+    return git_stash_save(out, repo, stasher, _make_misc_string(message), flags);
+}
+
+signature_now :: proc(out : ^^Signature, name, email : string) -> i32 {
+    return git_signature_now(out, _make_misc_string(name), _make_misc_string(email));
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -1216,6 +1299,7 @@ foreign libgit {
     git_commit_summary    :: proc(commit : ^Commit) -> ^byte ---; 
     git_commit_raw_header :: proc(commit : ^Commit) -> ^byte ---;
 
+    git_signature_now :: proc(out : ^^Signature, name, email : ^byte) -> i32 ---;
     git_signature_free :: proc(sig : ^Git_Signature) ---;
 
     // Oid
@@ -1249,17 +1333,24 @@ foreign libgit {
     @(link_name = "git_reference_is_branch") reference_is_branch :: proc(ref : ^Reference) -> bool ---;
 
     //Branch
+    git_branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> i32 ---;
     git_branch_name :: proc(out : ^^byte, ref : ^Reference) -> i32 ---;
     git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Type) -> i32 ---;
     @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
     git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> i32 ---;
     @(link_name = "git_branch_delete") branch_delete :: proc(branch : ^Reference) -> i32 ---;
     @(link_name = "git_branch_is_checked_out") branch_is_checked_out :: proc(branch : ^Reference) -> bool ---;
-    git_branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> i32 ---;
 
     git_revparse_single :: proc(out : ^^Object, repo : ^Repository, spec : ^byte) -> i32 ---;
 
     //Checkout
     @(link_name = "git_checkout_tree") checkout_tree :: proc(repo : ^Repository, treeish : ^Object, opts : ^Checkout_Options) -> i32 ---;
 
+    // Stash
+    git_stash_save :: proc(out : ^Oid, repo : ^Repository, stasher : ^Signature, message : ^byte, flags : Stash_Flags) -> i32 ---;
+    @(link_name = "git_stash_apply") stash_apply :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> i32 ---;
+    @(link_name = "git_stash_pop") stash_pop :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> i32 ---;
+    @(link_name = "git_stash_drop") stash_drop :: proc(repo : ^Repository, index : uint) -> i32 ---;
+    @(link_name = "git_stash_foreach") stash_foreach :: proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> i32 ---;
+    @(link_name = "git_stash_apply_init_options") stash_apply_init_options :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
 }

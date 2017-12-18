@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 17-12-2017 03:22:49 UTC+1
+ *  @Last Time: 18-12-2017 20:06:41 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -167,8 +167,30 @@ checkout_branch :: proc(repo : ^git.Repository, b : Branch) -> bool {
     return false;
 }
 
-create_branch :: proc(repo : ^git.Repository, b : Branch, force := false) -> Branch {
+create_branch :: proc[create_branch_name, create_branch_branch];
+
+create_branch_branch :: proc(repo : ^git.Repository, b : Branch, force := false) -> Branch {
     ref, err := git.branch_create(repo, b.name, b.current_commit.git_commit, force);
+    if !log_if_err(err) {
+        name, suc := git.branch_name(ref);
+        refname := git.reference_name(ref);
+        oid, ok := git.reference_name_to_id(repo, refname);
+        commit := get_commit(repo, oid);
+        b := Branch {
+            ref,
+            name,
+            git.Branch_Type.Local,
+            commit,
+        };
+
+        return b;
+    }
+
+    return Branch{};
+}
+
+create_branch_name :: proc(repo : ^git.Repository, name : string, target : Commit, force := false) -> Branch {
+    ref, err := git.branch_create(repo, name, target.git_commit, force);
     if !log_if_err(err) {
         name, suc := git.branch_name(ref);
         refname := git.reference_name(ref);
@@ -238,6 +260,8 @@ main :: proc() {
 
     current_commit     : Commit;
     commit_hash_buf    : [1024]byte;
+
+    create_branch_name : [1024]byte;
 
     local_branches     : []Branch;
     remote_branches    : []Branch;
@@ -469,6 +493,28 @@ main :: proc() {
                         }
 
                         if statuses != nil {
+                            if imgui.button("Stash") {
+                                oid: git.Oid;
+                                sig: ^git.Signature;
+
+                                // TODO(josh): Get the stashers real name and email
+                                err := git.signature_now(&sig, current_commit.commiter.name, current_commit.commiter.email);
+                                if !log_if_err(err) {
+                                    // TODO(josh): Stash messages
+                                    // TODO(josh): Stash options
+                                    err = git.stash_save(&oid, repo, sig, "temp message", git.Stash_Flags.Default);
+                                    log_if_err(err);
+                                }
+                            }
+
+                            imgui.same_line();
+
+                            if imgui.button("Pop") {
+                                opts : git.Stash_Apply_Options;
+                                git.stash_apply_init_options(&opts, 1);
+                                git.stash_pop(repo, 0, &opts);
+                            }
+
                             count := git.status_list_entrycount(statuses);
 
                             imgui.text("Changes to be committed:");
@@ -603,6 +649,18 @@ main :: proc() {
                                 git.branch_delete(branch_to_delete.ref);
                             }
                         }
+
+                        imgui.input_text("", create_branch_name[..]);
+                        imgui.same_line();
+                        if imgui.button("Create branch") {
+                            branch_name_str := cast(string)create_branch_name[..];
+                            b := create_branch(repo, branch_name_str, current_commit);
+                            if checkout_branch(repo, b) {
+                                update_branches = true;
+                            }
+
+                            create_branch_name = [1024]u8{};
+                        }
                         imgui.text("Local Branches:");
                         imgui.indent();
                         imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
@@ -622,8 +680,9 @@ main :: proc() {
                                 defer imgui.end_popup();
                                 if imgui.selectable("Checkout") {
                                     branch := create_branch(repo, b);
-                                    checkout_branch(repo, branch);
-                                    update_branches = true;
+                                    if checkout_branch(repo, branch) {
+                                        update_branches = true;
+                                    }
                                 }
                             }
                         }
