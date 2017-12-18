@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 20:06:41 UTC+1
+ *  @Last Time: 18-12-2017 20:58:33 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -170,6 +170,10 @@ checkout_branch :: proc(repo : ^git.Repository, b : Branch) -> bool {
 create_branch :: proc[create_branch_name, create_branch_branch];
 
 create_branch_branch :: proc(repo : ^git.Repository, b : Branch, force := false) -> Branch {
+    if b.btype == git.Branch_Type.Remote {
+        b.name = string_util.remove_first_from_file(b.name, '/');
+    }
+
     ref, err := git.branch_create(repo, b.name, b.current_commit.git_commit, force);
     if !log_if_err(err) {
         name, suc := git.branch_name(ref);
@@ -215,6 +219,51 @@ free_commit :: proc(commit : ^Commit) {
     commit.git_commit = nil;
 }
 
+agc_style :: proc() {
+    style := imgui.get_style();
+
+    style.window_padding        = imgui.Vec2{6, 6};
+    style.window_rounding       = 0;
+    style.child_window_rounding = 2;
+    style.frame_padding         = imgui.Vec2{4 ,2};
+    style.frame_rounding        = 2;
+    style.item_spacing          = imgui.Vec2{8, 4};
+    style.item_inner_spacing    = imgui.Vec2{4, 4};
+    style.touch_extra_padding   = imgui.Vec2{0, 0};
+    style.indent_spacing        = 20;
+    style.scrollbar_size        = 12;
+    style.scrollbar_rounding    = 9;
+    style.grab_min_size         = 9;
+    style.grab_rounding         = 1;
+    style.window_title_align    = imgui.Vec2{0.48, 0.5};
+    style.button_text_align     = imgui.Vec2{0.5, 0.5};
+
+    style.colors[imgui.Color.Text]                  = imgui.Vec4{1.00, 1.00, 1.00, 1.00};
+    style.colors[imgui.Color.TextDisabled]          = imgui.Vec4{0.63, 0.63, 0.63, 1.00};
+    style.colors[imgui.Color.WindowBg]              = imgui.Vec4{0.23, 0.23, 0.23, 0.98};
+    style.colors[imgui.Color.ChildWindowBg]         = imgui.Vec4{0.20, 0.20, 0.20, 1.00};
+    style.colors[imgui.Color.PopupBg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.96};
+    style.colors[imgui.Color.Border]                = imgui.Vec4{0.18, 0.18, 0.18, 0.98};
+    style.colors[imgui.Color.BorderShadow]          = imgui.Vec4{0.00, 0.00, 0.00, 0.04};
+    style.colors[imgui.Color.FrameBg]               = imgui.Vec4{0.00, 0.00, 0.00, 0.29};
+    style.colors[imgui.Color.TitleBg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.98};
+    style.colors[imgui.Color.TitleBgCollapsed]      = imgui.Vec4{0.12, 0.12, 0.12, 0.49};
+    style.colors[imgui.Color.TitleBgActive]         = imgui.Vec4{0.33, 0.33, 0.33, 0.98};
+    style.colors[imgui.Color.MenuBarBg]             = imgui.Vec4{0.11, 0.11, 0.11, 0.42};
+    style.colors[imgui.Color.ScrollbarBg]           = imgui.Vec4{0.00, 0.00, 0.00, 0.08};
+    style.colors[imgui.Color.ScrollbarGrab]         = imgui.Vec4{0.27, 0.27, 0.27, 1.00};
+    style.colors[imgui.Color.ScrollbarGrabHovered]  = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
+    style.colors[imgui.Color.CheckMark]             = imgui.Vec4{0.78, 0.78, 0.78, 0.94};
+    style.colors[imgui.Color.SliderGrab]            = imgui.Vec4{0.78, 0.78, 0.78, 0.94};
+    style.colors[imgui.Color.Button]                = imgui.Vec4{0.42, 0.42, 0.42, 0.60};
+    style.colors[imgui.Color.ButtonHovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
+    style.colors[imgui.Color.Header]                = imgui.Vec4{0.31, 0.31, 0.31, 0.98};
+    style.colors[imgui.Color.HeaderHovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
+    style.colors[imgui.Color.HeaderActive]          = imgui.Vec4{0.80, 0.50, 0.50, 1.00};
+    style.colors[imgui.Color.TextSelectedBg]        = imgui.Vec4{0.65, 0.35, 0.35, 0.26};
+    style.colors[imgui.Color.ModalWindowDarkening]  = imgui.Vec4{0.20, 0.20, 0.20, 0.35}; 
+}
+
 main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
@@ -227,7 +276,7 @@ main :: proc() {
     gl.load_functions(set_proc, load_lib, free_lib);
 
     dear_state := new(imgui.State);
-    imgui.init(dear_state, wnd_handle);
+    imgui.init(dear_state, wnd_handle, agc_style);
     wgl.swap_interval(-1);
     gl.clear_color(0.10, 0.10, 0.10, 1);
 
@@ -261,7 +310,8 @@ main :: proc() {
     current_commit     : Commit;
     commit_hash_buf    : [1024]byte;
 
-    create_branch_name : [1024]byte;
+    create_branch_name  : [1024]byte;
+    checkout_new_branch := true;
 
     local_branches     : []Branch;
     remote_branches    : []Branch;
@@ -589,6 +639,7 @@ main :: proc() {
                     }
 
                     update_branches := false;
+                    open_create_modal := false;
                     imgui.set_next_window_pos(imgui.Vec2{0, 18});
                     imgui.set_next_window_size(imgui.Vec2{160, f32(wnd_height-18)});
                     if imgui.begin("Branches", nil, imgui.WindowFlags.NoResize |
@@ -603,6 +654,38 @@ main :: proc() {
                                 if imgui.menu_item("Update") {
                                     update_branches = true;
                                 }
+
+                                if imgui.menu_item("Create branch") {
+                                    open_create_modal = true;
+                                }
+                            }
+                        }
+                                    
+
+                        if open_create_modal {
+                            imgui.open_popup("Create Branch###create_branch_modal");
+                        }
+
+                        if imgui.begin_popup_modal("Create Branch###create_branch_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
+                            defer imgui.end_popup();
+                            imgui.text("Branch name:"); imgui.same_line();
+                            imgui.input_text("", create_branch_name[..]); 
+                            imgui.checkbox("Checkout new branch?", &checkout_new_branch);
+                            imgui.separator();
+                            if imgui.button("Create", imgui.Vec2{160, 0}) {
+                                branch_name_str := cast(string)create_branch_name[..];
+                                b := create_branch(repo, branch_name_str, current_commit);
+                                if checkout_new_branch {
+                                    checkout_branch(repo, b);
+                                }
+                                update_branches = true;
+                                create_branch_name = [1024]u8{};
+                                imgui.close_current_popup();
+                            }
+                            imgui.same_line();
+                            if imgui.button("Cancel", imgui.Vec2{160, 0}) {
+                                create_branch_name = [1024]u8{};
+                                imgui.close_current_popup();
                             }
                         }
 
@@ -649,45 +732,35 @@ main :: proc() {
                                 git.branch_delete(branch_to_delete.ref);
                             }
                         }
-
-                        imgui.input_text("", create_branch_name[..]);
-                        imgui.same_line();
-                        if imgui.button("Create branch") {
-                            branch_name_str := cast(string)create_branch_name[..];
-                            b := create_branch(repo, branch_name_str, current_commit);
-                            if checkout_branch(repo, b) {
-                                update_branches = true;
-                            }
-
-                            create_branch_name = [1024]u8{};
+                        imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
+                        if imgui.tree_node("Local Branches:") {
+                            defer imgui.tree_pop();
+                            imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
+                            print_branches(repo, local_branches, &update_branches);
+                            imgui.pop_style_color();
                         }
-                        imgui.text("Local Branches:");
-                        imgui.indent();
-                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                        print_branches(repo, local_branches, &update_branches);
-                        imgui.pop_style_color();
-                        imgui.unindent();
 
-                        imgui.text("Remote Branches:");
-                        imgui.indent();
-                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
-                        for b in remote_branches {
-                            if b.name == "origin/HEAD" do continue;
-                            imgui.selectable(b.name); 
-                            imgui.push_id(git.reference_name(b.ref));
-                            defer imgui.pop_id();
-                            if imgui.begin_popup_context_item("branch_context", 1) {
-                                defer imgui.end_popup();
-                                if imgui.selectable("Checkout") {
-                                    branch := create_branch(repo, b);
-                                    if checkout_branch(repo, branch) {
-                                        update_branches = true;
+                        imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
+                        if imgui.tree_node("Remote Branches:") {
+                            defer imgui.tree_pop();
+                            imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+                            for b in remote_branches {
+                                if b.name == "origin/HEAD" do continue;
+                                imgui.selectable(b.name); 
+                                imgui.push_id(git.reference_name(b.ref));
+                                defer imgui.pop_id();
+                                if imgui.begin_popup_context_item("branch_context", 1) {
+                                    defer imgui.end_popup();
+                                    if imgui.selectable("Checkout") {
+                                        branch := create_branch(repo, b);
+                                        if checkout_branch(repo, branch) {
+                                            update_branches = true;
+                                        }
                                     }
                                 }
                             }
+                            imgui.pop_style_color();
                         }
-                        imgui.pop_style_color();
-                        imgui.unindent();
                     }
 
                     if update_branches {
