@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Joshua Manton
- *  @Last Time: 17-12-2017 10:05:33 UTC-8
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 18-12-2017 20:03:15 UTC+1
  *
  *  @Description:
  *
@@ -37,15 +37,15 @@ Oid :: struct {
 }
 
 Signature :: struct {
-    name      : string,   //Full name of the author
-    email     : string,   //Email of the author
-    time_when : Time, //Time when the action happened
+    name      : string, //Full name of the author
+    email     : string, //Email of the author
+    time_when : Time,   //Time when the action happened
 }
 
 Git_Signature :: struct {
-    name      : ^byte,    //Full name of the author
-    email     : ^byte,    //Email of the author
-    time_when : Time, //Time when the action happened
+    name      : ^byte, //Full name of the author
+    email     : ^byte, //Email of the author
+    time_when : Time,  //Time when the action happened
 }
 
 Repository_Init_Options :: struct {
@@ -1005,7 +1005,7 @@ Status_Opt_Defaults :: Status_Opt_Flags.Include_Ignored       |
                        Status_Opt_Flags.Include_Untracked     |
                        Status_Opt_Flags.Recurse_Untracked_Dirs;
 
-Branch_Flags :: enum i32 {
+Branch_Type :: enum i32 {
     Local = 1,
     Remote = 2,
     All = Local|Remote,
@@ -1203,32 +1203,44 @@ commit_author :: proc(commit : ^Commit) -> Signature {
     return sig;
 }
 
+commit_message :: proc(commit : ^Commit) -> string {
+    c_str := git_commit_message(commit);
+    return strings.to_odin_string(c_str);
+}
+
+commit_summary :: proc(commit : ^Commit) -> string {
+    c_str := git_commit_summary(commit);
+    return strings.to_odin_string(c_str);
+}
+
 commit_raw_header :: proc(commit : ^Commit) -> string {
     ptr := git_commit_raw_header(commit);
     return strings.to_odin_string(ptr);
 }
 
-branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Flags) -> (^Branch_Iterator, i32) {
+branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Type) -> (^Branch_Iterator, i32) {
     iter : ^Branch_Iterator = nil;
     err := git_branch_iterator_new(&iter, repo, list_flags);
     return iter, err;
 }
 
-branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Flags, i32) {
+branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Type, i32) {
     ref : ^Reference = nil;
-    flags : Branch_Flags;
+    flags : Branch_Type;
     err := git_branch_next(&ref, &flags, iter);
     return ref, flags, err;
-}
-
-branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : string, target : ^Commit, force : i32) -> i32 {
-    return git_branch_create(out, repo, _make_misc_string(branch_name), target, force);
 }
 
 branch_name :: proc(ref : ^Reference) -> (string, i32) {
     c_str : ^byte;
     err := git_branch_name(&c_str, ref);
     return strings.to_odin_string(c_str), err;
+}
+
+branch_create :: proc(repo : ^Repository, branch_name : string, target : ^Commit, force : bool = false) -> (^Reference, i32) {
+    ref : ^Reference = nil;
+    err := git_branch_create(&ref, repo, _make_misc_string(branch_name), target, i32(force));
+    return ref, err;
 }
 
 revparse_single :: proc(repo : ^Repository, spec : string) -> (^Object, i32) {
@@ -1279,11 +1291,12 @@ foreign libgit {
     // Commits
     @(link_name = "git_commit_free")        commit_free        :: proc(out: ^Commit) ---;
     @(link_name = "git_commit_lookup")      commit_lookup      :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
-    @(link_name = "git_commit_message")     commit_message     :: proc(commit: ^Commit) -> ^u8 ---;
     @(link_name = "git_commit_parentcount") commit_parentcount :: proc(commit : ^Commit) -> u32 ---;
     @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
-    git_commit_committer :: proc(commit : ^Commit) -> ^Git_Signature ---;
-    git_commit_author    :: proc(commit : ^Commit) -> ^Git_Signature ---;
+    git_commit_message    :: proc(commit: ^Commit) -> ^u8 ---;
+    git_commit_committer  :: proc(commit : ^Commit) -> ^Git_Signature ---; 
+    git_commit_author     :: proc(commit : ^Commit) -> ^Git_Signature ---; 
+    git_commit_summary    :: proc(commit : ^Commit) -> ^byte ---; 
     git_commit_raw_header :: proc(commit : ^Commit) -> ^byte ---;
 
     git_signature_now :: proc(out : ^^Signature, name, email : ^byte) -> i32 ---;
@@ -1322,9 +1335,9 @@ foreign libgit {
     //Branch
     git_branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> i32 ---;
     git_branch_name :: proc(out : ^^byte, ref : ^Reference) -> i32 ---;
-    git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Flags) -> i32 ---;
+    git_branch_iterator_new :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Type) -> i32 ---;
     @(link_name = "git_branch_iterator_free") branch_iterator_free :: proc(iter : ^Branch_Iterator) ---;
-    git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Flags, iter : ^Branch_Iterator) -> i32 ---;
+    git_branch_next :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> i32 ---;
     @(link_name = "git_branch_delete") branch_delete :: proc(branch : ^Reference) -> i32 ---;
     @(link_name = "git_branch_is_checked_out") branch_is_checked_out :: proc(branch : ^Reference) -> bool ---;
 
