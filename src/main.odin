@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 23:23:29 UTC+1
+ *  @Last Time: 18-12-2017 23:34:51 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -798,26 +798,20 @@ main :: proc() {
                                 }
                                 commit := get_commit(repo, id);
 
-                                filetime := win32.Filetime{};
-                                systime := win32.Systemtime{};
-                                
-
-                                ll := ((commit.author.time_when.time + i64(commit.author.time_when.offset) * 60) * 10000000) + 116444736000000000;
-                                filetime.lo = u32(ll);
-                                filetime.hi = u32(ll >> 32);
-                                win32.file_time_to_system_time(&filetime, &systime);
+                                time := misc.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
 
                                 imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d", 
                                            commit.author.name, 
                                            commit.author.email,
-                                           systime.day, 
-                                           systime.month, 
-                                           systime.year,
-                                           systime.hour,
-                                           systime.minute,
-                                           systime.second,
+                                           time.day, 
+                                           time.month, 
+                                           time.year,
+                                           time.hour,
+                                           time.minute,
+                                           time.second,
                                            commit.author.time_when.offset < 0 ? "" : "+",
                                            commit.author.time_when.offset/60);
+                                
                                 imgui.indent();
                                 imgui.selectable(commit.summary);
                                 if imgui.is_item_hovered() {
