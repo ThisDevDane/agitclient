@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 23:34:51 UTC+1
+ *  @Last Time: 19-12-2017 00:45:00 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -44,6 +44,11 @@ Branch :: struct {
     name          : string,
     btype         : git.Branch_Type,
     current_commit : Commit,
+}
+
+Branch_Collection :: struct {
+    name     : string,
+    branches : [dynamic]Branch,
 }
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
@@ -104,9 +109,9 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
     return 0;
 }
 
-get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []Branch {
+get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []Branch_Collection {
     GIT_ITEROVER :: -31;
-    result : [dynamic]Branch;
+    result : [dynamic]Branch_Collection;
     iter, err := git.branch_iterator_new(repo, btype);
     over : i32 = 0;
     for over != GIT_ITEROVER {
@@ -114,17 +119,44 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
         if over == GIT_ITEROVER do break;
         if !log_if_err(over) {
             name, suc := git.branch_name(ref);
-            refname := git.reference_name(ref);
-            oid, ok := git.reference_name_to_id(repo, refname);
 
-            commit := get_commit(repo, oid);
-            b := Branch {
-                ref,
-                name,
-                btype,
-                commit,
-            };
-            append(&result, b);
+            col_name, found := string_util.get_upto_first_from_file(name, '/');
+            if !found {
+                col_name = "";
+            }
+            col_found := false;
+            for col, i in result {
+                if col.name == col_name {
+                    refname := git.reference_name(ref);
+                    oid, ok := git.reference_name_to_id(repo, refname);
+
+                    commit := get_commit(repo, oid);
+                    b := Branch {
+                        ref,
+                        name,
+                        btype,
+                        commit,
+                    };
+                    append(&result[i].branches, b);
+                    col_found = true;
+                }
+            }
+
+            if !col_found {
+                col := Branch_Collection{};
+                col.name = col_name;
+                refname := git.reference_name(ref);
+                oid, ok := git.reference_name_to_id(repo, refname);
+                commit := get_commit(repo, oid);
+                b := Branch {
+                    ref,
+                    name,
+                    btype,
+                    commit,
+                };
+                append(&col.branches, b);
+                append(&result, col);
+            }
         }
     }
 
@@ -314,8 +346,10 @@ main :: proc() {
     create_branch_name  : [1024]byte;
     checkout_new_branch := true;
 
-    local_branches     : []Branch;
-    remote_branches    : []Branch;
+    local_branches     : []Branch_Collection;
+    remote_branches    : []Branch_Collection;
+
+    close_repo         := false;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -442,7 +476,6 @@ main :: proc() {
                                         imgui.WindowFlags.NoMove |
                                         imgui.WindowFlags.NoCollapse) {
                 defer imgui.end();
-
                 if repo == nil {
                     imgui.input_text("Repo Path;", path_buf[..]);
                     if imgui.button("Open") {
@@ -489,12 +522,7 @@ main :: proc() {
                 } else {
                     imgui.text("Repo: %s", open_repo_name); imgui.same_line();
                     if imgui.button("Close Repo") {
-                        free(local_branches);
-                        free(remote_branches);
-                        local_branches = nil;
-                        remote_branches = nil;
-                        git.repository_free(repo);
-                        repo = nil;
+                        close_repo = true;
                     } else {
                         if imgui.button("Fetch" ) {
                             remote, ok := git.remote_lookup(repo, "origin");
@@ -746,7 +774,19 @@ main :: proc() {
                         if imgui.tree_node("Local Branches:") {
                             defer imgui.tree_pop();
                             imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                            print_branches(repo, local_branches, &update_branches, &current_branch);
+                            for col in local_branches {
+                                if col.name == "" {                                    
+                                    print_branches(repo, col.branches[..], &update_branches, &current_branch);
+                                } else {
+                                    imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
+                                    if imgui.tree_node(col.name) {
+                                        defer imgui.tree_pop();
+                                        imgui.indent(5);
+                                        print_branches(repo, col.branches[..], &update_branches, &current_branch);
+                                        imgui.unindent(5);
+                                    }
+                                }
+                            }
                             imgui.pop_style_color();
                         }
 
@@ -754,20 +794,30 @@ main :: proc() {
                         if imgui.tree_node("Remote Branches:") {
                             defer imgui.tree_pop();
                             imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
-                            for b in remote_branches {
-                                if b.name == "origin/HEAD" do continue;
-                                imgui.selectable(b.name); 
-                                imgui.push_id(git.reference_name(b.ref));
-                                defer imgui.pop_id();
-                                if imgui.begin_popup_context_item("branch_context", 1) {
-                                    defer imgui.end_popup();
-                                    if imgui.selectable("Checkout") {
-                                        branch := create_branch(repo, b);
-                                        if checkout_branch(repo, branch) {
-                                            update_branches = true;
-                                            current_branch = branch;
+                            for col in remote_branches[..] {
+                                if col.name == "origin" {  
+                                    imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
+                                }
+                                if imgui.tree_node(col.name) {
+                                    defer imgui.tree_pop();
+                                    imgui.indent(5);
+                                    for b in col.branches {
+                                        if b.name == "origin/HEAD" do continue;
+                                        imgui.selectable(b.name); 
+                                        imgui.push_id(git.reference_name(b.ref));
+                                        defer imgui.pop_id();
+                                        if imgui.begin_popup_context_item("branch_context", 1) {
+                                            defer imgui.end_popup();
+                                            if imgui.selectable("Checkout") {
+                                                branch := create_branch(repo, b);
+                                                if checkout_branch(repo, branch) {
+                                                    update_branches = true;
+                                                    current_branch = branch;
+                                                }
+                                            }
                                         }
                                     }
+                                    imgui.unindent(5);
                                 }
                             }
                             imgui.pop_style_color();
@@ -778,10 +828,10 @@ main :: proc() {
                         local_branches = get_all_branches(repo, git.Branch_Type.Local);
                         remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
                     }
-
+                    commit_count := 0;
                     if imgui.begin("Log") {
                         defer imgui.end();
-                        if imgui.begin_child("gitlog") {
+                        if imgui.begin_child("gitlog", imgui.Vec2{0, -20}) {
                             defer imgui.end_child();
                             GIT_ITEROVER :: -31;
                             walker, err := git.revwalk_new(repo);
@@ -790,12 +840,13 @@ main :: proc() {
                                 err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
                                 log_if_err(err);
                             }
-
-                            for _ in 0..20 {
+                            
+                            for {
                                 id, err := git.revwalk_next(walker);
                                 if err == GIT_ITEROVER {
                                     break;
                                 }
+                                commit_count += 1;
                                 commit := get_commit(repo, id);
 
                                 time := misc.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
@@ -824,8 +875,27 @@ main :: proc() {
                             }
                             git.revwalk_free(walker);
                         }
+
+                        imgui.separator();
+                        imgui.text_colored(imgui.Vec4{1, 1, 1, 0.2}, "Commits: %d", commit_count);
                     }
                 }
+            }
+
+            if close_repo {
+                //NOTE(Hoej): Runtime crash for some reason??
+                /*for col in local_branches {
+                    free(col.branches);
+                }
+
+                for col in remote_branches {
+                    free(col.branches);
+                }
+                free(local_branches);
+                free(remote_branches);*/
+                git.repository_free(repo);
+                repo = nil;
+                close_repo = false;
             }
 
             if draw_console {
