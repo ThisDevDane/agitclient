@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 19-12-2017 07:03:54 UTC-8
+ *  @Last Time: 19-12-2017 08:06:56 UTC-8
  *
  *  @Description:
  *
@@ -79,6 +79,19 @@ Buf :: struct {
     ptr   : ^byte,
     asize : uint,
     size  : uint,
+}
+
+Otype :: enum i32 {
+    Any = -2,       /**< Object can be any of the following */
+    Bad = -1,       /**< Object is invalid. */
+    _Ext1 = 0,      /**< Reserved for future use. */
+    Commit = 1,     /**< A commit object. */
+    Tree = 2,       /**< A tree (directory listing) object. */
+    Blob = 3,       /**< A file revision object. */
+    Tag = 4,        /**< An annotated tag object. */
+    _Ext2 = 5,      /**< Reserved for future use. */
+    Ofs_Delta = 6, /**< A delta, base is given by an offset. */
+    Ref_Delta = 7, /**< A delta, base is given by object id. */
 }
 
 Checkout_Perfdata :: struct {
@@ -1355,11 +1368,17 @@ foreign libgit {
     git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
     @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
 
+    @(link_name = "git_reset_default") reset_default :: proc(repo : ^Repository, target : ^Object, pathspecs : ^Str_Array) -> i32 ---;
+
     //Reference
     git_reference_name_to_id :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> i32 ---;
     git_reference_symbolic_target :: proc(ref : ^Reference) -> ^byte ---;
     git_reference_name :: proc(ref : ^Reference) -> ^byte ---;
+    @(link_name = "git_reference_peel") reference_peel :: proc(out : ^^Object, ref : ^Reference, kind : Otype) -> i32 ---;
+    @(link_name = "git_reference_free") reference_free :: proc(ref : ^Reference) ---;
     @(link_name = "git_reference_is_branch") reference_is_branch :: proc(ref : ^Reference) -> bool ---;
+
+    @(link_name = "git_object_free") object_free :: proc(object : ^Object) ---;
 
     //Branch
     git_branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> i32 ---;

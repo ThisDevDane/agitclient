@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 19-12-2017 07:07:06 UTC-8
+ *  @Last Time: 19-12-2017 08:07:59 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -738,8 +738,19 @@ main :: proc() {
                                     }
 
                                     for entry in to_unstage {
-                                        err := git.index_remove_bypath(index, strings.to_odin_string(entry.head_to_index.new_file.path));
-                                        log_if_err(err);
+                                        head, err := git.repository_head(repo);
+                                        defer git.reference_free(head);
+                                        if !log_if_err(err) {
+                                            head_commit: ^git.Object;
+                                            err = git.reference_peel(&head_commit, head, git.Otype.Commit);
+                                            defer git.object_free(head_commit);
+                                            if !log_if_err(err) {
+                                                path := entry.head_to_index.new_file.path;
+                                                stra := git.Str_Array{&path, 1};
+                                                err = git.reset_default(repo, head_commit, &stra);
+                                                log_if_err(err);
+                                            }
+                                        }
                                     }
 
                                     err = git.index_write(index);
