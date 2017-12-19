@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 21:53:16 UTC+1
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 19-12-2017 01:26:14 UTC-5
  *
  *  @Description:
  *
@@ -1347,8 +1347,9 @@ foreign libgit {
     git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
     git_index_remove        :: proc(index : ^Index, entry : ^Index_Entry) -> i32 ---;
     git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> i32 ---;
-    @(link_name = "git_index_entrycount")  index_entrycount   :: proc(index : ^Index) -> uint ---;
-    @(link_name = "git_index_get_byindex") index_get_byindex  :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
+    @(link_name = "git_repository_set_index") repository_set_index :: proc(repo : ^Repository, index : ^Index) ---;
+    @(link_name = "git_index_entrycount")     index_entrycount     :: proc(index : ^Index) -> uint ---;
+    @(link_name = "git_index_get_byindex")    index_get_byindex    :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
 
     git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
     @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;

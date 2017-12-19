@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-12-2017 01:17:32 UTC+1
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 19-12-2017 02:12:48 UTC-5
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -23,6 +23,7 @@ import input "shared:libbrew/win/keys.odin";
 import wgl   "shared:libbrew/win/opengl.odin";
 
 import       "shared:libbrew/string_util.odin";
+import       "shared:libbrew/time_util.odin";
 import imgui "shared:libbrew/brew_imgui.odin";
 import       "shared:libbrew/gl.odin";
 
@@ -257,6 +258,55 @@ free_commit :: proc(commit : ^Commit) {
     commit.git_commit = nil;
 }
 
+Status :: struct {
+    list             : ^git.Status_List,
+    staged           : [dynamic]^git.Status_Entry,
+    unstaged         : [dynamic]^git.Status_Entry,
+    untracked        : [dynamic]^git.Status_Entry,
+}
+
+update_status :: proc(repo : ^git.Repository, status : ^Status) {
+    if status.list == nil {
+        options : git.Status_Options;
+        git.status_init_options(&options, 1);
+        options.flags = git.Status_Opt_Flags.Include_Untracked;
+        err : i32;
+        status.list, err = git.status_list_new(repo, &options);
+        log_if_err(err);
+    }
+
+    assert(status.list != nil);
+
+    count := git.status_list_entrycount(status.list);
+    
+    for i: uint = 0; i < count; i += 1 {
+        if entry := git.status_byindex(status.list, i); entry != nil {
+            if entry.head_to_index != nil {
+                append(&status.staged, entry);
+            }
+
+            if entry.index_to_workdir != nil {
+                if entry.index_to_workdir.status == git.Delta.Untracked {
+                    append(&status.untracked, entry);
+                } else {
+                    append(&status.unstaged, entry);
+                }
+            }
+        }
+    }
+}
+
+free_status :: proc(status : ^Status) {
+    if status.list == nil do return;
+
+    git.status_list_free(status.list);
+    clear(&status.staged);
+    clear(&status.unstaged);
+    clear(&status.untracked);
+
+    status.list = nil;
+}
+
 agc_style :: proc() {
     style := imgui.get_style();
 
@@ -356,6 +406,14 @@ main :: proc() {
 
     close_repo         := false;
     git_log            := Git_Log{};
+
+    status             :  Status;
+    show_status_window := true;
+
+    status_refresh_timer := time_util.create_timer(0.5);
+
+    to_stage   : [dynamic]^git.Status_Entry;
+    to_unstage : [dynamic]^git.Status_Entry;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -484,8 +542,8 @@ main :: proc() {
                                         imgui.WindowFlags.NoBringToFrontOnFocus) {
                 defer imgui.end();
                 if repo == nil {
-                    imgui.input_text("Repo Path;", path_buf[..]);
-                    if imgui.button("Open") {
+                    ok := imgui.input_text("Repo Path;", path_buf[..], imgui.InputTextFlags.EnterReturnsTrue);
+                    if imgui.button("Open") || ok {
                         path := strings.to_odin_string(&path_buf[0]);
                         if git.is_repository(path) {
                             new_repo, err := git.repository_open(path);
@@ -572,20 +630,23 @@ main :: proc() {
                         imgui.separator();
 
                         if imgui.button("Status") {
-                            if statuses != nil {
-                                git.status_list_free(statuses);
-                                statuses = nil;
+                            if show_status_window {
+                                show_status_window = false;
+                                free_status(&status);
                             } else {
-                                options : git.Status_Options;
-                                git.status_init_options(&options, 1);
-                                options.flags = git.Status_Opt_Flags.Include_Untracked;
-                                err : i32;
-                                statuses, err = git.status_list_new(repo, &options);
-                                log_if_err(err);
+                                show_status_window = true;
+                                update_status(repo, &status);
                             }
                         }
 
-                        if statuses != nil {
+                        if show_status_window {
+                            if time_util.query(&status_refresh_timer, dt) {
+                                free_status(&status);
+                                update_status(repo, &status);
+                            }
+                            
+                            imgui.same_line();
+
                             if imgui.button("Stash") {
                                 oid: git.Oid;
                                 sig: ^git.Signature;
@@ -608,76 +669,86 @@ main :: proc() {
                                 git.stash_pop(repo, 0, &opts);
                             }
 
-                            count := git.status_list_entrycount(statuses);
-
-                            imgui.text("Changes to be committed:");
+                            imgui.text("Staged files:");
                             if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
-                                imgui.columns(count = 2, border = false);
+                                imgui.columns(count = 3, border = false);
                                 imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                                for i: uint = 0; i < count; i += 1 {
-                                    if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.head_to_index != nil {
-                                            if entry.head_to_index.old_file.path != nil {
-                                                imgui.set_column_width(-1, 100);
-                                                imgui.text("%v", entry.head_to_index.status);
-                                                imgui.next_column();
-                                                imgui.text(strings.to_odin_string(entry.head_to_index.old_file.path));
-                                                imgui.next_column();
-                                            }
-                                        }
-                                    } else {
-                                        console.logf_error("entry nil: index %d", i);
-                                    }
+
+                                for entry, i in status.staged {
+                                    imgui.set_column_width(-1, 60);
+                                    if imgui.button("unstage") do append(&to_unstage, entry);
+                                    imgui.next_column();
+                                    imgui.set_column_width(-1, 100);
+                                    imgui.text("%v", entry.head_to_index.status);
+                                    imgui.next_column();
+                                    imgui.text(strings.to_odin_string(entry.head_to_index.new_file.path));
+                                    imgui.next_column();
                                 }
+
                                 imgui.pop_style_color();
                             }
                             imgui.end_child();
 
-                            imgui.text("Changes not staged for commit:");
-                            if imgui.begin_child("NotStaged", imgui.Vec2{0, 100}) {
-                                imgui.columns(count = 2, border = false);
+                            imgui.text("Unstaged files:");
+                            if imgui.begin_child("Unstaged", imgui.Vec2{0, 100}) {
+                                imgui.columns(count = 3, border = false);
                                 imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
-                                for i: uint = 0; i < count; i += 1 {
-                                    if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.index_to_workdir != nil && entry.index_to_workdir.status != git.Delta.Untracked {
-                                            if entry.index_to_workdir.old_file.path != nil {
-                                                imgui.set_column_width(-1, 100);
-                                                imgui.text("%v", entry.index_to_workdir.status);
-                                                imgui.next_column();
-                                                imgui.text(strings.to_odin_string(entry.index_to_workdir.old_file.path));
-                                                imgui.next_column();
-                                            }
-                                        }
-                                    } else {
-                                        console.logf_error("entry nil: index %d", i);
-                                    }
+
+                                for entry, i in status.unstaged {
+                                    imgui.set_column_width(-1, 60);
+                                    if imgui.button("stage") do append(&to_stage, entry);
+                                    imgui.next_column();
+                                    imgui.set_column_width(-1, 100);
+                                    imgui.text("%v", entry.index_to_workdir.status);
+                                    imgui.next_column();
+                                    imgui.text(strings.to_odin_string(entry.index_to_workdir.new_file.path));
+                                    imgui.next_column();
                                 }
+
                                 imgui.pop_style_color();
                             }
                             imgui.end_child();
 
                             imgui.text("Untracked files:");
                             if imgui.begin_child("Untracked", imgui.Vec2{0, 100}) {
-                                imgui.columns(count = 2, border = false);
+                                imgui.columns(count = 3, border = false);
                                 imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
-                                for i: uint = 0; i < count; i += 1 {
-                                    if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.index_to_workdir != nil && entry.index_to_workdir.status == git.Delta.Untracked {
-                                            if entry.index_to_workdir.old_file.path != nil {
-                                                imgui.set_column_width(-1, 100);
-                                                imgui.text("%v", entry.index_to_workdir.status);
-                                                imgui.next_column();
-                                                imgui.text(strings.to_odin_string(entry.index_to_workdir.old_file.path));
-                                                imgui.next_column();
-                                            }
-                                        }
-                                    } else {
-                                        console.logf_error("entry nil: index %d", i);
-                                    }
+
+                                for entry, i in status.untracked {
+                                    imgui.set_column_width(-1, 60);
+                                    if imgui.button("stage") do append(&to_stage, entry);
+                                    imgui.next_column();
+                                    imgui.set_column_width(-1, 100);
+                                    imgui.text("%v", entry.index_to_workdir.status);
+                                    imgui.next_column();
+                                    imgui.text(strings.to_odin_string(entry.index_to_workdir.new_file.path));
+                                    imgui.next_column();
                                 }
+
                                 imgui.pop_style_color();
                             }
                             imgui.end_child();
+
+                            // @note(bpunsky): do staging/unstaging
+                            if len(to_stage) > 0 || len(to_unstage) > 0 {
+                                if index, err := git.repository_index(repo); !log_if_err(err) {
+                                    for entry in to_stage {
+                                        err := git.index_add_bypath(index, strings.to_odin_string(entry.index_to_workdir.new_file.path));
+                                        log_if_err(err);
+                                    }
+
+                                    for entry in to_unstage {
+                                        err := git.index_remove_bypath(index, strings.to_odin_string(entry.head_to_index.new_file.path));
+                                        log_if_err(err);
+                                    }
+
+                                    // @note(bpunsky): probably fucks things up
+                                    // git.repository_set_index(repo, index);
+                                }
+                            }
+
+                            clear(&to_stage);
+                            clear(&to_unstage);
                         }
                     }
 
