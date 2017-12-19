@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 19-12-2017 01:26:14 UTC-5
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 19-12-2017 07:03:54 UTC-8
  *
  *  @Description:
  *
@@ -1321,9 +1321,9 @@ foreign libgit {
     @(link_name = "git_commit_parentcount") commit_parentcount :: proc(commit : ^Commit) -> u32 ---;
     @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
     git_commit_message    :: proc(commit: ^Commit) -> ^u8 ---;
-    git_commit_committer  :: proc(commit : ^Commit) -> ^Git_Signature ---; 
-    git_commit_author     :: proc(commit : ^Commit) -> ^Git_Signature ---; 
-    git_commit_summary    :: proc(commit : ^Commit) -> ^byte ---; 
+    git_commit_committer  :: proc(commit : ^Commit) -> ^Git_Signature ---;
+    git_commit_author     :: proc(commit : ^Commit) -> ^Git_Signature ---;
+    git_commit_summary    :: proc(commit : ^Commit) -> ^byte ---;
     git_commit_raw_header :: proc(commit : ^Commit) -> ^byte ---;
 
     git_signature_now :: proc(out : ^^Signature, name, email : ^byte) -> i32 ---;
@@ -1350,6 +1350,7 @@ foreign libgit {
     @(link_name = "git_repository_set_index") repository_set_index :: proc(repo : ^Repository, index : ^Index) ---;
     @(link_name = "git_index_entrycount")     index_entrycount     :: proc(index : ^Index) -> uint ---;
     @(link_name = "git_index_get_byindex")    index_get_byindex    :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
+    @(link_name = "git_index_write")          index_write    :: proc(index : ^Index) -> i32 ---;
 
     git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
     @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;

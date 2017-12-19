@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 19-12-2017 02:12:48 UTC-5
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 19-12-2017 07:07:06 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -193,7 +193,7 @@ checkout_branch :: proc(repo : ^git.Repository, b : Branch) -> bool {
         opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
         err = git.checkout_tree(repo, obj, &opts);
         refname := git.reference_name(b.ref);
-        if !log_if_err(err) { 
+        if !log_if_err(err) {
             err = git.repository_set_head(repo, refname);
             if !log_if_err(err) {
                 return true;
@@ -278,7 +278,7 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
     assert(status.list != nil);
 
     count := git.status_list_entrycount(status.list);
-    
+
     for i: uint = 0; i < count; i += 1 {
         if entry := git.status_byindex(status.list, i); entry != nil {
             if entry.head_to_index != nil {
@@ -349,7 +349,7 @@ agc_style :: proc() {
     style.colors[imgui.Color.HeaderHovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
     style.colors[imgui.Color.HeaderActive]          = imgui.Vec4{0.80, 0.50, 0.50, 1.00};
     style.colors[imgui.Color.TextSelectedBg]        = imgui.Vec4{0.65, 0.35, 0.35, 0.26};
-    style.colors[imgui.Color.ModalWindowDarkening]  = imgui.Vec4{0.20, 0.20, 0.20, 0.35}; 
+    style.colors[imgui.Color.ModalWindowDarkening]  = imgui.Vec4{0.20, 0.20, 0.20, 0.35};
 }
 
 main :: proc() {
@@ -538,7 +538,7 @@ main :: proc() {
             imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
             if imgui.begin("Repo", nil, imgui.WindowFlags.NoResize |
                                         imgui.WindowFlags.NoMove |
-                                        imgui.WindowFlags.NoCollapse | 
+                                        imgui.WindowFlags.NoCollapse |
                                         imgui.WindowFlags.NoBringToFrontOnFocus) {
                 defer imgui.end();
                 if repo == nil {
@@ -576,7 +576,7 @@ main :: proc() {
                                 options : git.Status_Options;
                                 git.status_init_options(&options, 1);
                                 options.flags = git.Status_Opt_Flags.Include_Untracked;
-                                statuses, err = git.status_list_new(repo, &options); 
+                                statuses, err = git.status_list_new(repo, &options);
                                 log_if_err(err);
                             }
 
@@ -644,7 +644,7 @@ main :: proc() {
                                 free_status(&status);
                                 update_status(repo, &status);
                             }
-                            
+
                             imgui.same_line();
 
                             if imgui.button("Stash") {
@@ -742,8 +742,8 @@ main :: proc() {
                                         log_if_err(err);
                                     }
 
-                                    // @note(bpunsky): probably fucks things up
-                                    // git.repository_set_index(repo, index);
+                                    err = git.index_write(index);
+                                    log_if_err(err);
                                 }
                             }
 
@@ -758,11 +758,11 @@ main :: proc() {
                     imgui.set_next_window_size(imgui.Vec2{160, f32(wnd_height-18)});
                     if imgui.begin("Branches", nil, imgui.WindowFlags.NoResize |
                                                     imgui.WindowFlags.NoMove |
-                                                    imgui.WindowFlags.NoCollapse | 
-                                                    imgui.WindowFlags.MenuBar | 
+                                                    imgui.WindowFlags.NoCollapse |
+                                                    imgui.WindowFlags.MenuBar |
                                                     imgui.WindowFlags.NoBringToFrontOnFocus) {
                         defer imgui.end();
-                        if imgui.begin_menu_bar() {  
+                        if imgui.begin_menu_bar() {
                             defer imgui.end_menu_bar();
                             if imgui.begin_menu("Misc") {
                                 defer imgui.end_menu();
@@ -775,7 +775,7 @@ main :: proc() {
                                 }
                             }
                         }
-                                    
+
 
                         if open_create_modal {
                             imgui.open_popup("Create Branch###create_branch_modal");
@@ -784,7 +784,7 @@ main :: proc() {
                         if imgui.begin_popup_modal("Create Branch###create_branch_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
                             defer imgui.end_popup();
                             imgui.text("Branch name:"); imgui.same_line();
-                            imgui.input_text("", create_branch_name[..]); 
+                            imgui.input_text("", create_branch_name[..]);
                             imgui.checkbox("Checkout new branch?", &checkout_new_branch);
                             imgui.separator();
                             if imgui.button("Create", imgui.Vec2{160, 0}) {
@@ -854,7 +854,7 @@ main :: proc() {
                             defer imgui.tree_pop();
                             imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
                             for col in local_branches {
-                                if col.name == "" {                                    
+                                if col.name == "" {
                                     print_branches(repo, col.branches[..], &update_branches, &current_branch);
                                 } else {
                                     imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
@@ -874,7 +874,7 @@ main :: proc() {
                             defer imgui.tree_pop();
                             imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                             for col in remote_branches[..] {
-                                if col.name == "origin" {  
+                                if col.name == "origin" {
                                     imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
                                 }
                                 if imgui.tree_node(col.name) {
@@ -882,7 +882,7 @@ main :: proc() {
                                     imgui.indent(5);
                                     for b in col.branches {
                                         if b.name == "origin/HEAD" do continue;
-                                        imgui.selectable(b.name); 
+                                        imgui.selectable(b.name);
                                         imgui.push_id(git.reference_name(b.ref));
                                         defer imgui.pop_id();
                                         if imgui.begin_popup_context_item("branch_context", 1) {
@@ -913,23 +913,23 @@ main :: proc() {
                         if imgui.begin_child("gitlog", imgui.Vec2{0, -25}) {
                             defer imgui.end_child();
                             for item in git_log.items {
-                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d", 
-                                           item.commit.author.name, 
+                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d",
+                                           item.commit.author.name,
                                            item.commit.author.email,
-                                           item.time.day, 
-                                           item.time.month, 
+                                           item.time.day,
+                                           item.time.month,
                                            item.time.year,
                                            item.time.hour,
                                            item.time.minute,
                                            item.time.second,
                                            item.commit.author.time_when.offset < 0 ? "" : "+",
                                            item.commit.author.time_when.offset/60);
-                                
+
                                 imgui.indent();
                                 imgui.selectable(item.commit.summary);
                                 if imgui.is_item_hovered() {
                                     imgui.begin_tooltip();
-                                    imgui.text(item.commit.message);       
+                                    imgui.text(item.commit.message);
                                     imgui.end_tooltip();
                                 }
                                 imgui.unindent();
@@ -941,14 +941,14 @@ main :: proc() {
                         imgui.text_colored(imgui.Vec4{1, 1, 1, 0.2}, "Commits: %d", git_log.count); imgui.same_line();
                         if imgui.button("Update") {
                             clear(&git_log.items);
-                            git_log.count = 0; 
+                            git_log.count = 0;
                             GIT_ITEROVER :: -31;
                             walker, err := git.revwalk_new(repo);
                             if !log_if_err(err) {
                                 err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
                                 log_if_err(err);
                             }
-                            
+
                             for {
                                 id, err := git.revwalk_next(walker);
                                 if err == GIT_ITEROVER {
@@ -957,7 +957,7 @@ main :: proc() {
                                 commit_count += 1;
                                 commit := get_commit(repo, id);
                                 time := misc.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
-                                
+
                                 item := Log_Item{
                                     commit,
                                     time,
