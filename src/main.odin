@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-12-2017 00:45:00 UTC+1
+ *  @Last Time: 19-12-2017 01:08:35 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -15,7 +15,6 @@
 import "core:fmt.odin";
 import "core:strings.odin";
 import "core:os.odin";
-import win32 "core:sys/windows.odin"; //FIXME(Hoej): NO! BAD! STOP! DONT! DO! IT!
 
 import       "shared:libbrew/win/window.odin";
 import       "shared:libbrew/win/msg.odin";
@@ -30,6 +29,16 @@ import       "shared:libbrew/gl.odin";
 import git     "libgit2.odin";
 import console "console.odin";
 using import _ "debug.odin";
+
+Log_Item :: struct {
+    commit : Commit,
+    time   : misc.Datetime,
+}
+
+Git_Log :: struct {
+    items : [dynamic]Log_Item,
+    count : int,
+}
 
 Commit :: struct {
     git_commit : ^git.Commit,
@@ -350,6 +359,7 @@ main :: proc() {
     remote_branches    : []Branch_Collection;
 
     close_repo         := false;
+    git_log            := Git_Log{};
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -474,7 +484,8 @@ main :: proc() {
             imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
             if imgui.begin("Repo", nil, imgui.WindowFlags.NoResize |
                                         imgui.WindowFlags.NoMove |
-                                        imgui.WindowFlags.NoCollapse) {
+                                        imgui.WindowFlags.NoCollapse | 
+                                        imgui.WindowFlags.NoBringToFrontOnFocus) {
                 defer imgui.end();
                 if repo == nil {
                     imgui.input_text("Repo Path;", path_buf[..]);
@@ -681,7 +692,8 @@ main :: proc() {
                     if imgui.begin("Branches", nil, imgui.WindowFlags.NoResize |
                                                     imgui.WindowFlags.NoMove |
                                                     imgui.WindowFlags.NoCollapse | 
-                                                    imgui.WindowFlags.MenuBar) {
+                                                    imgui.WindowFlags.MenuBar | 
+                                                    imgui.WindowFlags.NoBringToFrontOnFocus) {
                         defer imgui.end();
                         if imgui.begin_menu_bar() {  
                             defer imgui.end_menu_bar();
@@ -831,12 +843,41 @@ main :: proc() {
                     commit_count := 0;
                     if imgui.begin("Log") {
                         defer imgui.end();
-                        if imgui.begin_child("gitlog", imgui.Vec2{0, -20}) {
+                        if imgui.begin_child("gitlog", imgui.Vec2{0, -25}) {
                             defer imgui.end_child();
+                            for item in git_log.items {
+                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d", 
+                                           item.commit.author.name, 
+                                           item.commit.author.email,
+                                           item.time.day, 
+                                           item.time.month, 
+                                           item.time.year,
+                                           item.time.hour,
+                                           item.time.minute,
+                                           item.time.second,
+                                           item.commit.author.time_when.offset < 0 ? "" : "+",
+                                           item.commit.author.time_when.offset/60);
+                                
+                                imgui.indent();
+                                imgui.selectable(item.commit.summary);
+                                if imgui.is_item_hovered() {
+                                    imgui.begin_tooltip();
+                                    imgui.text(item.commit.message);       
+                                    imgui.end_tooltip();
+                                }
+                                imgui.unindent();
+                                imgui.separator();
+                            }
+                        }
+
+                        imgui.separator();
+                        imgui.text_colored(imgui.Vec4{1, 1, 1, 0.2}, "Commits: %d", git_log.count); imgui.same_line();
+                        if imgui.button("Update") {
+                            clear(&git_log.items);
+                            git_log.count = 0; 
                             GIT_ITEROVER :: -31;
                             walker, err := git.revwalk_new(repo);
                             if !log_if_err(err) {
-                                //err = git.revwalk_push_range(walker, "HEAD~20..HEAD");
                                 err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
                                 log_if_err(err);
                             }
@@ -848,42 +889,24 @@ main :: proc() {
                                 }
                                 commit_count += 1;
                                 commit := get_commit(repo, id);
-
                                 time := misc.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
-
-                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d", 
-                                           commit.author.name, 
-                                           commit.author.email,
-                                           time.day, 
-                                           time.month, 
-                                           time.year,
-                                           time.hour,
-                                           time.minute,
-                                           time.second,
-                                           commit.author.time_when.offset < 0 ? "" : "+",
-                                           commit.author.time_when.offset/60);
                                 
-                                imgui.indent();
-                                imgui.selectable(commit.summary);
-                                if imgui.is_item_hovered() {
-                                    imgui.begin_tooltip();
-                                    imgui.text(commit.message);       
-                                    imgui.end_tooltip();
-                                }
-                                imgui.unindent();
-                                imgui.separator();
+                                item := Log_Item{
+                                    commit,
+                                    time,
+                                };
+
+                                append(&git_log.items, item);
+                                git_log.count += 1;
                             }
                             git.revwalk_free(walker);
                         }
-
-                        imgui.separator();
-                        imgui.text_colored(imgui.Vec4{1, 1, 1, 0.2}, "Commits: %d", commit_count);
                     }
                 }
             }
 
             if close_repo {
-                //NOTE(Hoej): Runtime crash for some reason??
+                //FIXME(Hoej): Runtime crash for some reason??
                 /*for col in local_branches {
                     free(col.branches);
                 }
