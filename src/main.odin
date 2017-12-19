@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-12-2017 01:08:35 UTC+1
+ *  @Last Time: 19-12-2017 01:17:32 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -128,6 +128,9 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
         if over == GIT_ITEROVER do break;
         if !log_if_err(over) {
             name, suc := git.branch_name(ref);
+            refname := git.reference_name(ref);
+            oid, ok := git.reference_name_to_id(repo, refname);
+            commit := get_commit(repo, oid);
 
             col_name, found := string_util.get_upto_first_from_file(name, '/');
             if !found {
@@ -136,10 +139,6 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
             col_found := false;
             for col, i in result {
                 if col.name == col_name {
-                    refname := git.reference_name(ref);
-                    oid, ok := git.reference_name_to_id(repo, refname);
-
-                    commit := get_commit(repo, oid);
                     b := Branch {
                         ref,
                         name,
@@ -154,9 +153,6 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
             if !col_found {
                 col := Branch_Collection{};
                 col.name = col_name;
-                refname := git.reference_name(ref);
-                oid, ok := git.reference_name_to_id(repo, refname);
-                commit := get_commit(repo, oid);
                 b := Branch {
                     ref,
                     name,
