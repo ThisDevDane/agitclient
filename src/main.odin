@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Joshua Manton
- *  @Last Time: 19-12-2017 08:12:24 UTC-8
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 19-12-2017 12:05:45 UTC-5
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -676,7 +676,9 @@ main :: proc() {
 
                                 for entry, i in status.staged {
                                     imgui.set_column_width(-1, 60);
-                                    if imgui.button("unstage") do append(&to_unstage, entry);
+                                    label := fmt.aprintf("unstage##%d", i);
+                                    defer free(label);
+                                    if imgui.button(label) do append(&to_unstage, entry);
                                     imgui.next_column();
                                     imgui.set_column_width(-1, 100);
                                     imgui.text("%v", entry.head_to_index.status);
@@ -696,7 +698,9 @@ main :: proc() {
 
                                 for entry, i in status.unstaged {
                                     imgui.set_column_width(-1, 60);
-                                    if imgui.button("stage") do append(&to_stage, entry);
+                                    label := fmt.aprintf("stage##%d", i);
+                                    defer free(label);
+                                    if imgui.button(label) do append(&to_stage, entry);
                                     imgui.next_column();
                                     imgui.set_column_width(-1, 100);
                                     imgui.text("%v", entry.index_to_workdir.status);
@@ -716,7 +720,9 @@ main :: proc() {
 
                                 for entry, i in status.untracked {
                                     imgui.set_column_width(-1, 60);
-                                    if imgui.button("stage") do append(&to_stage, entry);
+                                    label := fmt.aprintf("stage##%d", i);
+                                    defer free(label);
+                                    if imgui.button(label) do append(&to_stage, entry);
                                     imgui.next_column();
                                     imgui.set_column_width(-1, 100);
                                     imgui.text("%v", entry.index_to_workdir.status);
