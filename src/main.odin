@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 19-12-2017 08:07:59 UTC-8
+ *  @Last Time: 19-12-2017 08:12:24 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -729,7 +729,6 @@ main :: proc() {
                             }
                             imgui.end_child();
 
-                            // @note(bpunsky): do staging/unstaging
                             if len(to_stage) > 0 || len(to_unstage) > 0 {
                                 if index, err := git.repository_index(repo); !log_if_err(err) {
                                     for entry in to_stage {
