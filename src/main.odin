@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-12-2017 01:17:32 UTC+1
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 19-12-2017 19:19:42 UTC-5
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -23,6 +23,7 @@ import input "shared:libbrew/win/keys.odin";
 import wgl   "shared:libbrew/win/opengl.odin";
 
 import       "shared:libbrew/string_util.odin";
+import       "shared:libbrew/time_util.odin";
 import imgui "shared:libbrew/brew_imgui.odin";
 import       "shared:libbrew/gl.odin";
 
@@ -43,7 +44,7 @@ Git_Log :: struct {
 Commit :: struct {
     git_commit : ^git.Commit,
     author     : git.Signature,
-    commiter   : git.Signature,
+    committer  : git.Signature,
     summary    : string,
     message    : string,
 }
@@ -176,7 +177,7 @@ get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
     if !log_if_err(err) {
         result.message  = git.commit_message(result.git_commit);
         result.summary  = git.commit_summary(result.git_commit);
-        result.commiter = git.commit_committer(result.git_commit);
+        result.committer = git.commit_committer(result.git_commit);
         result.author   = git.commit_author(result.git_commit);
     }
 
@@ -192,7 +193,7 @@ checkout_branch :: proc(repo : ^git.Repository, b : Branch) -> bool {
         opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
         err = git.checkout_tree(repo, obj, &opts);
         refname := git.reference_name(b.ref);
-        if !log_if_err(err) { 
+        if !log_if_err(err) {
             err = git.repository_set_head(repo, refname);
             if !log_if_err(err) {
                 return true;
@@ -257,6 +258,55 @@ free_commit :: proc(commit : ^Commit) {
     commit.git_commit = nil;
 }
 
+Status :: struct {
+    list             : ^git.Status_List,
+    staged           : [dynamic]^git.Status_Entry,
+    unstaged         : [dynamic]^git.Status_Entry,
+    untracked        : [dynamic]^git.Status_Entry,
+}
+
+update_status :: proc(repo : ^git.Repository, status : ^Status) {
+    if status.list == nil {
+        options : git.Status_Options;
+        git.status_init_options(&options, 1);
+        options.flags = git.Status_Opt_Flags.Include_Untracked;
+        err : i32;
+        status.list, err = git.status_list_new(repo, &options);
+        log_if_err(err);
+    }
+
+    assert(status.list != nil);
+
+    count := git.status_list_entrycount(status.list);
+
+    for i: uint = 0; i < count; i += 1 {
+        if entry := git.status_byindex(status.list, i); entry != nil {
+            if entry.head_to_index != nil {
+                append(&status.staged, entry);
+            }
+
+            if entry.index_to_workdir != nil {
+                if entry.index_to_workdir.status == git.Delta.Untracked {
+                    append(&status.untracked, entry);
+                } else {
+                    append(&status.unstaged, entry);
+                }
+            }
+        }
+    }
+}
+
+free_status :: proc(status : ^Status) {
+    if status.list == nil do return;
+
+    git.status_list_free(status.list);
+    clear(&status.staged);
+    clear(&status.unstaged);
+    clear(&status.untracked);
+
+    status.list = nil;
+}
+
 agc_style :: proc() {
     style := imgui.get_style();
 
@@ -299,7 +349,7 @@ agc_style :: proc() {
     style.colors[imgui.Color.HeaderHovered]         = imgui.Vec4{0.78, 0.78, 0.78, 0.40};
     style.colors[imgui.Color.HeaderActive]          = imgui.Vec4{0.80, 0.50, 0.50, 1.00};
     style.colors[imgui.Color.TextSelectedBg]        = imgui.Vec4{0.65, 0.35, 0.35, 0.26};
-    style.colors[imgui.Color.ModalWindowDarkening]  = imgui.Vec4{0.20, 0.20, 0.20, 0.35}; 
+    style.colors[imgui.Color.ModalWindowDarkening]  = imgui.Vec4{0.20, 0.20, 0.20, 0.35};
 }
 
 main :: proc() {
@@ -356,6 +406,17 @@ main :: proc() {
 
     close_repo         := false;
     git_log            := Git_Log{};
+
+    status             :  Status;
+    show_status_window := true;
+
+    status_refresh_timer := time_util.create_timer(1, true);
+
+    to_stage   : [dynamic]^git.Status_Entry;
+    to_unstage : [dynamic]^git.Status_Entry;
+
+    summary_buf : [512+1]byte;
+    message_buf : [4096+1]byte;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -480,12 +541,12 @@ main :: proc() {
             imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
             if imgui.begin("Repo", nil, imgui.WindowFlags.NoResize |
                                         imgui.WindowFlags.NoMove |
-                                        imgui.WindowFlags.NoCollapse | 
+                                        imgui.WindowFlags.NoCollapse |
                                         imgui.WindowFlags.NoBringToFrontOnFocus) {
                 defer imgui.end();
                 if repo == nil {
-                    imgui.input_text("Repo Path;", path_buf[..]);
-                    if imgui.button("Open") {
+                    ok := imgui.input_text("Repo Path;", path_buf[..], imgui.InputTextFlags.EnterReturnsTrue);
+                    if imgui.button("Open") || ok {
                         path := strings.to_odin_string(&path_buf[0]);
                         if git.is_repository(path) {
                             new_repo, err := git.repository_open(path);
@@ -518,7 +579,7 @@ main :: proc() {
                                 options : git.Status_Options;
                                 git.status_init_options(&options, 1);
                                 options.flags = git.Status_Opt_Flags.Include_Untracked;
-                                statuses, err = git.status_list_new(repo, &options); 
+                                statuses, err = git.status_list_new(repo, &options);
                                 log_if_err(err);
                             }
 
@@ -572,30 +633,173 @@ main :: proc() {
                         imgui.separator();
 
                         if imgui.button("Status") {
-                            if statuses != nil {
-                                git.status_list_free(statuses);
-                                statuses = nil;
+                            if show_status_window {
+                                show_status_window = false;
+                                free_status(&status);
                             } else {
-                                options : git.Status_Options;
-                                git.status_init_options(&options, 1);
-                                options.flags = git.Status_Opt_Flags.Include_Untracked;
-                                err : i32;
-                                statuses, err = git.status_list_new(repo, &options);
-                                log_if_err(err);
+                                show_status_window = true;
+                                time_util.reset(&status_refresh_timer);
+                                update_status(repo, &status);
                             }
                         }
 
-                        if statuses != nil {
-                            if imgui.button("Stash") {
-                                oid: git.Oid;
-                                sig: ^git.Signature;
+                        if show_status_window {
+                            if time_util.query(&status_refresh_timer, dt) {
+                                free_status(&status);
+                                update_status(repo, &status);
+                            }
 
+                            imgui.text("Staged files:");
+                            if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
+                                imgui.columns(count = 3, border = false);
+                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
+
+                                for entry, i in status.staged {
+                                    imgui.set_column_width(-1, 60);
+                                    imgui.push_id(i);
+                                    if imgui.button("unstage") do append(&to_unstage, entry);
+                                    imgui.pop_id();
+                                    imgui.next_column();
+                                    imgui.set_column_width(-1, 100);
+                                    imgui.text("%v", entry.head_to_index.status);
+                                    imgui.next_column();
+                                    imgui.text(strings.to_odin_string(entry.head_to_index.new_file.path));
+                                    imgui.next_column();
+                                }
+
+                                imgui.pop_style_color();
+                            }
+                            imgui.end_child();
+
+                            imgui.text("Unstaged files:");
+                            if imgui.begin_child("Unstaged", imgui.Vec2{0, 100}) {
+                                imgui.columns(count = 3, border = false);
+                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+
+                                for entry, i in status.unstaged {
+                                    imgui.set_column_width(-1, 60);
+                                    imgui.push_id(i);
+                                    if imgui.button("stage") do append(&to_stage, entry);
+                                    imgui.pop_id();
+                                    imgui.next_column();
+                                    imgui.set_column_width(-1, 100);
+                                    imgui.text("%v", entry.index_to_workdir.status);
+                                    imgui.next_column();
+                                    imgui.text(strings.to_odin_string(entry.index_to_workdir.new_file.path));
+                                    imgui.next_column();
+                                }
+
+                                imgui.pop_style_color();
+                            }
+                            imgui.end_child();
+
+                            imgui.text("Untracked files:");
+                            if imgui.begin_child("Untracked", imgui.Vec2{0, 100}) {
+                                imgui.columns(count = 3, border = false);
+                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+
+                                for entry, i in status.untracked {
+                                    imgui.set_column_width(-1, 60);
+                                    imgui.push_id(i);
+                                    if imgui.button("stage") do append(&to_stage, entry);
+                                    imgui.pop_id();
+                                    imgui.next_column();
+                                    imgui.set_column_width(-1, 100);
+                                    imgui.text("%v", entry.index_to_workdir.status);
+                                    imgui.next_column();
+                                    imgui.text(strings.to_odin_string(entry.index_to_workdir.new_file.path));
+                                    imgui.next_column();
+                                }
+
+                                imgui.pop_style_color();
+                            }
+                            imgui.end_child();
+
+                            if len(to_stage) > 0 || len(to_unstage) > 0 {
+                                time_util.fill(&status_refresh_timer);
+
+                                if index, err := git.repository_index(repo); !log_if_err(err) {
+                                    for entry in to_stage {
+                                        err := git.index_add_bypath(index, strings.to_odin_string(entry.index_to_workdir.new_file.path));
+                                        log_if_err(err);
+                                    }
+
+                                    for entry in to_unstage {
+                                        if head, err := git.repository_head(repo); !log_if_err(err) {
+                                            defer git.reference_free(head);
+
+                                            if head_commit, err := git.reference_peel(head, git.Otype.Commit); !log_if_err(err) {
+                                                defer git.object_free(head_commit);
+                                                path := entry.head_to_index.new_file.path;
+                                                stra := git.Str_Array{&path, 1};
+                                                err = git.reset_default(repo, head_commit, &stra);
+                                                log_if_err(err);
+                                            }
+                                        }
+                                    }
+
+                                    err = git.index_write(index);
+                                    log_if_err(err);
+                                }
+                            }
+
+                            clear(&to_stage);
+                            clear(&to_unstage);
+
+                            imgui.separator();
+
+                            imgui.text("Commit Message:");
+                            imgui.input_text          ("Summary", summary_buf[..]);
+                            imgui.input_text_multiline("Message", message_buf[..], imgui.Vec2{0, 100});
+
+                            if imgui.button("Commit") {
+                                // @note(bpunsky): do the commit!
+                                commit_msg := fmt.aprintf("%s\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
+                                defer free(commit_msg);
+
+                                author, _ := git.signature_now("John Doe", "email@example.com");
+                                committer := author;
+
+                                // @note(bpunsky): copied from above, should probably be a switch to reload HEAD or something
+                                if ref, err := git.repository_head(repo); !log_if_err(err) {
+                                    refname := git.reference_name(ref);
+                                    oid, ok := git.reference_name_to_id(repo, refname);
+                                    commit := get_commit(repo, oid);
+
+                                    if index, err := git.repository_index(repo); !log_if_err(err) {
+                                        if tree_id, err := git.index_write_tree(index); !log_if_err(err) {
+                                            if tree, err := git.object_lookup(repo, tree_id, git.Otype.Tree); !log_if_err(err) {
+                                                if id, err := git.commit_create(repo, "HEAD", &author, &committer, commit_msg,
+                                                                                cast(^git.Tree) tree, commit.git_commit); !log_if_err(err) {
+                                                    // @note(bpunsky): copied again!
+                                                    if ref, err := git.repository_head(repo); !log_if_err(err) {
+                                                        bname, err := git.branch_name(ref);
+                                                        refname := git.reference_name(ref);
+                                                        oid, ok := git.reference_name_to_id(repo, refname);
+                                                        commit := get_commit(repo, oid);
+                                                        current_branch = Branch{
+                                                            ref,
+                                                            bname,
+                                                            git.Branch_Type.Local,
+                                                            commit,
+                                                        };
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            imgui.same_line();
+
+                            if imgui.button("Stash") {
                                 // TODO(josh): Get the stashers real name and email
-                                err := git.signature_now(&sig, current_branch.current_commit.commiter.name, current_branch.current_commit.commiter.email);
-                                if !log_if_err(err) {
+                                if sig, err := git.signature_now(current_branch.current_commit.committer.name,
+                                                                 current_branch.current_commit.committer.email); !log_if_err(err) {
                                     // TODO(josh): Stash messages
                                     // TODO(josh): Stash options
-                                    err = git.stash_save(&oid, repo, sig, "temp message", git.Stash_Flags.Default);
+                                    _, err = git.stash_save(repo, &sig, "temp message", git.Stash_Flags.Default);
                                     log_if_err(err);
                                 }
                             }
@@ -607,77 +811,6 @@ main :: proc() {
                                 git.stash_apply_init_options(&opts, 1);
                                 git.stash_pop(repo, 0, &opts);
                             }
-
-                            count := git.status_list_entrycount(statuses);
-
-                            imgui.text("Changes to be committed:");
-                            if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
-                                imgui.columns(count = 2, border = false);
-                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                                for i: uint = 0; i < count; i += 1 {
-                                    if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.head_to_index != nil {
-                                            if entry.head_to_index.old_file.path != nil {
-                                                imgui.set_column_width(-1, 100);
-                                                imgui.text("%v", entry.head_to_index.status);
-                                                imgui.next_column();
-                                                imgui.text(strings.to_odin_string(entry.head_to_index.old_file.path));
-                                                imgui.next_column();
-                                            }
-                                        }
-                                    } else {
-                                        console.logf_error("entry nil: index %d", i);
-                                    }
-                                }
-                                imgui.pop_style_color();
-                            }
-                            imgui.end_child();
-
-                            imgui.text("Changes not staged for commit:");
-                            if imgui.begin_child("NotStaged", imgui.Vec2{0, 100}) {
-                                imgui.columns(count = 2, border = false);
-                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
-                                for i: uint = 0; i < count; i += 1 {
-                                    if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.index_to_workdir != nil && entry.index_to_workdir.status != git.Delta.Untracked {
-                                            if entry.index_to_workdir.old_file.path != nil {
-                                                imgui.set_column_width(-1, 100);
-                                                imgui.text("%v", entry.index_to_workdir.status);
-                                                imgui.next_column();
-                                                imgui.text(strings.to_odin_string(entry.index_to_workdir.old_file.path));
-                                                imgui.next_column();
-                                            }
-                                        }
-                                    } else {
-                                        console.logf_error("entry nil: index %d", i);
-                                    }
-                                }
-                                imgui.pop_style_color();
-                            }
-                            imgui.end_child();
-
-                            imgui.text("Untracked files:");
-                            if imgui.begin_child("Untracked", imgui.Vec2{0, 100}) {
-                                imgui.columns(count = 2, border = false);
-                                imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
-                                for i: uint = 0; i < count; i += 1 {
-                                    if entry := git.status_byindex(statuses, i); entry != nil {
-                                        if entry.index_to_workdir != nil && entry.index_to_workdir.status == git.Delta.Untracked {
-                                            if entry.index_to_workdir.old_file.path != nil {
-                                                imgui.set_column_width(-1, 100);
-                                                imgui.text("%v", entry.index_to_workdir.status);
-                                                imgui.next_column();
-                                                imgui.text(strings.to_odin_string(entry.index_to_workdir.old_file.path));
-                                                imgui.next_column();
-                                            }
-                                        }
-                                    } else {
-                                        console.logf_error("entry nil: index %d", i);
-                                    }
-                                }
-                                imgui.pop_style_color();
-                            }
-                            imgui.end_child();
                         }
                     }
 
@@ -687,11 +820,11 @@ main :: proc() {
                     imgui.set_next_window_size(imgui.Vec2{160, f32(wnd_height-18)});
                     if imgui.begin("Branches", nil, imgui.WindowFlags.NoResize |
                                                     imgui.WindowFlags.NoMove |
-                                                    imgui.WindowFlags.NoCollapse | 
-                                                    imgui.WindowFlags.MenuBar | 
+                                                    imgui.WindowFlags.NoCollapse |
+                                                    imgui.WindowFlags.MenuBar |
                                                     imgui.WindowFlags.NoBringToFrontOnFocus) {
                         defer imgui.end();
-                        if imgui.begin_menu_bar() {  
+                        if imgui.begin_menu_bar() {
                             defer imgui.end_menu_bar();
                             if imgui.begin_menu("Misc") {
                                 defer imgui.end_menu();
@@ -704,7 +837,7 @@ main :: proc() {
                                 }
                             }
                         }
-                                    
+
 
                         if open_create_modal {
                             imgui.open_popup("Create Branch###create_branch_modal");
@@ -713,7 +846,7 @@ main :: proc() {
                         if imgui.begin_popup_modal("Create Branch###create_branch_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
                             defer imgui.end_popup();
                             imgui.text("Branch name:"); imgui.same_line();
-                            imgui.input_text("", create_branch_name[..]); 
+                            imgui.input_text("", create_branch_name[..]);
                             imgui.checkbox("Checkout new branch?", &checkout_new_branch);
                             imgui.separator();
                             if imgui.button("Create", imgui.Vec2{160, 0}) {
@@ -783,7 +916,7 @@ main :: proc() {
                             defer imgui.tree_pop();
                             imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
                             for col in local_branches {
-                                if col.name == "" {                                    
+                                if col.name == "" {
                                     print_branches(repo, col.branches[..], &update_branches, &current_branch);
                                 } else {
                                     imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
@@ -803,7 +936,7 @@ main :: proc() {
                             defer imgui.tree_pop();
                             imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                             for col in remote_branches[..] {
-                                if col.name == "origin" {  
+                                if col.name == "origin" {
                                     imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
                                 }
                                 if imgui.tree_node(col.name) {
@@ -811,7 +944,7 @@ main :: proc() {
                                     imgui.indent(5);
                                     for b in col.branches {
                                         if b.name == "origin/HEAD" do continue;
-                                        imgui.selectable(b.name); 
+                                        imgui.selectable(b.name);
                                         imgui.push_id(git.reference_name(b.ref));
                                         defer imgui.pop_id();
                                         if imgui.begin_popup_context_item("branch_context", 1) {
@@ -842,23 +975,23 @@ main :: proc() {
                         if imgui.begin_child("gitlog", imgui.Vec2{0, -25}) {
                             defer imgui.end_child();
                             for item in git_log.items {
-                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d", 
-                                           item.commit.author.name, 
+                                imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d",
+                                           item.commit.author.name,
                                            item.commit.author.email,
-                                           item.time.day, 
-                                           item.time.month, 
+                                           item.time.day,
+                                           item.time.month,
                                            item.time.year,
                                            item.time.hour,
                                            item.time.minute,
                                            item.time.second,
                                            item.commit.author.time_when.offset < 0 ? "" : "+",
                                            item.commit.author.time_when.offset/60);
-                                
+
                                 imgui.indent();
                                 imgui.selectable(item.commit.summary);
                                 if imgui.is_item_hovered() {
                                     imgui.begin_tooltip();
-                                    imgui.text(item.commit.message);       
+                                    imgui.text(item.commit.message);
                                     imgui.end_tooltip();
                                 }
                                 imgui.unindent();
@@ -870,14 +1003,14 @@ main :: proc() {
                         imgui.text_colored(imgui.Vec4{1, 1, 1, 0.2}, "Commits: %d", git_log.count); imgui.same_line();
                         if imgui.button("Update") {
                             clear(&git_log.items);
-                            git_log.count = 0; 
+                            git_log.count = 0;
                             GIT_ITEROVER :: -31;
                             walker, err := git.revwalk_new(repo);
                             if !log_if_err(err) {
                                 err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
                                 log_if_err(err);
                             }
-                            
+
                             for {
                                 id, err := git.revwalk_next(walker);
                                 if err == GIT_ITEROVER {
@@ -886,7 +1019,7 @@ main :: proc() {
                                 commit_count += 1;
                                 commit := get_commit(repo, id);
                                 time := misc.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
-                                
+
                                 item := Log_Item{
                                     commit,
                                     time,
