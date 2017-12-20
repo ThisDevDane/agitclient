@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Brendan Punsky
- *  @Last Time: 20-12-2017 05:29:19 UTC-5
+ *  @Last Time: 20-12-2017 15:44:43 UTC-5
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -30,7 +30,8 @@ import       "shared:libbrew/gl.odin";
 import git     "libgit2.odin";
 import console "console.odin";
 using import _ "debug.odin";
-import         "cel.odin"
+import         "cel.odin";
+import pat     "path.odin";
 
 Log_Item :: struct {
     commit : Commit,
@@ -119,8 +120,10 @@ free_settings :: proc(settings : ^Settings) {
 }
 
 save_settings :: proc() {
-    if !cel.marshal_file(SETTINGS_FILE, settings) {
-        console.log("save_settings failed");
+    if cel.marshal_file(SETTINGS_FILE, settings) {
+        console.log("settings saved.");
+    } else {
+        console.log_error("save_settings failed");
     }
 }
 
@@ -128,9 +131,10 @@ load_settings :: proc() {
     tmp := settings;
     if cel.unmarshal_file(SETTINGS_FILE, settings) {
         free_settings(&tmp);
+        console.log("settings loaded.");
     } else {
-        console.log("load_settings failed");
         settings = tmp;
+        console.log_error("load_settings failed");
     }
 }
 
@@ -346,7 +350,7 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
     if status.list == nil {
         options : git.Status_Options;
         git.status_init_options(&options, 1);
-        options.flags = git.Status_Opt_Flags.Include_Untracked;
+        options.flags = git.Status_Opt_Flags.Include_Untracked | git.Status_Opt_Flags.Recurse_Untracked_Dirs;
         err : i32;
         status.list, err = git.status_list_new(repo, &options);
         log_if_err(err);
@@ -364,8 +368,17 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
 
             if entry.index_to_workdir != nil {
                 if entry.index_to_workdir.status == git.Delta.Untracked {
-                    append(&status.untracked, entry);
-                } else {
+                    repo_path := git.repository_path(repo);
+                    rel_path  := strings.to_odin_string(entry.index_to_workdir.new_file.path);
+                    
+                    // @todo(bpunsky): optimize with a buffer
+                    path := fmt.aprintf("%s/../%s", repo_path, rel_path);
+                    defer free(path);
+                    
+                    if pat.is_file(path) {
+                        append(&status.untracked, entry);
+                    }
+                } else { 
                     append(&status.unstaged, entry);
                 }
             }
