@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Brendan Punsky
- *  @Last Time: 19-12-2017 12:05:45 UTC-5
+ *  @Last Time: 19-12-2017 19:19:42 UTC-5
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -44,7 +44,7 @@ Git_Log :: struct {
 Commit :: struct {
     git_commit : ^git.Commit,
     author     : git.Signature,
-    commiter   : git.Signature,
+    committer  : git.Signature,
     summary    : string,
     message    : string,
 }
@@ -177,7 +177,7 @@ get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
     if !log_if_err(err) {
         result.message  = git.commit_message(result.git_commit);
         result.summary  = git.commit_summary(result.git_commit);
-        result.commiter = git.commit_committer(result.git_commit);
+        result.committer = git.commit_committer(result.git_commit);
         result.author   = git.commit_author(result.git_commit);
     }
 
@@ -410,10 +410,13 @@ main :: proc() {
     status             :  Status;
     show_status_window := true;
 
-    status_refresh_timer := time_util.create_timer(0.5);
+    status_refresh_timer := time_util.create_timer(1, true);
 
     to_stage   : [dynamic]^git.Status_Entry;
     to_unstage : [dynamic]^git.Status_Entry;
+
+    summary_buf : [512+1]byte;
+    message_buf : [4096+1]byte;
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -635,6 +638,7 @@ main :: proc() {
                                 free_status(&status);
                             } else {
                                 show_status_window = true;
+                                time_util.reset(&status_refresh_timer);
                                 update_status(repo, &status);
                             }
                         }
@@ -645,30 +649,6 @@ main :: proc() {
                                 update_status(repo, &status);
                             }
 
-                            imgui.same_line();
-
-                            if imgui.button("Stash") {
-                                oid: git.Oid;
-                                sig: ^git.Signature;
-
-                                // TODO(josh): Get the stashers real name and email
-                                err := git.signature_now(&sig, current_branch.current_commit.commiter.name, current_branch.current_commit.commiter.email);
-                                if !log_if_err(err) {
-                                    // TODO(josh): Stash messages
-                                    // TODO(josh): Stash options
-                                    err = git.stash_save(&oid, repo, sig, "temp message", git.Stash_Flags.Default);
-                                    log_if_err(err);
-                                }
-                            }
-
-                            imgui.same_line();
-
-                            if imgui.button("Pop") {
-                                opts : git.Stash_Apply_Options;
-                                git.stash_apply_init_options(&opts, 1);
-                                git.stash_pop(repo, 0, &opts);
-                            }
-
                             imgui.text("Staged files:");
                             if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
                                 imgui.columns(count = 3, border = false);
@@ -676,9 +656,9 @@ main :: proc() {
 
                                 for entry, i in status.staged {
                                     imgui.set_column_width(-1, 60);
-                                    label := fmt.aprintf("unstage##%d", i);
-                                    defer free(label);
-                                    if imgui.button(label) do append(&to_unstage, entry);
+                                    imgui.push_id(i);
+                                    if imgui.button("unstage") do append(&to_unstage, entry);
+                                    imgui.pop_id();
                                     imgui.next_column();
                                     imgui.set_column_width(-1, 100);
                                     imgui.text("%v", entry.head_to_index.status);
@@ -698,9 +678,9 @@ main :: proc() {
 
                                 for entry, i in status.unstaged {
                                     imgui.set_column_width(-1, 60);
-                                    label := fmt.aprintf("stage##%d", i);
-                                    defer free(label);
-                                    if imgui.button(label) do append(&to_stage, entry);
+                                    imgui.push_id(i);
+                                    if imgui.button("stage") do append(&to_stage, entry);
+                                    imgui.pop_id();
                                     imgui.next_column();
                                     imgui.set_column_width(-1, 100);
                                     imgui.text("%v", entry.index_to_workdir.status);
@@ -720,9 +700,9 @@ main :: proc() {
 
                                 for entry, i in status.untracked {
                                     imgui.set_column_width(-1, 60);
-                                    label := fmt.aprintf("stage##%d", i);
-                                    defer free(label);
-                                    if imgui.button(label) do append(&to_stage, entry);
+                                    imgui.push_id(i);
+                                    if imgui.button("stage") do append(&to_stage, entry);
+                                    imgui.pop_id();
                                     imgui.next_column();
                                     imgui.set_column_width(-1, 100);
                                     imgui.text("%v", entry.index_to_workdir.status);
@@ -736,6 +716,8 @@ main :: proc() {
                             imgui.end_child();
 
                             if len(to_stage) > 0 || len(to_unstage) > 0 {
+                                time_util.fill(&status_refresh_timer);
+
                                 if index, err := git.repository_index(repo); !log_if_err(err) {
                                     for entry in to_stage {
                                         err := git.index_add_bypath(index, strings.to_odin_string(entry.index_to_workdir.new_file.path));
@@ -743,13 +725,11 @@ main :: proc() {
                                     }
 
                                     for entry in to_unstage {
-                                        head, err := git.repository_head(repo);
-                                        defer git.reference_free(head);
-                                        if !log_if_err(err) {
-                                            head_commit: ^git.Object;
-                                            err = git.reference_peel(&head_commit, head, git.Otype.Commit);
-                                            defer git.object_free(head_commit);
-                                            if !log_if_err(err) {
+                                        if head, err := git.repository_head(repo); !log_if_err(err) {
+                                            defer git.reference_free(head);
+
+                                            if head_commit, err := git.reference_peel(head, git.Otype.Commit); !log_if_err(err) {
+                                                defer git.object_free(head_commit);
                                                 path := entry.head_to_index.new_file.path;
                                                 stra := git.Str_Array{&path, 1};
                                                 err = git.reset_default(repo, head_commit, &stra);
@@ -765,6 +745,72 @@ main :: proc() {
 
                             clear(&to_stage);
                             clear(&to_unstage);
+
+                            imgui.separator();
+
+                            imgui.text("Commit Message:");
+                            imgui.input_text          ("Summary", summary_buf[..]);
+                            imgui.input_text_multiline("Message", message_buf[..], imgui.Vec2{0, 100});
+
+                            if imgui.button("Commit") {
+                                // @note(bpunsky): do the commit!
+                                commit_msg := fmt.aprintf("%s\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
+                                defer free(commit_msg);
+
+                                author, _ := git.signature_now("John Doe", "email@example.com");
+                                committer := author;
+
+                                // @note(bpunsky): copied from above, should probably be a switch to reload HEAD or something
+                                if ref, err := git.repository_head(repo); !log_if_err(err) {
+                                    refname := git.reference_name(ref);
+                                    oid, ok := git.reference_name_to_id(repo, refname);
+                                    commit := get_commit(repo, oid);
+
+                                    if index, err := git.repository_index(repo); !log_if_err(err) {
+                                        if tree_id, err := git.index_write_tree(index); !log_if_err(err) {
+                                            if tree, err := git.object_lookup(repo, tree_id, git.Otype.Tree); !log_if_err(err) {
+                                                if id, err := git.commit_create(repo, "HEAD", &author, &committer, commit_msg,
+                                                                                cast(^git.Tree) tree, commit.git_commit); !log_if_err(err) {
+                                                    // @note(bpunsky): copied again!
+                                                    if ref, err := git.repository_head(repo); !log_if_err(err) {
+                                                        bname, err := git.branch_name(ref);
+                                                        refname := git.reference_name(ref);
+                                                        oid, ok := git.reference_name_to_id(repo, refname);
+                                                        commit := get_commit(repo, oid);
+                                                        current_branch = Branch{
+                                                            ref,
+                                                            bname,
+                                                            git.Branch_Type.Local,
+                                                            commit,
+                                                        };
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            imgui.same_line();
+
+                            if imgui.button("Stash") {
+                                // TODO(josh): Get the stashers real name and email
+                                if sig, err := git.signature_now(current_branch.current_commit.committer.name,
+                                                                 current_branch.current_commit.committer.email); !log_if_err(err) {
+                                    // TODO(josh): Stash messages
+                                    // TODO(josh): Stash options
+                                    _, err = git.stash_save(repo, &sig, "temp message", git.Stash_Flags.Default);
+                                    log_if_err(err);
+                                }
+                            }
+
+                            imgui.same_line();
+
+                            if imgui.button("Pop") {
+                                opts : git.Stash_Apply_Options;
+                                git.stash_apply_init_options(&opts, 1);
+                                git.stash_pop(repo, 0, &opts);
+                            }
                         }
                     }
 
