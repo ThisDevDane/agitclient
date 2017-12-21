@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-12-2017 20:03:15 UTC+1
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 20-12-2017 15:39:23 UTC-5
  *
  *  @Description:
  *
@@ -28,6 +28,7 @@ Transport  :: struct {};
 Commit     :: struct {};
 Reference  :: struct {};
 Object     :: struct {};
+Revwalk    :: struct {};
 
 Branch_Iterator  :: struct {};
 
@@ -36,16 +37,17 @@ Oid :: struct {
     id : [GIT_OID_RAWSZ]byte,
 }
 
-Signature :: struct {
-    name      : string, //Full name of the author
-    email     : string, //Email of the author
-    time_when : Time,   //Time when the action happened
-}
-
 Git_Signature :: struct {
     name      : ^byte, //Full name of the author
     email     : ^byte, //Email of the author
     time_when : Time,  //Time when the action happened
+}
+
+Signature :: struct {
+    _git_orig : ^Git_Signature,
+    name      : string,
+    email     : string,
+    time_when : Time,   
 }
 
 Repository_Init_Options :: struct {
@@ -78,6 +80,19 @@ Buf :: struct {
     ptr   : ^byte,
     asize : uint,
     size  : uint,
+}
+
+Otype :: enum i32 {
+    Any = -2,       /**< Object can be any of the following */
+    Bad = -1,       /**< Object is invalid. */
+    _Ext1 = 0,      /**< Reserved for future use. */
+    Commit = 1,     /**< A commit object. */
+    Tree = 2,       /**< A tree (directory listing) object. */
+    Blob = 3,       /**< A file revision object. */
+    Tag = 4,        /**< An annotated tag object. */
+    _Ext2 = 5,      /**< Reserved for future use. */
+    Ofs_Delta = 6, /**< A delta, base is given by an offset. */
+    Ref_Delta = 7, /**< A delta, base is given by object id. */
 }
 
 Checkout_Perfdata :: struct {
@@ -1060,7 +1075,7 @@ repository_init_ext :: proc(path : string, opts : ^Repository_Init_Options) -> (
     return repo, err;
 }
 
-clone           :: proc(url : string, local_path : string, options : ^Clone_Options) -> (^Repository, i32) {
+clone :: proc(url : string, local_path : string, options : ^Clone_Options) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_clone(&repo, _make_url_string(url), _make_path_string(local_path), options);
     return repo, err;
@@ -1088,6 +1103,14 @@ repository_head :: proc(repo : ^Repository) -> (^Reference, i32) {
 
 repository_set_head :: proc(repo : ^Repository, refname : string) -> i32 {
     return git_repository_set_head(repo, _make_misc_string("%s", refname));
+}
+
+repository_path :: proc(repo : ^Repository) -> string {
+    if path := git_repository_path(repo); path != nil {
+        return strings.to_odin_string(path);
+    }
+
+    return "";
 }
 
 is_repository  :: proc(path : string) -> bool {
@@ -1130,6 +1153,12 @@ repository_index :: proc(repo : ^Repository) -> (^Index, i32) {
     return index, err;
 }
 
+index_new :: proc() -> (^Index, i32) {
+    out : ^Index;
+    err := git_index_new(&out);
+    return out, err;
+}
+
 index_add :: proc[git_index_add, index_add_bypath];
 index_add_bypath :: proc(index : ^Index, path : string) -> i32 {
     err := git_index_add_bypath(index, _make_path_string(path));
@@ -1140,6 +1169,12 @@ index_remove :: proc[git_index_remove, index_remove_bypath];
 index_remove_bypath :: proc(index : ^Index, path : string) -> i32 {
     err := git_index_remove_bypath(index, _make_path_string(path));
     return err;
+}
+
+index_write_tree :: proc(index : ^Index) -> (Oid, i32) {
+    id : Oid;
+    err := git_index_write_tree(&id, index);
+    return id, err;
 }
 
 cred_userpass_plaintext_new :: proc(username : string, password : string) -> (^Cred, i32) {
@@ -1179,10 +1214,30 @@ reference_name :: proc(ref : ^Reference) -> string {
     return strings.to_odin_string(c_str);
 }
 
+reference_peel :: proc(ref : ^Reference, kind : Otype) -> (^Object, i32) {
+    out : ^Object;
+    err := git_reference_peel(&out, ref, kind);
+    return out, err;
+}
+
+commit_create :: proc(repo : ^Repository, update_ref : string, author, committer : ^Signature, message : string, tree : ^Tree, parents : ...^Commit) -> (Oid, i32) {
+    id : Oid;
+    encoding := "UTF-8\x00";
+    err := git_commit_create(&id, repo, _make_url_string(update_ref), author._git_orig, committer._git_orig, &encoding[0], _make_misc_string(message), tree, uint(len(parents)), &parents[0]);
+    return id, err;
+}
+
+commit_lookup :: proc(repo : ^Repository, id : ^Oid) -> (^Commit, i32) {
+    commit : ^Commit = nil;
+    err := git_commit_lookup(&commit, repo, id);
+    return commit, err;
+}
+
 commit_committer :: proc(commit : ^Commit) -> Signature {
     gsig := git_commit_committer(commit);
     //NOTE(Hoej): YUCK!
     sig := Signature {
+        gsig,
         strings.new_string(strings.to_odin_string(gsig.name)),
         strings.new_string(strings.to_odin_string(gsig.email)),
         gsig.time_when
@@ -1195,6 +1250,7 @@ commit_author :: proc(commit : ^Commit) -> Signature {
     gsig := git_commit_author(commit);
     //NOTE(Hoej): YUCK!
     sig := Signature {
+        gsig,
         strings.new_string(strings.to_odin_string(gsig.name)),
         strings.new_string(strings.to_odin_string(gsig.email)),
         gsig.time_when
@@ -1249,12 +1305,53 @@ revparse_single :: proc(repo : ^Repository, spec : string) -> (^Object, i32) {
     return obj, err;
 }
 
-stash_save :: proc(out : ^Oid, repo : ^Repository, stasher : ^Signature, message : string, flags : Stash_Flags) -> i32 {
-    return git_stash_save(out, repo, stasher, _make_misc_string(message), flags);
+stash_save :: proc(repo : ^Repository, stasher : ^Signature, message : string, flags : Stash_Flags) -> (Oid, i32) {
+    out : Oid;
+    err := git_stash_save(&out, repo, stasher._git_orig, _make_misc_string(message), flags);
+    return out, err;
 }
 
-signature_now :: proc(out : ^^Signature, name, email : string) -> i32 {
-    return git_signature_now(out, _make_misc_string(name), _make_misc_string(email));
+signature_now :: proc(name, email : string) -> (Signature, i32) {
+    out : ^Git_Signature;
+    err := git_signature_now(&out, _make_misc_string(name), _make_url_string(email));
+    return Signature {
+        _git_orig = out,
+        name      = strings.new_string(strings.to_odin_string(out.name)),
+        email     = strings.new_string(strings.to_odin_string(out.email)),
+        time_when = out.time_when,
+    }, err;
+}
+
+signature_free :: proc(sig : ^Signature) {
+    free(sig.name);
+    free(sig.email);
+    git_signature_free(sig._git_orig);
+}
+
+revwalk_new :: proc(repo : ^Repository) -> (^Revwalk, i32) {
+    ptr : ^Revwalk = nil;
+    err := git_revwalk_new(&ptr, repo);
+    return ptr, err;
+}
+
+revwalk_next :: proc(walk : ^Revwalk) -> (Oid, i32) {
+    id : Oid;
+    err := git_revwalk_next(&id, walk);
+    return id, err;
+}
+
+revwalk_push_range :: proc(walk : ^Revwalk, range : string) -> i32 {
+    return git_revwalk_push_range(walk, _make_misc_string(range));
+}
+
+revwalk_push_ref :: proc(walk : ^Revwalk, refname : string) -> i32 {
+    return git_revwalk_push_ref(walk, _make_misc_string(refname));
+}
+
+object_lookup :: proc(repo : ^Repository, id : Oid, otype : Otype) -> (^Object, i32) {
+    object : ^Object;
+    err := git_object_lookup(&object, repo, &id, otype);
+    return object, err;
 }
 
 @(default_calling_convention="stdcall")
@@ -1274,6 +1371,7 @@ foreign libgit {
     git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
     git_repository_head :: proc(out : ^^Reference, repo : ^Repository) -> i32 ---;
     git_repository_set_head :: proc(repo : ^Repository, refname : ^byte) -> i32 ---;
+    git_repository_path     :: proc(repo : ^Repository) -> ^u8 ---;
 
     git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
 
@@ -1289,17 +1387,18 @@ foreign libgit {
     @(link_name = "git_status_init_options") status_init_options :: proc(options : ^Status_Options, version : u32) -> i32 ---;
 
     // Commits
+    git_commit_create      :: proc(id : ^Oid, repo : ^Repository, update_ref : ^u8, author : ^Git_Signature, committer : ^Git_Signature, message_encoding : ^u8, message : ^u8, tree : ^Tree, parent_count : uint, parents : ^^Commit) -> i32 ---;
     @(link_name = "git_commit_free")        commit_free        :: proc(out: ^Commit) ---;
-    @(link_name = "git_commit_lookup")      commit_lookup      :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
+    git_commit_lookup      :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> i32 ---;
     @(link_name = "git_commit_parentcount") commit_parentcount :: proc(commit : ^Commit) -> u32 ---;
     @(link_name = "git_commit_parent_id")   commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
     git_commit_message    :: proc(commit: ^Commit) -> ^u8 ---;
-    git_commit_committer  :: proc(commit : ^Commit) -> ^Git_Signature ---; 
-    git_commit_author     :: proc(commit : ^Commit) -> ^Git_Signature ---; 
-    git_commit_summary    :: proc(commit : ^Commit) -> ^byte ---; 
+    git_commit_committer  :: proc(commit : ^Commit) -> ^Git_Signature ---;
+    git_commit_author     :: proc(commit : ^Commit) -> ^Git_Signature ---;
+    git_commit_summary    :: proc(commit : ^Commit) -> ^byte ---;
     git_commit_raw_header :: proc(commit : ^Commit) -> ^byte ---;
 
-    git_signature_now :: proc(out : ^^Signature, name, email : ^byte) -> i32 ---;
+    git_signature_now :: proc(out : ^^Git_Signature, name, email : ^byte) -> i32 ---;
     git_signature_free :: proc(sig : ^Git_Signature) ---;
 
     // Oid
@@ -1316,21 +1415,36 @@ foreign libgit {
     @(link_name = "git_remote_free")           remote_free           :: proc(remote : ^Remote) ---;
 
     git_repository_index    :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
+    git_index_new           :: proc(out : ^^Index) -> i32 ---;
+    @(link_name = "git_index_free") index_free :: proc(index : ^Index) -> i32 ---;
     git_index_add           :: proc(index : ^Index, entry : ^Index_Entry) -> i32 ---;
     git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
     git_index_remove        :: proc(index : ^Index, entry : ^Index_Entry) -> i32 ---;
     git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> i32 ---;
-    @(link_name = "git_index_entrycount")  index_entrycount   :: proc(index : ^Index) -> uint ---;
-    @(link_name = "git_index_get_byindex") index_get_byindex  :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
+    @(link_name = "git_repository_set_index") repository_set_index :: proc(repo : ^Repository, index : ^Index) ---;
+    @(link_name = "git_index_entrycount")     index_entrycount     :: proc(index : ^Index) -> uint ---;
+    @(link_name = "git_index_get_byindex")    index_get_byindex    :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
+    @(link_name = "git_index_write")          index_write    :: proc(index : ^Index) -> i32 ---;
+    git_index_write_tree :: proc(id : ^Oid, index : ^Index) -> i32 ---;
+
+
 
     git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> i32 ---;
     @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> i32 ---;
+
+    @(link_name = "git_reset_default") reset_default :: proc(repo : ^Repository, target : ^Object, pathspecs : ^Str_Array) -> i32 ---;
 
     //Reference
     git_reference_name_to_id :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> i32 ---;
     git_reference_symbolic_target :: proc(ref : ^Reference) -> ^byte ---;
     git_reference_name :: proc(ref : ^Reference) -> ^byte ---;
+    git_reference_peel :: proc(out : ^^Object, ref : ^Reference, kind : Otype) -> i32 ---;
+    @(link_name = "git_reference_free") reference_free :: proc(ref : ^Reference) ---;
     @(link_name = "git_reference_is_branch") reference_is_branch :: proc(ref : ^Reference) -> bool ---;
+
+    git_object_lookup :: proc(object : ^^Object, repo : ^Repository, id : ^Oid, otype : Otype) -> i32 ---;
+    @(link_name = "git_object_free") object_free :: proc(object : ^Object)          ---;
+    @(link_name = "git_object_type") object_type :: proc(obj : ^Object)    -> Otype ---;
 
     //Branch
     git_branch_create :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> i32 ---;
@@ -1347,10 +1461,17 @@ foreign libgit {
     @(link_name = "git_checkout_tree") checkout_tree :: proc(repo : ^Repository, treeish : ^Object, opts : ^Checkout_Options) -> i32 ---;
 
     // Stash
-    git_stash_save :: proc(out : ^Oid, repo : ^Repository, stasher : ^Signature, message : ^byte, flags : Stash_Flags) -> i32 ---;
+    git_stash_save :: proc(out : ^Oid, repo : ^Repository, stasher : ^Git_Signature, message : ^byte, flags : Stash_Flags) -> i32 ---;
     @(link_name = "git_stash_apply") stash_apply :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> i32 ---;
     @(link_name = "git_stash_pop") stash_pop :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> i32 ---;
     @(link_name = "git_stash_drop") stash_drop :: proc(repo : ^Repository, index : uint) -> i32 ---;
     @(link_name = "git_stash_foreach") stash_foreach :: proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> i32 ---;
     @(link_name = "git_stash_apply_init_options") stash_apply_init_options :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
+
+    //Revwalk
+    git_revwalk_new        :: proc(out : ^^Revwalk, repo : ^Repository) -> i32 ---;
+    git_revwalk_next       :: proc(out : ^Oid, walk : ^Revwalk) -> i32 ---;
+    git_revwalk_push_range :: proc(walk : ^Revwalk, range : ^byte) -> i32 ---;
+    git_revwalk_push_ref   :: proc(walk : ^Revwalk, refname : ^byte) -> i32 ---;
+    @(link_name = "git_revwalk_free") revwalk_free :: proc(walk : ^Revwalk) ---;
 }
