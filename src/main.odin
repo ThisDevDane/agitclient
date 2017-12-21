@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 19-12-2017 19:19:42 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 21-12-2017 22:31:44 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -30,6 +30,8 @@ import       "shared:libbrew/gl.odin";
 import git     "libgit2.odin";
 import console "console.odin";
 using import _ "debug.odin";
+import         "cel.odin";
+import pat     "path.odin";
 
 Log_Item :: struct {
     commit : Commit,
@@ -89,15 +91,94 @@ status_callback :: proc "stdcall" (path : ^byte, status_flags : git.Status_Flags
     return 0;
 }
 
-username : string;
-password : string;
+SETTINGS_FILE :: "settings.cel";
+
+Settings :: struct {
+    username : string,
+    password : string,
+
+    name  : string,
+    email : string,
+}
+
+settings := init_settings();
+
+init_settings :: proc(username := "username", password := "password", name := "Jane Doe", email := "j.doe@example.com") -> Settings {
+    return Settings {
+        strings.new_string(username),
+        strings.new_string(password),
+        strings.new_string(name),
+        strings.new_string(email),
+    };
+}
+
+free_settings :: proc(settings : ^Settings) {
+    free(settings.username);
+    free(settings.password);
+    free(settings.name);
+    free(settings.email);
+}
+
+save_settings :: proc() {
+    if cel.marshal_file(SETTINGS_FILE, settings) {
+        console.log("settings saved.");
+    } else {
+        console.log_error("save_settings failed");
+    }
+}
+
+load_settings :: proc() {
+    tmp := settings;
+    if cel.unmarshal_file(SETTINGS_FILE, settings) {
+        free_settings(&tmp);
+        console.log("settings loaded.");
+    } else {
+        settings = tmp;
+        console.log_error("load_settings failed");
+    }
+}
+
+save_settings_cmd :: proc(args : []string) {
+    save_settings();
+}
+
+load_settings_cmd :: proc(args : []string) {
+    load_settings();
+}
 
 set_user :: proc(args : []string) {
-    if len(args) >= 2 {
-        username = args[0];
-        password = args[1];
+    if len(args) == 2 {
+        free(settings.username);
+        free(settings.password);
+
+        settings.username = strings.new_string(args[0]);
+        settings.password = strings.new_string(args[1]);
+
+        save_settings();
     } else {
         console.log_error("You forgot to supply username AND password");
+    }
+}
+
+set_signature :: proc(args : []string) {
+    if len(args) == 2 {
+        free(settings.name);
+        free(settings.email);
+
+        settings.name  = strings.new_string(args[0]);
+        settings.email = strings.new_string(args[1]);
+
+        save_settings();
+    } else if len(args) == 3 {
+        free(settings.name);
+        free(settings.email);
+        
+        settings.name  = fmt.aprintf("%s %s", args[0], args[1]);
+        settings.email = strings.new_string(args[2]);
+
+        save_settings();
+    } else {
+        console.log_error("set_signature takes either two names and an email or one name and an email.");
     }
 }
 
@@ -107,7 +188,7 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
         return test & value == test;
     }
     if test_val(git.Cred_Type.Userpass_Plaintext, allowed_types) {
-        new_cred, err := git.cred_userpass_plaintext_new(username, password);
+        new_cred, err := git.cred_userpass_plaintext_new(settings.username, settings.password);
         if err != 0 {
             return 1;
         }
@@ -269,7 +350,7 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
     if status.list == nil {
         options : git.Status_Options;
         git.status_init_options(&options, 1);
-        options.flags = git.Status_Opt_Flags.Include_Untracked;
+        options.flags = git.Status_Opt_Flags.Include_Untracked | git.Status_Opt_Flags.Recurse_Untracked_Dirs;
         err : i32;
         status.list, err = git.status_list_new(repo, &options);
         log_if_err(err);
@@ -287,8 +368,17 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
 
             if entry.index_to_workdir != nil {
                 if entry.index_to_workdir.status == git.Delta.Untracked {
-                    append(&status.untracked, entry);
-                } else {
+                    repo_path := git.repository_path(repo);
+                    rel_path  := strings.to_odin_string(entry.index_to_workdir.new_file.path);
+                    
+                    // @todo(bpunsky): optimize with a buffer
+                    path := fmt.aprintf("%s/../%s", repo_path, rel_path);
+                    defer free(path);
+                    
+                    if pat.is_file(path) {
+                        append(&status.untracked, entry);
+                    }
+                } else { 
                     append(&status.unstaged, entry);
                 }
             }
@@ -356,6 +446,9 @@ main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
     console.add_command("set_user", set_user);
+    console.add_command("set_signature", set_signature);
+    console.add_command("save_settings", save_settings_cmd);
+    console.add_command("load_settings", load_settings_cmd);
 
     app_handle := misc.get_app_handle();
     wnd_handle := window.create_window(app_handle, "A Git Client", false, 1280, 720);
@@ -412,11 +505,23 @@ main :: proc() {
 
     status_refresh_timer := time_util.create_timer(1, true);
 
-    to_stage   : [dynamic]^git.Status_Entry;
-    to_unstage : [dynamic]^git.Status_Entry;
+    to_stage           : [dynamic]^git.Status_Entry;
+    to_unstage         : [dynamic]^git.Status_Entry;
 
-    summary_buf : [512+1]byte;
-    message_buf : [4096+1]byte;
+    summary_buf        : [512+1]byte;
+    message_buf        : [4096+1]byte;
+
+    username_buf       : [1024]byte;
+    password_buf       : [1024]byte;
+    
+    name_buf           : [1024]byte;
+    email_buf          : [1024]byte;
+
+    test : string;
+
+    load_settings();
+    save_settings();
+    defer save_settings();
 
     git.lib_init();
     feature_set :: proc(test : git.Lib_Features, value : git.Lib_Features) -> bool {
@@ -437,9 +542,9 @@ main :: proc() {
     lib_ver_string := fmt.aprintf("libgit2 v%d.%d.%d",
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
 
-    settings := debug_get_settings();
-    settings.print_location = true;
-    debug_set_settings(settings);
+    _settings := debug_get_settings();
+    _settings.print_location = true;
+    debug_set_settings(_settings);
 
     main_loop: for {
         debug_reset();
@@ -516,6 +621,9 @@ main :: proc() {
         gl.clear(gl.ClearFlags.COLOR_BUFFER | gl.ClearFlags.DEPTH_BUFFER);
         imgui.begin_new_frame(&new_frame_state);
         { //RENDER
+            open_set_signature := false;
+            open_set_user      := false;
+
             if imgui.begin_main_menu_bar() {
                 defer imgui.end_main_menu_bar();
 
@@ -528,12 +636,83 @@ main :: proc() {
                 if imgui.begin_menu("Preferences") {
                     imgui.checkbox("Show Console", &draw_console);
                     imgui.checkbox("Show Demo Window", &draw_demo_window);
+                    
+                    if imgui.menu_item("Set Signature") {
+                        open_set_signature = true;
+                    }
+
+                    if imgui.menu_item("Set User") {
+                        open_set_user = true;
+                    }
+                    
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Help") {
                     imgui.menu_item(label = "A Git Client v0.0.0a", enabled = false);
                     imgui.menu_item(label = lib_ver_string, enabled = false);
                     imgui.end_menu();
+                }
+            }
+
+            if open_set_signature {
+                fmt.bprintf(name_buf[..], settings.name);
+                fmt.bprintf(email_buf[..], settings.email);
+                imgui.open_popup("set_signature_modal");
+            }
+
+            if open_set_user {
+                fmt.bprintf(username_buf[..], settings.username);
+                fmt.bprintf(password_buf[..], settings.password);
+                imgui.open_popup("set_user_modal");
+            }
+
+            if imgui.begin_popup_modal("set_signature_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
+                defer imgui.end_popup();
+                imgui.input_text("Name", name_buf[..]);
+                imgui.input_text("Email", email_buf[..]);
+                imgui.separator();
+                if imgui.button("Save", imgui.Vec2{135, 0}) {
+                    { // Save settings
+                        name := strings.to_odin_string(&name_buf[0]);
+                        settings.name = strings.new_string(name);
+                        email := strings.to_odin_string(&email_buf[0]);
+                        settings.email = strings.new_string(email);
+                        save_settings();
+                    }
+                    name_buf = [1024]u8{};
+                    email_buf = [1024]u8{};
+                    imgui.close_current_popup();
+                }
+                imgui.same_line();
+                if imgui.button("Cancel", imgui.Vec2{135, 0}) {
+                    name_buf = [1024]u8{};
+                    email_buf = [1024]u8{};
+                    imgui.close_current_popup();
+                }
+            } 
+
+            if imgui.begin_popup_modal("set_user_modal",      nil, imgui.WindowFlags.AlwaysAutoResize) {
+                defer imgui.end_popup();
+                imgui.input_text("Username", username_buf[..]);
+                imgui.input_text("Password", password_buf[..], imgui.InputTextFlags.Password);
+                imgui.separator();
+                if imgui.button("Save", imgui.Vec2{135, 0}) {
+                    { // Save settings
+                        username := strings.to_odin_string(&username_buf[0]);
+                        settings.username = strings.new_string(username);
+                        password := strings.to_odin_string(&password_buf[0]);
+                        settings.password = strings.new_string(password);
+                        save_settings();
+                    }
+                    username_buf = [1024]u8{};
+                    password_buf = [1024]u8{};
+                    imgui.close_current_popup();
+                }
+                imgui.same_line();
+                if imgui.button("Cancel", imgui.Vec2{135, 0}) {
+                    username_buf = [1024]u8{};
+                    password_buf = [1024]u8{};
+                    imgui.close_current_popup();
                 }
             }
 
@@ -757,8 +936,8 @@ main :: proc() {
                                 commit_msg := fmt.aprintf("%s\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
                                 defer free(commit_msg);
 
-                                author, _ := git.signature_now("John Doe", "email@example.com");
-                                committer := author;
+                                committer, _ := git.signature_now(settings.name, settings.email);
+                                author       := committer;
 
                                 // @note(bpunsky): copied from above, should probably be a switch to reload HEAD or something
                                 if ref, err := git.repository_head(repo); !log_if_err(err) {
@@ -789,6 +968,9 @@ main :: proc() {
                                         }
                                     }
                                 }
+
+                                summary_buf = [512+1]u8{};
+                                message_buf = [4096+1]u8{};
                             }
 
                             imgui.same_line();

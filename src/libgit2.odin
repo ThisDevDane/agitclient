@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Brendan Punsky
- *  @Last Time: 19-12-2017 19:12:42 UTC-5
+ *  @Last Time: 20-12-2017 15:39:23 UTC-5
  *
  *  @Description:
  *
@@ -1075,7 +1075,7 @@ repository_init_ext :: proc(path : string, opts : ^Repository_Init_Options) -> (
     return repo, err;
 }
 
-clone           :: proc(url : string, local_path : string, options : ^Clone_Options) -> (^Repository, i32) {
+clone :: proc(url : string, local_path : string, options : ^Clone_Options) -> (^Repository, i32) {
     repo : ^Repository = nil;
     err := git_clone(&repo, _make_url_string(url), _make_path_string(local_path), options);
     return repo, err;
@@ -1103,6 +1103,14 @@ repository_head :: proc(repo : ^Repository) -> (^Reference, i32) {
 
 repository_set_head :: proc(repo : ^Repository, refname : string) -> i32 {
     return git_repository_set_head(repo, _make_misc_string("%s", refname));
+}
+
+repository_path :: proc(repo : ^Repository) -> string {
+    if path := git_repository_path(repo); path != nil {
+        return strings.to_odin_string(path);
+    }
+
+    return "";
 }
 
 is_repository  :: proc(path : string) -> bool {
@@ -1143,6 +1151,12 @@ repository_index :: proc(repo : ^Repository) -> (^Index, i32) {
     index : ^Index = nil;
     err := git_repository_index(&index, repo);
     return index, err;
+}
+
+index_new :: proc() -> (^Index, i32) {
+    out : ^Index;
+    err := git_index_new(&out);
+    return out, err;
 }
 
 index_add :: proc[git_index_add, index_add_bypath];
@@ -1357,6 +1371,7 @@ foreign libgit {
     git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> i32 ---;
     git_repository_head :: proc(out : ^^Reference, repo : ^Repository) -> i32 ---;
     git_repository_set_head :: proc(repo : ^Repository, refname : ^byte) -> i32 ---;
+    git_repository_path     :: proc(repo : ^Repository) -> ^u8 ---;
 
     git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
 
@@ -1400,6 +1415,8 @@ foreign libgit {
     @(link_name = "git_remote_free")           remote_free           :: proc(remote : ^Remote) ---;
 
     git_repository_index    :: proc(out : ^^Index, repo : ^Repository) -> i32 ---;
+    git_index_new           :: proc(out : ^^Index) -> i32 ---;
+    @(link_name = "git_index_free") index_free :: proc(index : ^Index) -> i32 ---;
     git_index_add           :: proc(index : ^Index, entry : ^Index_Entry) -> i32 ---;
     git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> i32 ---;
     git_index_remove        :: proc(index : ^Index, entry : ^Index_Entry) -> i32 ---;
