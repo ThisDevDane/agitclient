@@ -3,6 +3,7 @@ import "core:mem.odin"
 import "core:os.odin"
 import "core:raw.odin"
 import "core:strings.odin"
+import "core:utf8.odin"
 
 export "shared:cel/cel.odin"
 
@@ -20,11 +21,11 @@ destroy_value :: proc(value: Value) {
     }
 }
 
-escape_string :: proc(parser: ^Parser, str: string) -> string {
+escape_string :: proc(str: string) -> string {
     buf := fmt.String_Buffer{};
 
-    for i := start; i < len(str); {
-        char, skip = utf8.decode_rune(cast([]u8) str[i..]);
+    for i := 0; i < len(str); {
+        char, skip := utf8.decode_rune(cast([]u8) str[i..]);
         i += skip;
 
         switch char {
@@ -32,7 +33,8 @@ escape_string :: proc(parser: ^Parser, str: string) -> string {
             if utf8.valid_rune(char) {
                 fmt.write_rune(&buf, char);
             } else {
-                error(parser, "Invalid rune in string: '%c' (%H).", char, char);
+                free(buf);
+                return "";
             }
 
         case '"':  fmt.sbprint(&buf, "\\\"");
