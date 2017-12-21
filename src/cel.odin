@@ -20,6 +20,37 @@ destroy_value :: proc(value: Value) {
     }
 }
 
+escape_string :: proc(parser: ^Parser, str: string) -> string {
+    buf := fmt.String_Buffer{};
+
+    for i := start; i < len(str); {
+        char, skip = utf8.decode_rune(cast([]u8) str[i..]);
+        i += skip;
+
+        switch char {
+        case: 
+            if utf8.valid_rune(char) {
+                fmt.write_rune(&buf, char);
+            } else {
+                error(parser, "Invalid rune in string: '%c' (%H).", char, char);
+            }
+
+        case '"':  fmt.sbprint(&buf, "\\\"");
+        case '\'': fmt.sbprint(&buf, "\\'");
+        case '\\': fmt.sbprint(&buf, "\\\\");
+        case '\a': fmt.sbprint(&buf, "\\a");
+        case '\b': fmt.sbprint(&buf, "\\b");
+        case '\f': fmt.sbprint(&buf, "\\f");
+        case '\n': fmt.sbprint(&buf, "\\n");
+        case '\r': fmt.sbprint(&buf, "\\r");
+        case '\t': fmt.sbprint(&buf, "\\t");
+        case '\v': fmt.sbprint(&buf, "\\v");
+        }
+    }
+
+    return fmt.to_string(buf);
+}
+
 
 
 // @note(bpunsky): printing `Value` tree to CEL buffer/console/string
@@ -67,7 +98,12 @@ _buffer_print :: proc(sb: ^fmt.String_Buffer, value: Value, root := true, indent
     case bool:      fmt.sbprintf(sb, "%v", v);
     case i64:       fmt.sbprintf(sb, "%v", v);
     case f64:       fmt.sbprintf(sb, "%v", v);
-    case string:    fmt.sbprintf(sb, "\"%s\"", v);
+
+    case string:
+        str := escape_string(v);
+        defer free(str);
+        fmt.sbprintf(sb, "\"%s\"", str);
+    
     case Nil_Value: fmt.sbprintf(sb, "nil");
     }
 }
@@ -95,7 +131,6 @@ parse :: inline proc(cel: string) -> (^Parser, bool) {
 
 parse_file :: inline proc(path: string) -> (^Parser, bool) {
     if bytes, ok := os.read_entire_file(path); ok {
-        defer free(bytes);
         return parse(cast(string) bytes);
     }
 
@@ -243,7 +278,7 @@ unmarshal :: proc(value: Value, data: any) -> bool {
 
 unmarshal_string :: inline proc(cel: string, data: any) -> bool {
     if parser, ok := parse(cel); ok {
-        defer destroy(parser);
+        destroy(parser);
         return unmarshal(parser.root, data);
     }
 
@@ -252,7 +287,7 @@ unmarshal_string :: inline proc(cel: string, data: any) -> bool {
 
 unmarshal_file :: inline proc(path: string, data: any) -> bool {
     if parser, ok := parse_file(path); ok {
-        defer destroy(parser);
+        destroy(parser);
         return unmarshal(parser.root, data);
     }
 

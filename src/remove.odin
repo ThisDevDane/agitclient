@@ -6,7 +6,7 @@
  *  @Creation: 28-11-2017 00:10:03 UTC-5
  *
  *  @Last By:   Brendan Punsky
- *  @Last Time: 17-12-2017 01:11:07 UTC-5
+ *  @Last Time: 21-12-2017 17:36:21 UTC-5
  *  
  *  @Description:
  *  
@@ -91,6 +91,20 @@ remove_value_ordered :: proc(array: ^[dynamic]$T, values: ...T) {
 
 pop_front :: inline proc(array: ^[dynamic]$T) -> T {
     tmp := array[0];
+    
     remove(array, 0);
+    
     return tmp;
+}
+
+append_front :: proc(array: ^[dynamic]$T, value: T) -> int {
+    assert(array != nil && len(array^) != 0);
+
+    length := len(array);
+
+    if length == cap(array) do append(array, T{});
+
+    mem.copy(&array[0], &array[1], size_of(T) * length);
+
+    return 0;
 }
