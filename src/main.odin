@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 21-12-2017 23:45:20 UTC+1
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 21-12-2017 18:34:01 UTC-5
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -96,7 +96,7 @@ Settings :: struct {
     name          : string,
     email         : string,
 
-    recent_repoes : [dynamic]string,
+    recent_repos : [dynamic]string,
 }
 
 settings := init_settings();
@@ -645,10 +645,10 @@ main :: proc() {
                     if imgui.menu_item("Close", "Shift+ESC") {
                         break main_loop;
                     }
-                    if imgui.begin_menu("Recent Repoes:", len(settings.recent_repoes) > 0) {
+                    if imgui.begin_menu("Recent Repos:", len(settings.recent_repos) > 0) {
                         defer imgui.end_menu();
 
-                        for s in settings.recent_repoes {
+                        for s in settings.recent_repos {
                             if imgui.menu_item(s) {
                                 open_recent = true;
                                 recent_repo = s;
@@ -764,17 +764,17 @@ main :: proc() {
                             if !log_if_err(err) {
                                 if !open_recent {
                                     found := false;
-                                    for s, i in settings.recent_repoes {
+                                    for s, i in settings.recent_repos {
                                         if s == full_path {
                                             found = true;
-                                            //remove.remove(&settings.recent_repoes, i);
-                                            //remove.append_front(&settings.recent_repoes, full_path);
+                                            //remove.remove(&settings.recent_repos, i);
+                                            //remove.append_front(&settings.recent_repos, full_path);
                                             break;
                                         }
                                     }
 
                                     if !found {
-                                        append(&settings.recent_repoes, full_path);
+                                        append(&settings.recent_repos, full_path);
                                     } 
                                 }
 
