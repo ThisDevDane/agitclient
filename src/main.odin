@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 20-12-2017 15:44:43 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 21-12-2017 22:27:53 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -505,11 +505,19 @@ main :: proc() {
 
     status_refresh_timer := time_util.create_timer(1, true);
 
-    to_stage   : [dynamic]^git.Status_Entry;
-    to_unstage : [dynamic]^git.Status_Entry;
+    to_stage           : [dynamic]^git.Status_Entry;
+    to_unstage         : [dynamic]^git.Status_Entry;
 
-    summary_buf : [512+1]byte;
-    message_buf : [4096+1]byte;
+    summary_buf        : [512+1]byte;
+    message_buf        : [4096+1]byte;
+
+    username_buf       : [1024]byte;
+    password_buf       : [1024]byte;
+    
+    name_buf           : [1024]byte;
+    email_buf          : [1024]byte;
+
+    test : string;
 
     load_settings();
     save_settings();
@@ -613,6 +621,9 @@ main :: proc() {
         gl.clear(gl.ClearFlags.COLOR_BUFFER | gl.ClearFlags.DEPTH_BUFFER);
         imgui.begin_new_frame(&new_frame_state);
         { //RENDER
+            open_set_signature := false;
+            open_set_user      := false;
+
             if imgui.begin_main_menu_bar() {
                 defer imgui.end_main_menu_bar();
 
@@ -625,12 +636,83 @@ main :: proc() {
                 if imgui.begin_menu("Preferences") {
                     imgui.checkbox("Show Console", &draw_console);
                     imgui.checkbox("Show Demo Window", &draw_demo_window);
+                    
+                    if imgui.menu_item("Set Signature") {
+                        open_set_signature = true;
+                    }
+
+                    if imgui.menu_item("Set User") {
+                        open_set_user = true;
+                    }
+                    
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Help") {
                     imgui.menu_item(label = "A Git Client v0.0.0a", enabled = false);
                     imgui.menu_item(label = lib_ver_string, enabled = false);
                     imgui.end_menu();
+                }
+            }
+
+            if open_set_signature {
+                fmt.bprintf(name_buf[..], settings.name);
+                fmt.bprintf(email_buf[..], settings.email);
+                imgui.open_popup("set_signature_modal");
+            }
+
+            if open_set_user {
+                fmt.bprintf(username_buf[..], settings.username);
+                fmt.bprintf(password_buf[..], settings.password);
+                imgui.open_popup("set_user_modal");
+            }
+
+            if imgui.begin_popup_modal("set_signature_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
+                defer imgui.end_popup();
+                imgui.input_text("Name", name_buf[..]);
+                imgui.input_text("Email", email_buf[..]);
+                imgui.separator();
+                if imgui.button("Save", imgui.Vec2{135, 0}) {
+                    { // Save settings
+                        name := strings.to_odin_string(&name_buf[0]);
+                        settings.name = strings.new_string(name);
+                        email := strings.to_odin_string(&email_buf[0]);
+                        settings.email = strings.new_string(email);
+                        save_settings();
+                    }
+                    name_buf = [1024]u8{};
+                    email_buf = [1024]u8{};
+                    imgui.close_current_popup();
+                }
+                imgui.same_line();
+                if imgui.button("Cancel", imgui.Vec2{135, 0}) {
+                    name_buf = [1024]u8{};
+                    email_buf = [1024]u8{};
+                    imgui.close_current_popup();
+                }
+            } 
+
+            if imgui.begin_popup_modal("set_user_modal",      nil, imgui.WindowFlags.AlwaysAutoResize) {
+                defer imgui.end_popup();
+                imgui.input_text("Username", username_buf[..]);
+                imgui.input_text("Password", password_buf[..], imgui.InputTextFlags.Password);
+                imgui.separator();
+                if imgui.button("Save", imgui.Vec2{135, 0}) {
+                    { // Save settings
+                        username := strings.to_odin_string(&username_buf[0]);
+                        settings.username = strings.new_string(username);
+                        password := strings.to_odin_string(&password_buf[0]);
+                        settings.password = strings.new_string(password);
+                        save_settings();
+                    }
+                    username_buf = [1024]u8{};
+                    password_buf = [1024]u8{};
+                    imgui.close_current_popup();
+                }
+                imgui.same_line();
+                if imgui.button("Cancel", imgui.Vec2{135, 0}) {
+                    username_buf = [1024]u8{};
+                    password_buf = [1024]u8{};
+                    imgui.close_current_popup();
                 }
             }
 
