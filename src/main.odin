@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 21-12-2017 22:27:53 UTC+1
+ *  @Last Time: 21-12-2017 22:31:44 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -968,6 +968,9 @@ main :: proc() {
                                         }
                                     }
                                 }
+
+                                summary_buf = [512+1]u8{};
+                                message_buf = [4096+1]u8{};
                             }
 
                             imgui.same_line();
