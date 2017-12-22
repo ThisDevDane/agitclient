@@ -6,7 +6,7 @@
  *  @Creation: 28-11-2017 00:10:03 UTC-5
  *
  *  @Last By:   Brendan Punsky
- *  @Last Time: 21-12-2017 17:36:21 UTC-5
+ *  @Last Time: 21-12-2017 19:47:59 UTC-5
  *  
  *  @Description:
  *  
@@ -15,8 +15,10 @@
 import "core:mem.odin"
 import "core:raw.odin"
 
-// remove requires indices to be in order or it can fuck up big time
-remove :: proc(array: ^[dynamic]$T, indices: ...int) {
+remove :: inline proc(array: ^[dynamic]$T, indices: ...int) do remove_unordered(array, ...indices);
+
+// remove_unordered requires indices to be in order or it can fuck up big time
+remove_unordered :: proc(array: ^[dynamic]$T, indices: ...int) {
     assert(array != nil && len(array^) != 0);
 
     a := cast(^raw.Dynamic_Array) array;
@@ -92,19 +94,23 @@ remove_value_ordered :: proc(array: ^[dynamic]$T, values: ...T) {
 pop_front :: inline proc(array: ^[dynamic]$T) -> T {
     tmp := array[0];
     
-    remove(array, 0);
+    remove_ordered(array, 0);
     
     return tmp;
 }
 
 append_front :: proc(array: ^[dynamic]$T, value: T) -> int {
-    assert(array != nil && len(array^) != 0);
+    assert(array != nil);
 
     length := len(array);
 
     if length == cap(array) do append(array, T{});
 
-    mem.copy(&array[0], &array[1], size_of(T) * length);
+    if length != 0 {
+        #no_bounds_check mem.copy(&array[0], &array[1], size_of(T) * length);
+    }
+
+    array[0] = value;
 
     return 0;
 }
