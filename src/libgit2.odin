@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 20-12-2017 15:39:23 UTC-5
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 21-12-2017 22:47:48 UTC-8
  *
  *  @Description:
  *
@@ -29,6 +29,7 @@ Commit     :: struct {};
 Reference  :: struct {};
 Object     :: struct {};
 Revwalk    :: struct {};
+Diff       :: struct {};
 
 Branch_Iterator  :: struct {};
 
@@ -47,7 +48,7 @@ Signature :: struct {
     _git_orig : ^Git_Signature,
     name      : string,
     email     : string,
-    time_when : Time,   
+    time_when : Time,
 }
 
 Repository_Init_Options :: struct {
@@ -173,9 +174,9 @@ Repository_Init_Mode :: enum u32 {
 }
 
 Time :: struct {
-    time   : i64,   //time in seconds from epoch
-    offset : i32, //timezone offset, in minutes
-    sign   : byte,  //indicator for questionable '-0000' offsets in signature
+    time   : i64,  //time in seconds from epoch
+    offset : i32,  //timezone offset, in minutes
+    sign   : byte, //indicator for questionable '-0000' offsets in signature
 }
 
 Index_Time :: struct {
@@ -228,6 +229,91 @@ Index_Entry_Extended_Flag :: enum u16 {
 
     Unpacked          = (1 << 8),
     New_Skip_Worktree = (1 << 9),
+}
+
+Submodule_Ignore :: enum i32 {
+    Unspecified  = -1, /**< use the submodule's configuration */
+
+    None      = 1, /**< any change or untracked == dirty */
+    Untracked = 2, /**< dirty if tracked files change */
+    Dirty     = 3, /**< only dirty if HEAD moved */
+    All       = 4, /**< never dirty */
+}
+
+/**
+ * Diff notification callback function.
+ *
+ * The callback will be called for each file, just before the `git_delta_t`
+ * gets inserted into the diff.
+ *
+ * When the callback:
+ * - returns < 0, the diff process will be aborted.
+ * - returns > 0, the delta will not be inserted into the diff, but the
+ *      diff process continues.
+ * - returns 0, the delta is inserted into the diff, and the diff process
+ *      continues.
+ */
+Diff_Notify_CB   :: #type proc(diff_so_far: ^Diff, delta_to_add: ^Diff_Delta, matched_pathspec: ^byte, payload: rawptr) -> i32;
+
+/**
+ * Diff progress callback.
+ *
+ * Called before each file comparison.
+ *
+ * @param diff_so_far The diff being generated.
+ * @param old_path The path to the old file or NULL.
+ * @param new_path The path to the new file or NULL.
+ * @return Non-zero to abort the diff.
+ */
+Diff_Progress_CB :: #type proc(diff_so_far: ^Diff, old_path: ^byte, new_path: ^byte, payload: rawptr) -> i32;
+
+/**
+ * Structure describing options about how the diff should be executed.
+ *
+ * Setting all values of the structure to zero will yield the default
+ * values.  Similarly, passing NULL for the options structure will
+ * give the defaults.  The default values are marked below.
+ *
+ * - `flags` is a combination of the `git_diff_option_t` values above
+ * - `context_lines` is the number of unchanged lines that define the
+ *    boundary of a hunk (and to display before and after)
+ * - `interhunk_lines` is the maximum number of unchanged lines between
+ *    hunk boundaries before the hunks will be merged into a one.
+ * - `old_prefix` is the virtual "directory" to prefix to old file names
+ *   in hunk headers (default "a")
+ * - `new_prefix` is the virtual "directory" to prefix to new file names
+ *   in hunk headers (default "b")
+ * - `pathspec` is an array of paths / fnmatch patterns to constrain diff
+ * - `max_size` is a file size (in bytes) above which a blob will be marked
+ *   as binary automatically; pass a negative value to disable.
+ * - `notify_cb` is an optional callback function, notifying the consumer of
+ *   changes to the diff as new deltas are added.
+ * - `progress_cb` is an optional callback function, notifying the consumer of
+ *   which files are being examined as the diff is generated.
+ * - `payload` is the payload to pass to the callback functions.
+ * - `ignore_submodules` overrides the submodule ignore setting for all
+ *   submodules in the diff.
+ */
+Diff_Options :: struct {
+    version: u32,
+    flags:   u32,
+
+    /* options controlling which files are in the diff */
+    ignore_submodules: Submodule_Ignore,
+    pathspec:          Str_Array,
+    notify_cb:         Diff_Notify_CB,
+    progress_cb:       Diff_Progress_CB,
+    payload:           rawptr,
+
+    /* options controlling how to diff text is generated */
+    context_lines:   u32, /**< defaults to 3 */
+    interhunk_lines: u32, /**< defaults to 0 */
+    id_abbrev:       u16, /**< default 'core.abbrev' or 7 if unset */
+
+
+    max_size:   i64,         /**< defaults to 512MB */
+    old_prefix: ^byte,       /**< defaults to "a" */
+    new_prefix: ^byte,       /**< defaults to "b" */
 }
 
 Stash_Apply_Flags :: enum i32 {
@@ -1354,6 +1440,12 @@ object_lookup :: proc(repo : ^Repository, id : Oid, otype : Otype) -> (^Object, 
     return object, err;
 }
 
+diff_index_to_workdir :: proc(repo: ^Repository, index: ^Index, options: ^Diff_Options) -> (^Diff, i32) {
+    diff: ^Diff;
+    err := git_diff_index_to_workdir(&diff, repo, index, options);
+    return diff, err;
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> i32 ---;
@@ -1474,4 +1566,7 @@ foreign libgit {
     git_revwalk_push_range :: proc(walk : ^Revwalk, range : ^byte) -> i32 ---;
     git_revwalk_push_ref   :: proc(walk : ^Revwalk, refname : ^byte) -> i32 ---;
     @(link_name = "git_revwalk_free") revwalk_free :: proc(walk : ^Revwalk) ---;
+
+    //Diffs
+    git_diff_index_to_workdir :: proc(diff: ^^Diff, repo: ^Repository, index: ^Index, options: ^Diff_Options) -> i32 ---;
 }

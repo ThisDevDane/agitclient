@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-12-2017 02:47:52 UTC+1
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 21-12-2017 22:54:55 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -184,7 +184,7 @@ set_signature :: proc(args : []string) {
     } else if len(args) == 3 {
         free(settings.name);
         free(settings.email);
-        
+
         settings.name  = fmt.aprintf("%s %s", args[0], args[1]);
         settings.email = strings.new_string(args[2]);
 
@@ -382,15 +382,15 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
                 if entry.index_to_workdir.status == git.Delta.Untracked {
                     repo_path := git.repository_path(repo);
                     rel_path  := strings.to_odin_string(entry.index_to_workdir.new_file.path);
-                    
+
                     // @todo(bpunsky): optimize with a buffer
                     path := fmt.aprintf("%s/../%s", repo_path, rel_path);
                     defer free(path);
-                    
+
                     if pat.is_file(path) {
                         append(&status.untracked, entry);
                     }
-                } else { 
+                } else {
                     append(&status.unstaged, entry);
                 }
             }
@@ -526,7 +526,7 @@ main :: proc() {
 
     username_buf       : [1024]byte;
     password_buf       : [1024]byte;
-    
+
     name_buf           : [1024]byte;
     email_buf          : [1024]byte;
 
@@ -652,7 +652,7 @@ main :: proc() {
                             if imgui.menu_item(s) {
                                 open_recent = true;
                                 recent_repo = s;
-                            }   
+                            }
                         }
                     }
 
@@ -661,7 +661,7 @@ main :: proc() {
                 if imgui.begin_menu("Preferences") {
                     imgui.checkbox("Show Console", &draw_console);
                     imgui.checkbox("Show Demo Window", &draw_demo_window);
-                    
+
                     if imgui.menu_item("Set Signature") {
                         open_set_signature = true;
                     }
@@ -669,7 +669,7 @@ main :: proc() {
                     if imgui.menu_item("Set User") {
                         open_set_user = true;
                     }
-                    
+
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Help") {
@@ -714,7 +714,7 @@ main :: proc() {
                     mem.zero(&email_buf[0], len(email_buf));
                     imgui.close_current_popup();
                 }
-            } 
+            }
 
             if imgui.begin_popup_modal("set_user_modal",      nil, imgui.WindowFlags.AlwaysAutoResize) {
                 defer imgui.end_popup();
@@ -774,7 +774,7 @@ main :: proc() {
 
                                 if !found {
                                     remove.append_front(&settings.recent_repos, strings.new_string(full_path));
-                                } 
+                                }
 
                                 repo = new_repo;
                                 open_repo_name = strings.new_string(path);
@@ -912,7 +912,11 @@ main :: proc() {
                                     imgui.set_column_width(-1, 100);
                                     imgui.text("%v", entry.index_to_workdir.status);
                                     imgui.next_column();
-                                    imgui.text(strings.to_odin_string(entry.index_to_workdir.new_file.path));
+                                    if imgui.selectable(strings.to_odin_string(entry.index_to_workdir.new_file.path)) {
+                                        // @incomplete(josh): actually print out/show the diff data
+                                        diff, err := git.diff_index_to_workdir(repo, nil, nil);
+                                        log_if_err(err);
+                                    }
                                     imgui.next_column();
                                 }
 
