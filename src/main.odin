@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-12-2017 02:47:52 UTC+1
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 21-12-2017 21:32:19 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -184,7 +184,7 @@ set_signature :: proc(args : []string) {
     } else if len(args) == 3 {
         free(settings.name);
         free(settings.email);
-        
+
         settings.name  = fmt.aprintf("%s %s", args[0], args[1]);
         settings.email = strings.new_string(args[2]);
 
@@ -382,15 +382,15 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
                 if entry.index_to_workdir.status == git.Delta.Untracked {
                     repo_path := git.repository_path(repo);
                     rel_path  := strings.to_odin_string(entry.index_to_workdir.new_file.path);
-                    
+
                     // @todo(bpunsky): optimize with a buffer
                     path := fmt.aprintf("%s/../%s", repo_path, rel_path);
                     defer free(path);
-                    
+
                     if pat.is_file(path) {
                         append(&status.untracked, entry);
                     }
-                } else { 
+                } else {
                     append(&status.unstaged, entry);
                 }
             }
@@ -454,6 +454,80 @@ agc_style :: proc() {
     style.colors[imgui.Color.ModalWindowDarkening]  = imgui.Vec4{0.20, 0.20, 0.20, 0.35};
 }
 
+open_repo :: proc(new_repo: ^git.Repository) {
+    // @todo(josh): does the return value of `repository_path` need to be freed?
+    repo_path := git.repository_path(new_repo);
+
+    // @todo(bpunsky): optimize with a buffer
+    path := fmt.aprintf("%s/..", repo_path);
+    defer free(path);
+
+    full_path := pat.full(path);
+    defer free(full_path);
+
+    found := false;
+
+    for s, i in settings.recent_repos {
+        if s == full_path {
+            found = true;
+            remove.remove_ordered(&settings.recent_repos, i);
+            remove.append_front(&settings.recent_repos, strings.new_string(full_path));
+            break;
+        }
+    }
+
+    if !found {
+        remove.append_front(&settings.recent_repos, strings.new_string(full_path));
+    }
+
+    if repo != nil {
+        git.repository_free(repo);
+        repo = nil;
+    }
+
+    repo = new_repo;
+    open_repo_name = strings.new_string(full_path);
+    oid, ok := git.reference_name_to_id(repo, "HEAD");
+    if !log_if_err(ok) {
+        free_commit(&current_branch.current_commit);
+        current_branch.current_commit = get_commit(repo, oid);
+    }
+
+    ref, err := git.repository_head(repo);
+    if !log_if_err(err) {
+        bname, err := git.branch_name(ref);
+        refname := git.reference_name(ref);
+        oid, ok := git.reference_name_to_id(repo, refname);
+        commit := get_commit(repo, oid);
+        current_branch = Branch{
+            ref,
+            bname,
+            git.Branch_Type.Local,
+            commit,
+        };
+    }
+
+    local_branches = get_all_branches(repo, git.Branch_Type.Local);
+    remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
+
+    options : git.Status_Options;
+    git.status_init_options(&options, 1);
+    options.flags = git.Status_Opt_Flags.Include_Untracked;
+    statuses, err = git.status_list_new(repo, &options);
+    log_if_err(err);
+}
+
+repo: ^git.Repository;
+open_repo_name     : string;
+
+statuses           : ^git.Status_List;
+
+current_branch     : Branch;
+
+local_branches     : []Branch_Collection;
+remote_branches    : []Branch_Collection;
+
+
 main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
@@ -474,8 +548,6 @@ main :: proc() {
     wgl.swap_interval(-1);
     gl.clear_color(0.10, 0.10, 0.10, 1);
 
-    repo: ^git.Repository;
-
     message            : msg.Msg;
     wnd_width          := 1280;
     wnd_height         := 720;
@@ -495,20 +567,12 @@ main :: proc() {
     lib_ver_minor      : i32;
     lib_ver_rev        : i32;
 
-    statuses           : ^git.Status_List;
-
     path_buf           : [255+1]byte;
 
-    open_repo_name     : string;
-
-    current_branch     : Branch;
     commit_hash_buf    : [1024]byte;
 
-    create_branch_name  : [1024]byte;
     checkout_new_branch := true;
-
-    local_branches     : []Branch_Collection;
-    remote_branches    : []Branch_Collection;
+    create_branch_name  : [1024]byte;
 
     close_repo         := false;
     git_log            := Git_Log{};
@@ -526,9 +590,12 @@ main :: proc() {
 
     username_buf       : [1024]byte;
     password_buf       : [1024]byte;
-    
+
     name_buf           : [1024]byte;
     email_buf          : [1024]byte;
+
+    clone_repo_url     : [1024]byte;
+    clone_repo_path    : [1024]byte;
 
     open_recent := false;
     recent_repo : string;
@@ -636,6 +703,7 @@ main :: proc() {
         imgui.begin_new_frame(&new_frame_state);
         { //RENDER
             open_set_signature := false;
+            open_clone_menu    := false;
             open_set_user      := false;
 
             if imgui.begin_main_menu_bar() {
@@ -652,8 +720,11 @@ main :: proc() {
                             if imgui.menu_item(s) {
                                 open_recent = true;
                                 recent_repo = s;
-                            }   
+                            }
                         }
+                    }
+                    if imgui.menu_item("Clone...") {
+                        open_clone_menu = true;
                     }
 
                     imgui.end_menu();
@@ -661,7 +732,7 @@ main :: proc() {
                 if imgui.begin_menu("Preferences") {
                     imgui.checkbox("Show Console", &draw_console);
                     imgui.checkbox("Show Demo Window", &draw_demo_window);
-                    
+
                     if imgui.menu_item("Set Signature") {
                         open_set_signature = true;
                     }
@@ -669,7 +740,7 @@ main :: proc() {
                     if imgui.menu_item("Set User") {
                         open_set_user = true;
                     }
-                    
+
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Help") {
@@ -689,6 +760,29 @@ main :: proc() {
                 fmt.bprintf(username_buf[..], settings.username);
                 fmt.bprintf(password_buf[..], settings.password);
                 imgui.open_popup("set_user_modal");
+            }
+
+            if open_clone_menu {
+                fmt.bprintf(clone_repo_url[..], "");
+                fmt.bprintf(clone_repo_path[..], "");
+                imgui.open_popup("clone_repo_modal");
+            }
+
+            if imgui.begin_popup_modal("clone_repo_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
+                defer imgui.end_popup();
+                imgui.input_text("URL", clone_repo_url[..]);
+                imgui.input_text("Destination path", clone_repo_path[..]);
+                if imgui.button("Clone") {
+                    options, err := git.clone_init_options(1);
+                    if !log_if_err(err) {
+                        repo, err2 := git.clone(cast(string)clone_repo_url[..], cast(string)clone_repo_path[..], &options);
+                        if !log_if_err(err2) {
+                            open_repo(repo);
+                        }
+                    }
+
+                    imgui.close_current_popup();
+                }
             }
 
             if imgui.begin_popup_modal("set_signature_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
@@ -714,7 +808,7 @@ main :: proc() {
                     mem.zero(&email_buf[0], len(email_buf));
                     imgui.close_current_popup();
                 }
-            } 
+            }
 
             if imgui.begin_popup_modal("set_user_modal",      nil, imgui.WindowFlags.AlwaysAutoResize) {
                 defer imgui.end_popup();
@@ -752,62 +846,16 @@ main :: proc() {
                     ok := imgui.input_text("Repo Path;", path_buf[..], imgui.InputTextFlags.EnterReturnsTrue);
                     if imgui.button("Open") || ok || open_recent {
                         path := strings.to_odin_string(&path_buf[0]);
-                        full_path := pat.full(path);
 
                         if open_recent {
                             path = recent_repo;
-                            full_path = recent_repo;
                         }
 
                         if git.is_repository(path) {
                             new_repo, err := git.repository_open(path);
                             if !log_if_err(err) {
-                                found := false;
-                                for s, i in settings.recent_repos {
-                                    if s == full_path {
-                                        found = true;
-                                        remove.remove_ordered(&settings.recent_repos, i);
-                                        remove.append_front(&settings.recent_repos, strings.new_string(full_path));
-                                        break;
-                                    }
-                                }
-
-                                if !found {
-                                    remove.append_front(&settings.recent_repos, strings.new_string(full_path));
-                                } 
-
-                                repo = new_repo;
-                                open_repo_name = strings.new_string(path);
-                                oid, ok := git.reference_name_to_id(repo, "HEAD");
-                                if !log_if_err(ok) {
-                                    free_commit(&current_branch.current_commit);
-                                    current_branch.current_commit = get_commit(repo, oid);
-                                }
-
-                                ref, err := git.repository_head(repo);
-                                if !log_if_err(err) {
-                                    bname, err := git.branch_name(ref);
-                                    refname := git.reference_name(ref);
-                                    oid, ok := git.reference_name_to_id(repo, refname);
-                                    commit := get_commit(repo, oid);
-                                    current_branch = Branch{
-                                        ref,
-                                        bname,
-                                        git.Branch_Type.Local,
-                                        commit,
-                                    };
-                                }
-
-                                local_branches = get_all_branches(repo, git.Branch_Type.Local);
-                                remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
-
-                                options : git.Status_Options;
-                                git.status_init_options(&options, 1);
-                                options.flags = git.Status_Opt_Flags.Include_Untracked;
-                                statuses, err = git.status_list_new(repo, &options);
-                                log_if_err(err);
+                                open_repo(new_repo);
                             }
-
                         } else {
                             console.logf_error("%s is not a repo", path);
                         }
