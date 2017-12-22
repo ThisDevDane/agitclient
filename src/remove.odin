@@ -6,7 +6,7 @@
  *  @Creation: 28-11-2017 00:10:03 UTC-5
  *
  *  @Last By:   Brendan Punsky
- *  @Last Time: 21-12-2017 19:47:59 UTC-5
+ *  @Last Time: 21-12-2017 19:50:00 UTC-5
  *  
  *  @Description:
  *  
@@ -104,7 +104,7 @@ append_front :: proc(array: ^[dynamic]$T, value: T) -> int {
 
     length := len(array);
 
-    if length == cap(array) do append(array, T{});
+    append(array, T{});
 
     if length != 0 {
         #no_bounds_check mem.copy(&array[0], &array[1], size_of(T) * length);
