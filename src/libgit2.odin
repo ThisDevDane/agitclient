@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 20-12-2017 15:39:23 UTC-5
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 21-12-2017 20:36:57 UTC-8
  *
  *  @Description:
  *
@@ -47,7 +47,7 @@ Signature :: struct {
     _git_orig : ^Git_Signature,
     name      : string,
     email     : string,
-    time_when : Time,   
+    time_when : Time,
 }
 
 Repository_Init_Options :: struct {
@@ -1081,6 +1081,12 @@ clone :: proc(url : string, local_path : string, options : ^Clone_Options) -> (^
     return repo, err;
 }
 
+clone_init_options :: proc(version : u32) -> (Clone_Options, i32) {
+    options: Clone_Options;
+    err := git_clone_init_options(&options, version);
+    return options, err;
+}
+
 repository_open :: proc[repository_open_, repository_open_ext];
 
 repository_open_ :: proc(path : string) -> (^Repository, i32) {
@@ -1374,6 +1380,7 @@ foreign libgit {
     git_repository_path     :: proc(repo : ^Repository) -> ^u8 ---;
 
     git_clone :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> i32 ---;
+    git_clone_init_options :: proc(options : ^Clone_Options, version: u32) -> i32 ---;
 
     @(link_name = "git_status_foreach") status_foreach :: proc(repo : ^Repository, callback : Status_Cb, payload : rawptr) -> i32 ---;
     @(link_name = "git_status_foreach_ext") status_foreach_ext :: proc(repo : ^Repository, opts : ^Status_Options, callback : Status_Cb, payload : rawptr) -> i32 ---;
