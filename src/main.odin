@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 21-12-2017 20:30:29 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 22-12-2017 02:47:52 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -773,7 +773,7 @@ main :: proc() {
                                 }
 
                                 if !found {
-                                    append(&settings.recent_repos, strings.new_string(full_path));
+                                    remove.append_front(&settings.recent_repos, strings.new_string(full_path));
                                 } 
 
                                 repo = new_repo;
