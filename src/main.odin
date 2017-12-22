@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 21-12-2017 22:31:44 UTC+1
+ *  @Last Time: 22-12-2017 02:47:52 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -15,6 +15,7 @@
 import "core:fmt.odin";
 import "core:strings.odin";
 import "core:os.odin";
+import "core:mem.odin";
 
 import       "shared:libbrew/win/window.odin";
 import       "shared:libbrew/win/msg.odin";
@@ -32,6 +33,7 @@ import console "console.odin";
 using import _ "debug.odin";
 import         "cel.odin";
 import pat     "path.odin";
+import         "remove.odin";
 
 Log_Item :: struct {
     commit : Commit,
@@ -85,30 +87,26 @@ free_lib :: proc(lib : rawptr) {
     misc.free_library(misc.LibHandle(lib));
 }
 
-status_callback :: proc "stdcall" (path : ^byte, status_flags : git.Status_Flags, payload : rawptr) -> i32 {
-    console.log(strings.to_odin_string(path), status_flags);
-
-    return 0;
-}
-
 SETTINGS_FILE :: "settings.cel";
 
 Settings :: struct {
-    username : string,
-    password : string,
+    username      : string,
+    password      : string,
 
-    name  : string,
-    email : string,
+    name          : string,
+    email         : string,
+
+    recent_repos : [dynamic]string,
 }
 
 settings := init_settings();
 
 init_settings :: proc(username := "username", password := "password", name := "Jane Doe", email := "j.doe@example.com") -> Settings {
     return Settings {
-        strings.new_string(username),
-        strings.new_string(password),
-        strings.new_string(name),
-        strings.new_string(email),
+        username = strings.new_string(username),
+        password = strings.new_string(password),
+        name = strings.new_string(name),
+        email = strings.new_string(email),
     };
 }
 
@@ -158,6 +156,20 @@ set_user :: proc(args : []string) {
     } else {
         console.log_error("You forgot to supply username AND password");
     }
+}
+
+test_cmd :: proc(args : []string) {
+    console.log("Before:");
+    console.log(settings);
+    free(settings.username);
+    free(settings.password);
+    settings.username = strings.new_string(args[0]);
+    settings.password = strings.new_string(args[1]);
+    save_settings();
+    load_settings();
+    console.log("After:");
+    console.log(settings);
+
 }
 
 set_signature :: proc(args : []string) {
@@ -449,6 +461,7 @@ main :: proc() {
     console.add_command("set_signature", set_signature);
     console.add_command("save_settings", save_settings_cmd);
     console.add_command("load_settings", load_settings_cmd);
+    console.add_command("test", test_cmd);
 
     app_handle := misc.get_app_handle();
     wnd_handle := window.create_window(app_handle, "A Git Client", false, 1280, 720);
@@ -517,7 +530,8 @@ main :: proc() {
     name_buf           : [1024]byte;
     email_buf          : [1024]byte;
 
-    test : string;
+    open_recent := false;
+    recent_repo : string;
 
     load_settings();
     save_settings();
@@ -631,6 +645,17 @@ main :: proc() {
                     if imgui.menu_item("Close", "Shift+ESC") {
                         break main_loop;
                     }
+                    if imgui.begin_menu("Recent Repos:", len(settings.recent_repos) > 0) {
+                        defer imgui.end_menu();
+
+                        for s in settings.recent_repos {
+                            if imgui.menu_item(s) {
+                                open_recent = true;
+                                recent_repo = s;
+                            }   
+                        }
+                    }
+
                     imgui.end_menu();
                 }
                 if imgui.begin_menu("Preferences") {
@@ -679,14 +704,14 @@ main :: proc() {
                         settings.email = strings.new_string(email);
                         save_settings();
                     }
-                    name_buf = [1024]u8{};
-                    email_buf = [1024]u8{};
+                    mem.zero(&name_buf[0], len(name_buf));
+                    mem.zero(&email_buf[0], len(email_buf));
                     imgui.close_current_popup();
                 }
                 imgui.same_line();
                 if imgui.button("Cancel", imgui.Vec2{135, 0}) {
-                    name_buf = [1024]u8{};
-                    email_buf = [1024]u8{};
+                    mem.zero(&name_buf[0], len(name_buf));
+                    mem.zero(&email_buf[0], len(email_buf));
                     imgui.close_current_popup();
                 }
             } 
@@ -704,14 +729,14 @@ main :: proc() {
                         settings.password = strings.new_string(password);
                         save_settings();
                     }
-                    username_buf = [1024]u8{};
-                    password_buf = [1024]u8{};
+                    mem.zero(&username_buf[0], len(username_buf));
+                    mem.zero(&password_buf[0], len(password_buf));
                     imgui.close_current_popup();
                 }
                 imgui.same_line();
                 if imgui.button("Cancel", imgui.Vec2{135, 0}) {
-                    username_buf = [1024]u8{};
-                    password_buf = [1024]u8{};
+                    mem.zero(&username_buf[0], len(username_buf));
+                    mem.zero(&password_buf[0], len(password_buf));
                     imgui.close_current_popup();
                 }
             }
@@ -725,11 +750,32 @@ main :: proc() {
                 defer imgui.end();
                 if repo == nil {
                     ok := imgui.input_text("Repo Path;", path_buf[..], imgui.InputTextFlags.EnterReturnsTrue);
-                    if imgui.button("Open") || ok {
+                    if imgui.button("Open") || ok || open_recent {
                         path := strings.to_odin_string(&path_buf[0]);
+                        full_path := pat.full(path);
+
+                        if open_recent {
+                            path = recent_repo;
+                            full_path = recent_repo;
+                        }
+
                         if git.is_repository(path) {
                             new_repo, err := git.repository_open(path);
                             if !log_if_err(err) {
+                                found := false;
+                                for s, i in settings.recent_repos {
+                                    if s == full_path {
+                                        found = true;
+                                        remove.remove_ordered(&settings.recent_repos, i);
+                                        remove.append_front(&settings.recent_repos, strings.new_string(full_path));
+                                        break;
+                                    }
+                                }
+
+                                if !found {
+                                    remove.append_front(&settings.recent_repos, strings.new_string(full_path));
+                                } 
+
                                 repo = new_repo;
                                 open_repo_name = strings.new_string(path);
                                 oid, ok := git.reference_name_to_id(repo, "HEAD");
@@ -765,6 +811,8 @@ main :: proc() {
                         } else {
                             console.logf_error("%s is not a repo", path);
                         }
+
+                        open_recent = false;
                     }
                 } else {
                     imgui.text("Repo: %s", open_repo_name); imgui.same_line();
@@ -1215,6 +1263,8 @@ main :: proc() {
                     }
                 }
             }
+
+
 
             if close_repo {
                 //FIXME(Hoej): Runtime crash for some reason??
