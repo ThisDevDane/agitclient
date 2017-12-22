@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Joshua Manton
- *  @Last Time: 21-12-2017 21:32:19 UTC-8
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 22-12-2017 15:09:35 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -265,7 +265,7 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
 
 get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
     result : Commit;
-    err : i32;
+    err : git.Error_Code;
     result.git_commit, err = git.commit_lookup(repo, &oid);
     if !log_if_err(err) {
         result.message  = git.commit_message(result.git_commit);
@@ -363,7 +363,7 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
         options : git.Status_Options;
         git.status_init_options(&options, 1);
         options.flags = git.Status_Opt_Flags.Include_Untracked | git.Status_Opt_Flags.Recurse_Untracked_Dirs;
-        err : i32;
+        err : git.Error_Code;
         status.list, err = git.status_list_new(repo, &options);
         log_if_err(err);
     }

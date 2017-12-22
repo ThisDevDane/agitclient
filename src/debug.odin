@@ -92,8 +92,8 @@ debug :: proc[debug_format, debug_no_args];
 
 /////////////////AGC Specific//////////////////////
 
-log_if_err :: proc(err : i32, loc := #caller_location) -> bool {
-    if err != 0 {
+log_if_err :: proc(err : git.Error_Code, loc := #caller_location) -> bool {
+    if err != git.Error_Code.Ok {
         gerr := git.err_last();
         console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
                                                                   gerr.klass, 
