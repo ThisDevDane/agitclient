@@ -6,7 +6,7 @@
  *  @Creation: 28-11-2017 00:10:03 UTC-5
  *
  *  @Last By:   Brendan Punsky
- *  @Last Time: 21-12-2017 19:50:00 UTC-5
+ *  @Last Time: 21-12-2017 20:40:11 UTC-5
  *  
  *  @Description:
  *  
@@ -46,8 +46,9 @@ remove_ordered :: proc(array: ^[dynamic]$T, indices: ...int) {
 
         if index < 0 || a.len <= 0 || a.len <= index do return;
 
-        if index < a.len - 1 do
+        if index < a.len - 1 {
             mem.copy(&array[index], &array[index+1], size_of(T) * (a.len - index));
+        }
         
         a.len -= 1;
     }
@@ -107,7 +108,7 @@ append_front :: proc(array: ^[dynamic]$T, value: T) -> int {
     append(array, T{});
 
     if length != 0 {
-        #no_bounds_check mem.copy(&array[0], &array[1], size_of(T) * length);
+        #no_bounds_check mem.copy(&array[1], &array[0], size_of(T) * length);
     }
 
     array[0] = value;

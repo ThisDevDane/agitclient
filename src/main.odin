@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-12-2017 02:01:18 UTC+1
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 21-12-2017 20:30:29 UTC-5
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -766,7 +766,7 @@ main :: proc() {
                                 for s, i in settings.recent_repos {
                                     if s == full_path {
                                         found = true;
-                                        remove.remove(&settings.recent_repos, i);
+                                        remove.remove_ordered(&settings.recent_repos, i);
                                         remove.append_front(&settings.recent_repos, strings.new_string(full_path));
                                         break;
                                     }

@@ -292,7 +292,7 @@ unmarshal_file :: inline proc(path: string, data: any) -> bool {
         destroy(parser);
         return unmarshal(parser.root, data);
     }
-    fmt.print();
+    
     return false;
 }
 
