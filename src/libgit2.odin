@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 23-12-2017 13:33:35 UTC-8
+ *  @Last Time: 23-12-2017 14:18:44 UTC-8
  *
  *  @Description:
  *
@@ -116,6 +116,37 @@ Str_Array :: struct {
     count   : uint,
 }
 
+/**
+ * A data buffer for exporting data from libgit2
+ *
+ * Sometimes libgit2 wants to return an allocated data buffer to the
+ * caller and have the caller take responsibility for freeing that memory.
+ * This can be awkward if the caller does not have easy access to the same
+ * allocation functions that libgit2 is using.  In those cases, libgit2
+ * will fill in a `git_buf` and the caller can use `git_buf_free()` to
+ * release it when they are done.
+ *
+ * A `git_buf` may also be used for the caller to pass in a reference to
+ * a block of memory they hold.  In this case, libgit2 will not resize or
+ * free the memory, but will read from it as needed.
+ *
+ * A `git_buf` is a public structure with three fields:
+ *
+ * - `ptr` points to the start of the allocated memory.  If it is NULL,
+ *   then the `git_buf` is considered empty and libgit2 will feel free
+ *   to overwrite it with new data.
+ *
+ * - `size` holds the size (in bytes) of the data that is actually used.
+ *
+ * - `asize` holds the known total amount of allocated memory if the `ptr`
+ *    was allocated by libgit2.  It may be larger than `size`.  If `ptr`
+ *    was not allocated by libgit2 and should not be resized and/or freed,
+ *    then `asize` will be set to zero.
+ *
+ * Some APIs may occasionally do something slightly unusual with a buffer,
+ * such as setting `ptr` to a value that was passed in by the user.  In
+ * those cases, the behavior will be clearly documented by the API.
+ */
 Buf :: struct {
     ptr   : ^byte,
     asize : uint,
@@ -307,6 +338,16 @@ Diff_Notify_CB   :: #type proc(diff_so_far: ^Diff, delta_to_add: ^Diff_Delta, ma
 Diff_Progress_CB :: #type proc(diff_so_far: ^Diff, old_path: ^byte, new_path: ^byte, payload: rawptr) -> i32;
 
 /**
+ * When iterating over a diff, callback that will be made per text diff
+ * line. In this context, the provided range will be NULL.
+ *
+ * When printing a diff, callback that will be made to output each line
+ * of text.  This uses some extra GIT_DIFF_LINE_... constants for output
+ * of lines of file and hunk headers.
+ */
+Diff_Line_CB :: #type proc(delta: ^Diff_Delta, hunk: ^Diff_Hunk, line: ^Diff_Line, payload: rawptr) -> i32;
+
+/**
  * Structure describing options about how the diff should be executed.
  *
  * Setting all values of the structure to zero will yield the default
@@ -353,6 +394,40 @@ Diff_Options :: struct {
     max_size:   i64,         /**< defaults to 512MB */
     old_prefix: ^byte,       /**< defaults to "a" */
     new_prefix: ^byte,       /**< defaults to "b" */
+}
+
+/**
+ * Structure describing a line (or data span) of a diff.
+ */
+Diff_Line :: struct {
+    origin:         byte,       /**< A git_diff_line_t value */
+    old_lineno:     i32,        /**< Line number in old file or -1 for added line */
+    new_lineno:     i32,        /**< Line number in new file or -1 for deleted line */
+    num_lines:      i32,        /**< Number of newline characters in content */
+    content_len:    uint,        /**< Number of bytes of data */
+    content_offset: i64,        /**< Offset in the original file to the content */
+    content:        ^byte,      /**< Pointer to diff text, not NUL-byte terminated */
+}
+
+/**
+ * Structure describing a hunk of a diff.
+ */
+GIT_DIFF_HUNK_HEADER_SIZE :: 128;
+Diff_Hunk :: struct {
+    old_start:     i32,     /**< Starting line number in old_file */
+    old_lines:     i32,     /**< Number of lines in old_file */
+    new_start:     i32,     /**< Starting line number in new_file */
+    new_lines:     i32,     /**< Number of lines in new_file */
+    header_len:    uint,     /**< Number of bytes in header text */
+    header:        [GIT_DIFF_HUNK_HEADER_SIZE]byte,   /**< Header text, NUL-byte terminated */
+}
+
+Diff_Format :: enum u32 {
+    Patch        = 1, /**< full git diff */
+    Patch_Header = 2, /**< just the file headers of patch */
+    Raw          = 3, /**< like git diff --raw */
+    Name_Only    = 4, /**< like git diff --name-only */
+    Name_Status  = 5, /**< like git diff --name-status */
 }
 
 Stash_Apply_Flags :: enum i32 {
@@ -1491,6 +1566,12 @@ diff_index_to_workdir :: proc(repo: ^Repository, index: ^Index, options: ^Diff_O
     return diff, err;
 }
 
+diff_to_buf :: proc(diff: ^Diff, format: Diff_Format) -> (Buf, Error_Code) {
+    buf: Buf;
+    err := git_diff_to_buf(&buf, diff, format);
+    return buf, err;
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     @(link_name = "git_libgit2_init")     lib_init     :: proc() -> Error_Code ---;
@@ -1613,6 +1694,11 @@ foreign libgit {
     git_revwalk_push_ref   :: proc(walk : ^Revwalk, refname : ^byte) -> Error_Code ---;
     @(link_name = "git_revwalk_free") revwalk_free :: proc(walk : ^Revwalk) ---;
 
+    //Buf
+    @(link_name = "git_buf_free") buf_free :: proc(buffer: ^Buf) ---;
+
     //Diffs
     git_diff_index_to_workdir :: proc(diff: ^^Diff, repo: ^Repository, index: ^Index, options: ^Diff_Options) -> Error_Code ---;
+    @(link_name = "git_diff_print") diff_print :: proc(diff: ^Diff, format: Diff_Format, print_cb: Diff_Line_CB, payload: rawptr) -> Error_Code ---;
+    git_diff_to_buf :: proc(out: ^Buf, diff: ^Diff, format: Diff_Format) -> Error_Code ---;
 }

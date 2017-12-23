@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 23-12-2017 13:32:56 UTC-8
+ *  @Last Time: 23-12-2017 14:18:34 UTC-8
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -915,7 +915,15 @@ main :: proc() {
                                     if imgui.selectable(strings.to_odin_string(entry.index_to_workdir.new_file.path)) {
                                         // @incomplete(josh): actually print out/show the diff data
                                         diff, err := git.diff_index_to_workdir(repo, nil, nil);
-                                        log_if_err(err);
+                                        if !log_if_err(err) {
+                                            buf, err := git.diff_to_buf(diff, git.Diff_Format.Patch);
+                                            if !log_if_err(err) {
+                                                fmt.println(buf.ptr, buf.asize, buf.size);
+                                                str := cast(string)mem.slice_ptr(buf.ptr, cast(int)buf.asize);
+                                                fmt.println(str);
+                                                git.buf_free(&buf);
+                                            }
+                                        }
                                     }
                                     imgui.next_column();
                                 }
