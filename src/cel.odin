@@ -280,7 +280,7 @@ unmarshal :: proc(value: Value, data: any) -> bool {
 
 unmarshal_string :: inline proc(cel: string, data: any) -> bool {
     if parser, ok := parse(cel); ok {
-        destroy(parser);
+        defer destroy(parser);
         return unmarshal(parser.root, data);
     }
 
@@ -289,7 +289,7 @@ unmarshal_string :: inline proc(cel: string, data: any) -> bool {
 
 unmarshal_file :: inline proc(path: string, data: any) -> bool {
     if parser, ok := parse_file(path); ok {
-        destroy(parser);
+        defer destroy(parser);
         return unmarshal(parser.root, data);
     }
     
