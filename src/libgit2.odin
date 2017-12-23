@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-12-2017 15:13:42 UTC+1
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 23-12-2017 13:33:35 UTC-8
  *
  *  @Description:
  *
@@ -1485,7 +1485,7 @@ object_lookup :: proc(repo : ^Repository, id : Oid, otype : Otype) -> (^Object, 
     return object, err;
 }
 
-diff_index_to_workdir :: proc(repo: ^Repository, index: ^Index, options: ^Diff_Options) -> (^Diff, i32) {
+diff_index_to_workdir :: proc(repo: ^Repository, index: ^Index, options: ^Diff_Options) -> (^Diff, Error_Code) {
     diff: ^Diff;
     err := git_diff_index_to_workdir(&diff, repo, index, options);
     return diff, err;
@@ -1614,5 +1614,5 @@ foreign libgit {
     @(link_name = "git_revwalk_free") revwalk_free :: proc(walk : ^Revwalk) ---;
 
     //Diffs
-    git_diff_index_to_workdir :: proc(diff: ^^Diff, repo: ^Repository, index: ^Index, options: ^Diff_Options) -> i32 ---;
+    git_diff_index_to_workdir :: proc(diff: ^^Diff, repo: ^Repository, index: ^Index, options: ^Diff_Options) -> Error_Code ---;
 }
