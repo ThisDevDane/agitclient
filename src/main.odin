@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 27-12-2017 13:25:22 UTC+1
+ *  @Last Time: 27-12-2017 15:00:23 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -576,6 +576,7 @@ State :: struct {
     commit_hash_buf      :  [1024]byte,
 
     checkout_new_branch  := true,
+    setup_remote_branch  := true,
     create_branch_name   :  [1024]byte,
 
     close_repo           := false,
@@ -717,9 +718,10 @@ main_menu :: proc(using state : ^State) {
         defer imgui.end_main_menu_bar();
 
         if imgui.begin_menu("Menu") {
-            if imgui.menu_item("Close", "Shift+ESC") {
-                running = false;
+            if imgui.menu_item("Clone...") {
+                open_clone_menu = true;
             }
+
             if imgui.begin_menu("Recent Repos:", len(settings.recent_repos) > 0) {
                 defer imgui.end_menu();
 
@@ -730,10 +732,11 @@ main_menu :: proc(using state : ^State) {
                     }
                 }
             }
-            if imgui.menu_item("Clone...") {
-                open_clone_menu = true;
+            
+            imgui.separator();
+            if imgui.menu_item("Close", "Shift+ESC") {
+                running = false;
             }
-
             imgui.end_menu();
         }
         if imgui.begin_menu("Preferences") {
@@ -763,19 +766,19 @@ main_menu :: proc(using state : ^State) {
     if open_set_signature {
         fmt.bprintf(name_buf[..], settings.name);
         fmt.bprintf(email_buf[..], settings.email);
-        imgui.open_popup("set_signature_modal");
+        imgui.open_popup("Set Signature");
     }
 
     if open_set_user {
         fmt.bprintf(username_buf[..], settings.username);
         fmt.bprintf(password_buf[..], settings.password);
-        imgui.open_popup("set_user_modal");
+        imgui.open_popup("Set User");
     }
 
     if open_clone_menu {
         fmt.bprintf(clone_repo_url[..], "");
         fmt.bprintf(clone_repo_path[..], "");
-        imgui.open_popup("clone_repo_modal");
+        imgui.open_popup("Clone Repo");
     }
 
     if imgui.begin_popup_modal("clone_repo_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
@@ -1138,6 +1141,7 @@ repo_window :: proc(using state : ^State) {
                     imgui.text("Branch name:"); imgui.same_line();
                     imgui.input_text("", create_branch_name[..]);
                     imgui.checkbox("Checkout new branch?", &checkout_new_branch);
+                    imgui.checkbox("Setup on remote?", &setup_remote_branch);
                     imgui.separator();
                     if imgui.button("Create", imgui.Vec2{160, 0}) {
                         branch_name_str := cast(string)create_branch_name[..];

@@ -6,7 +6,7 @@
  *  @Creation: 10-05-2017 21:11:30
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 27-12-2017 08:13:14 UTC+1
+ *  @Last Time: 27-12-2017 14:57:28 UTC+1
  *  
  *  @Description:
  *      The console is an in engine window that can be pulled up for viewing.
@@ -211,7 +211,7 @@ add_default_commands :: proc() {
 }
 
 draw_log :: proc(show : ^bool) {
-    imgui.begin("Log", show, imgui.WindowFlags.ShowBorders |  imgui.WindowFlags.NoCollapse);
+    imgui.begin("Log##Console", show, imgui.WindowFlags.ShowBorders |  imgui.WindowFlags.NoCollapse);
     {
         imgui.begin_child("Items");
         {
