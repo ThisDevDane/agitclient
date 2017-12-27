@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-12-2017 15:13:42 UTC+1
+ *  @Last Time: 27-12-2017 13:13:39 UTC+1
  *
  *  @Description:
  *
@@ -836,6 +836,7 @@ Checkout_Notify_Flags :: enum u32 {
 }
 
 ErrorType :: enum i32 {
+    Unknown = -1,
     None = 0,
     Nomemory,
     Os,
@@ -1096,6 +1097,9 @@ REMOTE_CALLBACKS_VERSION :: 1;
 
 err_last        :: proc() -> Error {
     err := giterr_last();
+    if err == nil {
+        return Error{"N/A", ErrorType.Unknown};
+    }
     str := strings.to_odin_string(err.message);
     return Error{str, err.klass};
 }
@@ -1227,6 +1231,12 @@ cred_userpass_plaintext_new :: proc(username : string, password : string) -> (^C
     err := git_cred_userpass_plaintext_new(&cred, _make_url_string(username), _make_misc_string(password));
     return cred, err;
 }
+
+cred_ssh_key_from_agent :: proc(username : string) -> (^Cred, Error_Code) {
+    cred : ^Cred = nil;
+    err := git_cred_ssh_key_from_agent(&cred, _make_misc_string(username));
+    return cred, err;
+} 
 
 _str_array_to_slice :: proc(stra : ^Str_Array) -> []string {
     raw_strings := mem.slice_ptr(stra.strings, int(stra.count));
@@ -1474,9 +1484,11 @@ foreign libgit {
     git_index_write_tree :: proc(id : ^Oid, index : ^Index) -> Error_Code ---;
 
 
-
+    //Cred
     git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> Error_Code ---;
     @(link_name = "git_cred_has_username") cred_has_username :: proc(cred : ^Cred) -> Error_Code ---;
+    git_cred_ssh_key_from_agent     :: proc(out : ^^Cred, username : ^byte) -> Error_Code ---;
+
 
     @(link_name = "git_reset_default") reset_default :: proc(repo : ^Repository, target : ^Object, pathspecs : ^Str_Array) -> Error_Code ---;
 

@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 23-12-2017 13:13:28 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 27-12-2017 13:25:22 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -91,11 +91,12 @@ SETTINGS_FILE :: "settings.cel";
 Settings :: struct {
     username      : string,
     password      : string,
-
     name          : string,
     email         : string,
 
-    recent_repos : [dynamic]string,
+    use_ssh_agent : bool,
+
+    recent_repos  : [dynamic]string,
 }
 
 settings := init_settings();
@@ -194,20 +195,33 @@ set_signature :: proc(args : []string) {
 
 credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
                               username_from_url : ^byte, allowed_types : git.Cred_Type, payload : rawptr) -> i32 {
+    ERR :: -1;
+    FAILED :: 1;
+    SUCCESS :: 0;
     test_val :: proc(test : git.Cred_Type, value : git.Cred_Type) -> bool {
         return test & value == test;
     }
     if test_val(git.Cred_Type.Userpass_Plaintext, allowed_types) {
         new_cred, err := git.cred_userpass_plaintext_new(settings.username, settings.password);
         if err != 0 {
-            return 1;
+            return FAILED;
         }
         cred^ = new_cred;
+    } else if test_val(git.Cred_Type.Ssh_Key, allowed_types) {
+        if settings.use_ssh_agent {
+            new_cred, err := git.cred_ssh_key_from_agent(strings.to_odin_string(username_from_url));
+            if err != git.Error_Code.Ok {
+                return FAILED;
+            }
+            cred^ = new_cred;
+        } else {
+            return FAILED;   
+        }
     } else {
-        return -1;
+        return ERR;
     }
 
-    return 0;
+    return SUCCESS;
 }
 
 get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []Branch_Collection {
@@ -725,6 +739,9 @@ main_menu :: proc(using state : ^State) {
         if imgui.begin_menu("Preferences") {
             imgui.checkbox("Show Console", &draw_console);
             imgui.checkbox("Show Demo Window", &draw_demo_window);
+            if imgui.checkbox("Use SSH Agent", &settings.use_ssh_agent) {
+                save_settings();
+            }
 
             if imgui.menu_item("Set Signature") {
                 open_set_signature = true;

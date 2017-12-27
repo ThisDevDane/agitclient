@@ -95,11 +95,18 @@ debug :: proc[debug_format, debug_no_args];
 log_if_err :: proc(err : git.Error_Code, loc := #caller_location) -> bool {
     if err != git.Error_Code.Ok {
         gerr := git.err_last();
-        console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
-                                                                  gerr.klass, 
-                                                                  gerr.message, 
-                                                                  string_util.remove_path_from_file(loc.file_path), 
-                                                                  loc.line);
+        if gerr.klass != git.ErrorType.Unknown {
+            console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
+                                                                      gerr.klass, 
+                                                                      gerr.message, 
+                                                                      string_util.remove_path_from_file(loc.file_path), 
+                                                                      loc.line);
+        } else {
+            console.logf_error("LibGit2 Error: %v | (%s:%d)", err,
+                                                              string_util.remove_path_from_file(loc.file_path), 
+                                                              loc.line);
+        }
+        
         return true;
     } else {
         return false;
