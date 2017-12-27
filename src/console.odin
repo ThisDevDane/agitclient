@@ -6,7 +6,7 @@
  *  @Creation: 10-05-2017 21:11:30
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-12-2017 00:54:17 UTC+1
+ *  @Last Time: 27-12-2017 14:57:28 UTC+1
  *  
  *  @Description:
  *      The console is an in engine window that can be pulled up for viewing.
@@ -128,17 +128,41 @@ _internal_log :: proc(level : LogLevel, txt : string, loc := #caller_location) {
     }
     when OUTPUT_TO_CLI {
         h := os.stdout;
+        level_col := FOR_GREEN;
         switch level {
             case LogLevel.Error : {
                 h = os.stderr;
+                level_col = FOR_RED;
             }
 
             case LogLevel.ConsoleInput : {
-                h = os.stdout;
+                h = os.stdin;
+                level_col = NORM;
             }
         }
 
-        fmt.fprintf(h, "%s %s\n", _log_level_strings[level], txt);
+        //TODO(Hoej): Figure out where to put this
+        NORM        :: "\x1b[0m";
+
+        FOR_BLACK   :: "\x1b[30m";
+        FOR_RED     :: "\x1b[31m";
+        FOR_GREEN   :: "\x1b[32m";
+        FOR_YELLOW  :: "\x1b[33m";
+        FOR_BLUE    :: "\x1b[34m";
+        FOR_MAGENTA :: "\x1b[35m";
+        FOR_CYAN    :: "\x1b[36m";
+        FOR_WHITE   :: "\x1b[37m";
+
+        BACK_BLACK   :: "\x1b[40m";
+        BACK_RED     :: "\x1b[41m";
+        BACK_GREEN   :: "\x1b[42m";
+        BACK_YELLOW  :: "\x1b[43m";
+        BACK_BLUE    :: "\x1b[44m";
+        BACK_MAGENTA :: "\x1b[45m";
+        BACK_CYAN    :: "\x1b[46m";
+        BACK_WHITE   :: "\x1b[47m"; 
+
+        fmt.fprintf(h, "%s%s %s%s\n", level_col, _log_level_strings[level], NORM, txt);
     }
 }
 
@@ -187,7 +211,7 @@ add_default_commands :: proc() {
 }
 
 draw_log :: proc(show : ^bool) {
-    imgui.begin("Log", show, imgui.WindowFlags.ShowBorders |  imgui.WindowFlags.NoCollapse);
+    imgui.begin("Log##Console", show, imgui.WindowFlags.ShowBorders |  imgui.WindowFlags.NoCollapse);
     {
         imgui.begin_child("Items");
         {

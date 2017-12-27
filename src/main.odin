@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 23-12-2017 13:13:28 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 27-12-2017 15:00:23 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -91,11 +91,12 @@ SETTINGS_FILE :: "settings.cel";
 Settings :: struct {
     username      : string,
     password      : string,
-
     name          : string,
     email         : string,
 
-    recent_repos : [dynamic]string,
+    use_ssh_agent : bool,
+
+    recent_repos  : [dynamic]string,
 }
 
 settings := init_settings();
@@ -194,20 +195,33 @@ set_signature :: proc(args : []string) {
 
 credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
                               username_from_url : ^byte, allowed_types : git.Cred_Type, payload : rawptr) -> i32 {
+    ERR :: -1;
+    FAILED :: 1;
+    SUCCESS :: 0;
     test_val :: proc(test : git.Cred_Type, value : git.Cred_Type) -> bool {
         return test & value == test;
     }
     if test_val(git.Cred_Type.Userpass_Plaintext, allowed_types) {
         new_cred, err := git.cred_userpass_plaintext_new(settings.username, settings.password);
         if err != 0 {
-            return 1;
+            return FAILED;
         }
         cred^ = new_cred;
+    } else if test_val(git.Cred_Type.Ssh_Key, allowed_types) {
+        if settings.use_ssh_agent {
+            new_cred, err := git.cred_ssh_key_from_agent(strings.to_odin_string(username_from_url));
+            if err != git.Error_Code.Ok {
+                return FAILED;
+            }
+            cred^ = new_cred;
+        } else {
+            return FAILED;   
+        }
     } else {
-        return -1;
+        return ERR;
     }
 
-    return 0;
+    return SUCCESS;
 }
 
 get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []Branch_Collection {
@@ -562,6 +576,7 @@ State :: struct {
     commit_hash_buf      :  [1024]byte,
 
     checkout_new_branch  := true,
+    setup_remote_branch  := true,
     create_branch_name   :  [1024]byte,
 
     close_repo           := false,
@@ -703,9 +718,10 @@ main_menu :: proc(using state : ^State) {
         defer imgui.end_main_menu_bar();
 
         if imgui.begin_menu("Menu") {
-            if imgui.menu_item("Close", "Shift+ESC") {
-                running = false;
+            if imgui.menu_item("Clone...") {
+                open_clone_menu = true;
             }
+
             if imgui.begin_menu("Recent Repos:", len(settings.recent_repos) > 0) {
                 defer imgui.end_menu();
 
@@ -716,15 +732,19 @@ main_menu :: proc(using state : ^State) {
                     }
                 }
             }
-            if imgui.menu_item("Clone...") {
-                open_clone_menu = true;
+            
+            imgui.separator();
+            if imgui.menu_item("Close", "Shift+ESC") {
+                running = false;
             }
-
             imgui.end_menu();
         }
         if imgui.begin_menu("Preferences") {
             imgui.checkbox("Show Console", &draw_console);
             imgui.checkbox("Show Demo Window", &draw_demo_window);
+            if imgui.checkbox("Use SSH Agent", &settings.use_ssh_agent) {
+                save_settings();
+            }
 
             if imgui.menu_item("Set Signature") {
                 open_set_signature = true;
@@ -746,19 +766,19 @@ main_menu :: proc(using state : ^State) {
     if open_set_signature {
         fmt.bprintf(name_buf[..], settings.name);
         fmt.bprintf(email_buf[..], settings.email);
-        imgui.open_popup("set_signature_modal");
+        imgui.open_popup("Set Signature");
     }
 
     if open_set_user {
         fmt.bprintf(username_buf[..], settings.username);
         fmt.bprintf(password_buf[..], settings.password);
-        imgui.open_popup("set_user_modal");
+        imgui.open_popup("Set User");
     }
 
     if open_clone_menu {
         fmt.bprintf(clone_repo_url[..], "");
         fmt.bprintf(clone_repo_path[..], "");
-        imgui.open_popup("clone_repo_modal");
+        imgui.open_popup("Clone Repo");
     }
 
     if imgui.begin_popup_modal("clone_repo_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
@@ -1121,6 +1141,7 @@ repo_window :: proc(using state : ^State) {
                     imgui.text("Branch name:"); imgui.same_line();
                     imgui.input_text("", create_branch_name[..]);
                     imgui.checkbox("Checkout new branch?", &checkout_new_branch);
+                    imgui.checkbox("Setup on remote?", &setup_remote_branch);
                     imgui.separator();
                     if imgui.button("Create", imgui.Vec2{160, 0}) {
                         branch_name_str := cast(string)create_branch_name[..];
