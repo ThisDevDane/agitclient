@@ -25,6 +25,8 @@ if %ERR%==0 ( goto :build_success ) else ( goto :build_failed )
         xcopy .\external\git2.dll .\build\ /Y > nul
         xcopy .\external\libssh2.dll .\build\ /Y > nul
     )
+    rm src/*.lib > nul
+    rm src/*.exp > nul
     echo Build Success
     goto :end
 

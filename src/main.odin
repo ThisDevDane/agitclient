@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 27-12-2017 15:00:23 UTC+1
+ *  @Last Time: 28-12-2017 11:12:10 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -426,7 +426,7 @@ agc_style :: proc() {
 
     style.window_padding        = imgui.Vec2{6, 6};
     style.window_rounding       = 0;
-    style.child_window_rounding = 2;
+    style.child_rounding = 2;
     style.frame_padding         = imgui.Vec2{4 ,2};
     style.frame_rounding        = 2;
     style.item_spacing          = imgui.Vec2{8, 4};
@@ -443,7 +443,7 @@ agc_style :: proc() {
     style.colors[imgui.Color.Text]                  = imgui.Vec4{1.00, 1.00, 1.00, 1.00};
     style.colors[imgui.Color.TextDisabled]          = imgui.Vec4{0.63, 0.63, 0.63, 1.00};
     style.colors[imgui.Color.WindowBg]              = imgui.Vec4{0.23, 0.23, 0.23, 0.98};
-    style.colors[imgui.Color.ChildWindowBg]         = imgui.Vec4{0.20, 0.20, 0.20, 1.00};
+    style.colors[imgui.Color.ChildBg]               = imgui.Vec4{0.20, 0.20, 0.20, 1.00};
     style.colors[imgui.Color.PopupBg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.96};
     style.colors[imgui.Color.Border]                = imgui.Vec4{0.18, 0.18, 0.18, 0.98};
     style.colors[imgui.Color.BorderShadow]          = imgui.Vec4{0.00, 0.00, 0.00, 0.04};
@@ -781,7 +781,7 @@ main_menu :: proc(using state : ^State) {
         imgui.open_popup("Clone Repo");
     }
 
-    if imgui.begin_popup_modal("clone_repo_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
+    if imgui.begin_popup_modal("clone_repo_modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
         imgui.input_text("URL", clone_repo_url[..]);
         imgui.input_text("Destination path", clone_repo_path[..]);
@@ -798,7 +798,7 @@ main_menu :: proc(using state : ^State) {
         }
     }
 
-    if imgui.begin_popup_modal("set_signature_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
+    if imgui.begin_popup_modal("set_signature_modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
         imgui.input_text("Name", name_buf[..]);
         imgui.input_text("Email", email_buf[..]);
@@ -823,10 +823,10 @@ main_menu :: proc(using state : ^State) {
         }
     }
 
-    if imgui.begin_popup_modal("set_user_modal",      nil, imgui.WindowFlags.AlwaysAutoResize) {
+    if imgui.begin_popup_modal("set_user_modal",      nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
         imgui.input_text("Username", username_buf[..]);
-        imgui.input_text("Password", password_buf[..], imgui.InputTextFlags.Password);
+        imgui.input_text("Password", password_buf[..], imgui.Input_Text_Flags.Password);
         imgui.separator();
         if imgui.button("Save", imgui.Vec2{135, 0}) {
             { // Save settings
@@ -852,13 +852,13 @@ main_menu :: proc(using state : ^State) {
 repo_window :: proc(using state : ^State) {
     imgui.set_next_window_pos(imgui.Vec2{160, 18});
     imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
-    if imgui.begin("Repo", nil, imgui.WindowFlags.NoResize |
-                                imgui.WindowFlags.NoMove |
-                                imgui.WindowFlags.NoCollapse |
-                                imgui.WindowFlags.NoBringToFrontOnFocus) {
+    if imgui.begin("Repo", nil, imgui.Window_Flags.NoResize |
+                                imgui.Window_Flags.NoMove |
+                                imgui.Window_Flags.NoCollapse |
+                                imgui.Window_Flags.NoBringToFrontOnFocus) {
         defer imgui.end();
         if repo == nil {
-            ok := imgui.input_text("Repo Path;", path_buf[..], imgui.InputTextFlags.EnterReturnsTrue);
+            ok := imgui.input_text("Repo Path;", path_buf[..], imgui.Input_Text_Flags.EnterReturnsTrue);
             if imgui.button("Open") || ok || open_recent {
                 path := strings.to_odin_string(&path_buf[0]);
 
@@ -1111,11 +1111,11 @@ repo_window :: proc(using state : ^State) {
             open_create_modal := false;
             imgui.set_next_window_pos(imgui.Vec2{0, 18});
             imgui.set_next_window_size(imgui.Vec2{160, f32(wnd_height-18)});
-            if imgui.begin("Branches", nil, imgui.WindowFlags.NoResize |
-                                            imgui.WindowFlags.NoMove |
-                                            imgui.WindowFlags.NoCollapse |
-                                            imgui.WindowFlags.MenuBar |
-                                            imgui.WindowFlags.NoBringToFrontOnFocus) {
+            if imgui.begin("Branches", nil, imgui.Window_Flags.NoResize |
+                                            imgui.Window_Flags.NoMove |
+                                            imgui.Window_Flags.NoCollapse |
+                                            imgui.Window_Flags.MenuBar |
+                                            imgui.Window_Flags.NoBringToFrontOnFocus) {
                 defer imgui.end();
                 if imgui.begin_menu_bar() {
                     defer imgui.end_menu_bar();
@@ -1136,7 +1136,7 @@ repo_window :: proc(using state : ^State) {
                     imgui.open_popup("Create Branch###create_branch_modal");
                 }
 
-                if imgui.begin_popup_modal("Create Branch###create_branch_modal", nil, imgui.WindowFlags.AlwaysAutoResize) {
+                if imgui.begin_popup_modal("Create Branch###create_branch_modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
                     defer imgui.end_popup();
                     imgui.text("Branch name:"); imgui.same_line();
                     imgui.input_text("", create_branch_name[..]);
@@ -1205,7 +1205,7 @@ repo_window :: proc(using state : ^State) {
                         git.branch_delete(branch_to_delete.ref);
                     }
                 }
-                imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
+                imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
                 if imgui.tree_node("Local Branches:") {
                     defer imgui.tree_pop();
                     imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
@@ -1213,7 +1213,7 @@ repo_window :: proc(using state : ^State) {
                         if col.name == "" {
                             print_branches(repo, col.branches[..], &update_branches, &current_branch);
                         } else {
-                            imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
+                            imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
                             if imgui.tree_node(col.name) {
                                 defer imgui.tree_pop();
                                 imgui.indent(5);
@@ -1225,13 +1225,13 @@ repo_window :: proc(using state : ^State) {
                     imgui.pop_style_color();
                 }
 
-                imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
+                imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
                 if imgui.tree_node("Remote Branches:") {
                     defer imgui.tree_pop();
                     imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
                     for col in remote_branches[..] {
                         if col.name == "origin" {
-                            imgui.set_next_tree_node_open(true, imgui.SetCond.Once);
+                            imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
                         }
                         if imgui.tree_node(col.name) {
                             defer imgui.tree_pop();
@@ -1400,7 +1400,7 @@ main :: proc() {
         }
 
         if state.draw_demo_window {
-            imgui.show_test_window(&state.draw_demo_window);
+            imgui.show_demo_window(&state.draw_demo_window);
         }
 
         end_frame(&state);
