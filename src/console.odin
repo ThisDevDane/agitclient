@@ -6,7 +6,7 @@
  *  @Creation: 10-05-2017 21:11:30
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 27-12-2017 14:57:28 UTC+1
+ *  @Last Time: 28-12-2017 10:31:53 UTC+1
  *  
  *  @Description:
  *      The console is an in engine window that can be pulled up for viewing.
@@ -211,7 +211,7 @@ add_default_commands :: proc() {
 }
 
 draw_log :: proc(show : ^bool) {
-    imgui.begin("Log##Console", show, imgui.WindowFlags.ShowBorders |  imgui.WindowFlags.NoCollapse);
+    imgui.begin("Log##Console", show,  imgui.Window_Flags.NoCollapse);
     {
         imgui.begin_child("Items");
         {
@@ -251,7 +251,7 @@ draw_log :: proc(show : ^bool) {
 
 
 draw_history :: proc(show : ^bool) {
-    imgui.begin("History", show, imgui.WindowFlags.ShowBorders |  imgui.WindowFlags.NoCollapse);
+    imgui.begin("History", show,  imgui.Window_Flags.NoCollapse);
     {
         imgui.begin_child("Items");
         {
@@ -265,7 +265,7 @@ draw_history :: proc(show : ^bool) {
 }
 
 draw_console :: proc(show : ^bool, show_log : ^bool, show_history : ^bool) {
-    imgui.begin("Console", show, imgui.WindowFlags.NoCollapse | imgui.WindowFlags.MenuBar);
+    imgui.begin("Console", show, imgui.Window_Flags.NoCollapse | imgui.Window_Flags.MenuBar);
     {
         if imgui.begin_menu_bar() {
             if imgui.begin_menu("Misc", true) {
@@ -313,7 +313,7 @@ draw_console :: proc(show : ^bool, show_log : ^bool, show_history : ^bool) {
         }
         imgui.end_child();
 
-        TEXT_FLAGS :: imgui.InputTextFlags.EnterReturnsTrue | imgui.InputTextFlags.CallbackCompletion | imgui.InputTextFlags.CallbackHistory;
+        TEXT_FLAGS :: imgui.Input_Text_Flags.EnterReturnsTrue | imgui.Input_Text_Flags.CallbackCompletion | imgui.Input_Text_Flags.CallbackHistory;
         if imgui.input_text("##Input", _internal_data.input_buf[..], TEXT_FLAGS, _text_edit_callback) {
             imgui.set_keyboard_focus_here(-1);
             enter_input(_internal_data.input_buf[..]);
@@ -381,7 +381,7 @@ execute_command :: proc(cmdString : string) -> bool {
 
 _text_edit_callback :: proc "cdecl"(data : ^imgui.TextEditCallbackData) -> i32{
     switch data.event_flag {
-        case imgui.InputTextFlags.CallbackHistory : {
+        case imgui.Input_Text_Flags.CallbackHistory : {
             using _internal_data;
             prev := _history_pos;
 
@@ -413,7 +413,7 @@ _text_edit_callback :: proc "cdecl"(data : ^imgui.TextEditCallbackData) -> i32{
             }
         }
 
-        case imgui.InputTextFlags.CallbackCompletion : {
+        case imgui.Input_Text_Flags.CallbackCompletion : {
             //TODO(Hoej): Tab to complete partial command/cycle
             //            or maybe just print a list of commands that could match 
         }
