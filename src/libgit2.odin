@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 19:29:29 UTC+1
+ *  @Last Time: 29-12-2017 19:59:31 UTC+1
  *
  *  @Description:
  *
@@ -216,15 +216,7 @@ Misc_Buf :: enum {
 } 
 
 _MISC_BUF_SIZE :: 4096;
-
-@(thread_local) _misc1_buf : [_MISC_BUF_SIZE]u8;
-@(thread_local) _misc2_buf : [_MISC_BUF_SIZE]u8;
-@(thread_local) _misc3_buf : [_MISC_BUF_SIZE]u8;
-@(thread_local) _misc4_buf : [_MISC_BUF_SIZE]u8;
-
-misc_bufs := [...][_MISC_BUF_SIZE]u8 {
-    _misc1_buf, _misc2_buf, _misc3_buf, _misc4_buf,
-};
+@(thread_local) misc_bufs : [4][_MISC_BUF_SIZE]u8;
 
 _make_misc_string :: proc(chosen_buf : Misc_Buf, fmt_: string, args: ...any) -> ^byte {
     buf := misc_bufs[chosen_buf][..];
@@ -600,7 +592,7 @@ foreign libgit {
     git_commit_lookup               :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> Error_Code ---;
     git_commit_parentcount          :: proc(commit : ^Commit) -> Error_Code ---;
     git_commit_parent_id            :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
-    git_commit_message              :: proc(commit: ^Commit) -> ^u8 ---;
+    git_commit_message              :: proc(commit : ^Commit) -> ^u8 ---;
     git_commit_committer            :: proc(commit : ^Commit) -> ^Git_Signature ---;
     git_commit_author               :: proc(commit : ^Commit) -> ^Git_Signature ---;
     git_commit_summary              :: proc(commit : ^Commit) -> ^byte ---;
@@ -652,6 +644,7 @@ foreign libgit {
     git_reference_free              :: proc(ref : ^Reference) ---;
     git_reference_is_branch         :: proc(ref : ^Reference) -> bool ---;
 
+    //Object
     git_object_lookup               :: proc(object : ^^Object, repo : ^Repository, id : ^Oid, otype : Obj_Type) -> Error_Code ---;
     git_object_free                 :: proc(object : ^Object)          ---;
     git_object_type                 :: proc(obj : ^Object)    -> Obj_Type ---;
@@ -685,6 +678,7 @@ foreign libgit {
     git_revwalk_push_ref            :: proc(walk : ^Revwalk, refname : ^byte) -> Error_Code ---;
     git_revwalk_free                :: proc(walk : ^Revwalk) ---;
 
+    //init_options
     git_fetch_init_options          :: proc(opts : ^Fetch_Options,       version : u32) -> i32 ---;
     git_stash_apply_init_options    :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
     git_status_init_options         :: proc(opts : ^Status_Options,      version : u32) -> i32 ---;

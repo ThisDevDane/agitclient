@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 19:31:31 UTC+1
+ *  @Last Time: 29-12-2017 19:40:24 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -156,19 +156,6 @@ set_user :: proc(args : []string) {
     } else {
         console.log_error("You forgot to supply username AND password");
     }
-}
-
-test_cmd :: proc(args : []string) {
-    console.log("Before:");
-    console.log(settings);
-    free(settings.username);
-    free(settings.password);
-    settings.username = strings.new_string(args[0]);
-    settings.password = strings.new_string(args[1]);
-    save_settings();
-    load_settings();
-    console.log("After:");
-    console.log(settings);
 }
 
 set_signature :: proc(args : []string) {
@@ -425,9 +412,10 @@ agc_style :: proc() {
 
     style.window_padding        = imgui.Vec2{6, 6};
     style.window_rounding       = 0;
-    style.child_rounding = 2;
+    style.child_rounding        = 2;
     style.frame_padding         = imgui.Vec2{4 ,2};
     style.frame_rounding        = 2;
+    style.frame_border_size     = 1;
     style.item_spacing          = imgui.Vec2{8, 4};
     style.item_inner_spacing    = imgui.Vec2{4, 4};
     style.touch_extra_padding   = imgui.Vec2{0, 0};
@@ -1334,7 +1322,6 @@ main :: proc() {
     console.add_command("set_signature", set_signature);
     console.add_command("save_settings", save_settings_cmd);
     console.add_command("load_settings", load_settings_cmd);
-    console.add_command("test", test_cmd);
 
     load_settings();
     save_settings();

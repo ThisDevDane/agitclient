@@ -1,3 +1,17 @@
+/*
+ *  @Name:     libgit2_types
+ *  
+ *  @Author:   Mikkel Hjortshoej
+ *  @Email:    hoej@northwolfprod.com
+ *  @Creation: 29-12-2017 16:05:30 UTC+1
+ *
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 29-12-2017 19:59:56 UTC+1
+ *  
+ *  @Description:
+ *  
+ */
+
 GIT_OID_RAWSZ :: 20;
 
 Repository :: struct {};
