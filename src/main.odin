@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 14:10:14 UTC+1
+ *  @Last Time: 29-12-2017 16:31:36 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -1020,9 +1020,11 @@ repo_window :: proc(using state : ^State) {
 
                                     if head_commit, err := git.reference_peel(head, git.Otype.Commit); !log_if_err(err) {
                                         defer git.free(head_commit);
-                                        path := entry.head_to_index.new_file.path;
-                                        stra := git.Str_Array{&path, 1};
-                                        err = git.reset_default(repo, head_commit, &stra);
+                                        path := strings.to_odin_string(entry.head_to_index.new_file.path);
+                                        strs := [...]string{
+                                            path,
+                                        };
+                                        err = git.reset_default(repo, head_commit, strs[..]);
                                         log_if_err(err);
                                     }
                                 }

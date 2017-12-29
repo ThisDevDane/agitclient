@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 16:13:32 UTC+1
+ *  @Last Time: 29-12-2017 16:29:21 UTC+1
  *
  *  @Description:
  *
@@ -167,7 +167,7 @@ cred_ssh_key_from_agent     :: inline proc(username : string) -> (^Cred, Error_C
 ////////////////////////////////////////////
 //// git_reset
 ////
-reset_default               :: inline proc(repo : ^Repository, target : ^Object, pathspecs : ^Str_Array) -> Error_Code                                                                         { return git_reset_default(repo, target, pathspecs); };
+reset_default               :: inline proc(repo : ^Repository, target : ^Object, pathspecs : []string) -> Error_Code                                                                           { return _reset_default(repo, target, pathspecs); };
 
 ////////////////////////////////////////////
 //// git_revparse
@@ -225,6 +225,25 @@ _make_misc_string :: proc(chosen_buf : Misc_Buf, fmt_: string, args: ...any) -> 
     buf[len(s)] = 0;
     return cast(^byte)&buf[0];
 }
+
+_str_array_to_slice :: proc(stra : ^Str_Array) -> []string {
+    raw_strings := mem.slice_ptr(stra.strings, int(stra.count));
+    res := make([]string, int(stra.count));
+    for _, i in res {
+        res[i] = strings.to_odin_string(raw_strings[i]);
+    }
+    return res;
+}
+
+_slice_to_str_array :: proc(slice : []string) -> Str_Array {
+      cslice := make([]^u8, len(slice));
+      for _, i in slice {
+            cslice[i] = &(slice[i])[0];
+      }
+      return Str_Array{&cslice[0], uint(len(cslice))};
+}
+
+///////////////////////// Odin Wrappers /////////////////////////
 
 _repository_init :: proc(path : string, is_bare : bool = false) -> (^Repository, Error_Code) {
     repo : ^Repository = nil;
@@ -349,15 +368,6 @@ _cred_ssh_key_from_agent :: proc(username : string) -> (^Cred, Error_Code) {
     err := git_cred_ssh_key_from_agent(&cred, _make_misc_string(Misc_Buf.One, username));
     return cred, err;
 } 
-
-_str_array_to_slice :: proc(stra : ^Str_Array) -> []string {
-    raw_strings := mem.slice_ptr(stra.strings, int(stra.count));
-    res := make([]string, int(stra.count));
-    for _, i in res {
-        res[i] = strings.to_odin_string(raw_strings[i]);
-    }
-    return res;
-}
 
 _status_list_new :: proc(repo : ^Repository, opts : ^Status_Options) -> (^Status_List, Error_Code) {
     out : ^Status_List = nil;
@@ -493,6 +503,11 @@ _signature_free :: proc(sig : ^Signature) {
     _global.free(sig.name);
     _global.free(sig.email);
     free(sig._git_orig);
+}
+
+_reset_default :: proc(repo : ^Repository, target : ^Object, pathspecs : []string) -> Error_Code {
+      stra := _slice_to_str_array(pathspecs);
+      return git_reset_default(repo, target, &stra);
 }
 
 _revwalk_new :: proc(repo : ^Repository) -> (^Revwalk, Error_Code) {
