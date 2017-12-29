@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 16:09:32 UTC+1
+ *  @Last Time: 29-12-2017 16:13:32 UTC+1
  *
  *  @Description:
  *
@@ -192,11 +192,20 @@ err_last        :: proc() -> Error {
     return Error{str, err.klass};
 }
 
+
+////////////////////////////////////////////
+//// 
+////    IMPLEMENTATION
+////
+////////////////////////////////////////////
+
+///////////////////////// Odin UTIL /////////////////////////
+
 Misc_Buf :: enum {
-    One,
-    Two,
-    Three,
-    Four,
+    One   = 0,
+    Two   = 1,
+    Three = 2,
+    Four  = 3,
 } 
 
 _MISC_BUF_SIZE :: 4096;
@@ -206,19 +215,12 @@ _MISC_BUF_SIZE :: 4096;
 @(thread_local) _misc3_buf : [_MISC_BUF_SIZE]u8;
 @(thread_local) _misc4_buf : [_MISC_BUF_SIZE]u8;
 
+misc_bufs := [...][_MISC_BUF_SIZE]u8 {
+    _misc1_buf, _misc2_buf, _misc3_buf, _misc4_buf,
+};
+
 _make_misc_string :: proc(chosen_buf : Misc_Buf, fmt_: string, args: ...any) -> ^byte {
-    buf : []u8;
-    using Misc_Buf;
-    switch chosen_buf {
-        case One:
-            buf = _misc1_buf[..];
-        case Two:
-            buf = _misc2_buf[..];
-        case Three:
-            buf = _misc3_buf[..];
-        case Four:
-            buf = _misc4_buf[..];
-    }
+    buf := misc_bufs[chosen_buf][..];
     s := fmt.bprintf(buf, fmt_, ...args);
     buf[len(s)] = 0;
     return cast(^byte)&buf[0];
