@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 28-12-2017 11:12:10 UTC+1
+ *  @Last Time: 29-12-2017 14:10:14 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -271,7 +271,7 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
         }
     }
 
-    git.branch_iterator_free(iter);
+    git.free(iter);
     return result[..];
 }
 
@@ -359,7 +359,7 @@ create_branch_name :: proc(repo : ^git.Repository, name : string, target : Commi
 
 free_commit :: proc(commit : ^Commit) {
     if commit.git_commit == nil do return;
-    git.commit_free(commit.git_commit);
+    git.free(commit.git_commit);
     commit.git_commit = nil;
 }
 
@@ -413,7 +413,7 @@ update_status :: proc(repo : ^git.Repository, status : ^Status) {
 free_status :: proc(status : ^Status) {
     if status.list == nil do return;
 
-    git.status_list_free(status.list);
+    git.free(status.list);
     clear(&status.staged);
     clear(&status.unstaged);
     clear(&status.untracked);
@@ -493,7 +493,7 @@ open_repo :: proc(new_repo: ^git.Repository) {
     }
 
     if repo != nil {
-        git.repository_free(repo);
+        git.free(repo);
         repo = nil;
     }
 
@@ -901,7 +901,7 @@ repo_window :: proc(using state : ^State) {
                         }
                     }
 
-                    git.remote_free(remote);
+                    git.free(remote);
                 }
 
                 /*imgui.input_text("Commit Hash;", commit_hash_buf[..]);
@@ -1016,10 +1016,10 @@ repo_window :: proc(using state : ^State) {
 
                             for entry in to_unstage {
                                 if head, err := git.repository_head(repo); !log_if_err(err) {
-                                    defer git.reference_free(head);
+                                    defer git.free(head);
 
                                     if head_commit, err := git.reference_peel(head, git.Otype.Commit); !log_if_err(err) {
-                                        defer git.object_free(head_commit);
+                                        defer git.free(head_commit);
                                         path := entry.head_to_index.new_file.path;
                                         stra := git.Str_Array{&path, 1};
                                         err = git.reset_default(repo, head_commit, &stra);
@@ -1322,7 +1322,7 @@ repo_window :: proc(using state : ^State) {
                         append(&git_log.items, item);
                         git_log.count += 1;
                     }
-                    git.revwalk_free(walker);
+                    git.free(walker);
                 }
             }
         }
@@ -1339,7 +1339,7 @@ repo_window :: proc(using state : ^State) {
         }
         free(local_branches);
         free(remote_branches);*/
-        git.repository_free(repo);
+        git.free(repo);
         repo = nil;
         close_repo = false;
     }
