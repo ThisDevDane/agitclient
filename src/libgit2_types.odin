@@ -101,7 +101,7 @@ Buf :: struct {
     size  : uint,
 }
 
-Otype :: enum i32 {
+Obj_Type :: enum i32 {
     Any = -2,       /**< Object can be any of the following */
     Bad = -1,       /**< Object is invalid. */
     _Ext1 = 0,      /**< Reserved for future use. */
@@ -1048,4 +1048,7 @@ Branch_Type :: enum i32 {
 
 Status_Cb :: #type proc "stdcall" (path : ^byte, status_flags : Status_Flags, payload : rawptr) -> Error_Code;
 
-REMOTE_CALLBACKS_VERSION :: 1;
+REMOTE_CALLBACKS_VERSION    :: 1;
+FETCH_OPTIONS_VERSION       :: 1;
+STASH_APPLY_OPTIONS_VERSION :: 1;
+STATUS_OPTIONS_VERSION      :: 1;

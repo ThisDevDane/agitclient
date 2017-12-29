@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 16:29:21 UTC+1
+ *  @Last Time: 29-12-2017 19:29:29 UTC+1
  *
  *  @Description:
  *
@@ -82,7 +82,6 @@ status_foreach_ext          :: inline proc(repo : ^Repository, opts : ^Status_Op
 status_list_new             :: inline proc(repo : ^Repository, opts : ^Status_Options) -> (^Status_List, Error_Code)                                                                           { return _status_list_new(repo, opts); }
 status_list_entrycount      :: inline proc(list : ^Status_List) -> uint                                                                                                                        { return git_status_list_entrycount(list); }
 status_byindex              :: inline proc(list : ^Status_List, idx : uint) -> ^Status_Entry                                                                                                   { return git_status_byindex(list, idx); }
-status_init_options         :: inline proc(options : ^Status_Options, version : u32 = 1) -> Error_Code                                                                                         { return git_status_init_options(options, version); }
 
 ////////////////////////////////////////////
 //// git_commit
@@ -125,7 +124,6 @@ stash_apply                 :: inline proc(repo : ^Repository, index : uint, opt
 stash_pop                   :: inline proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code                                                                     { return git_stash_pop(repo, index, options); }
 stash_drop                  :: inline proc(repo : ^Repository, index : uint) -> Error_Code                                                                                                     { return git_stash_drop(repo, index); }
 stash_foreach               :: inline proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> Error_Code                                                              { return git_stash_foreach(repo, callback, payload, index); }
-stash_apply_init_options    :: inline proc(opts : ^Stash_Apply_Options, version : u32) -> Error_Code                                                                                           { return git_stash_apply_init_options(opts, version); }
 
 ////////////////////////////////////////////
 //// git_reference
@@ -133,7 +131,7 @@ stash_apply_init_options    :: inline proc(opts : ^Stash_Apply_Options, version 
 reference_name_to_id        :: inline proc(repo : ^Repository, name : string) -> (Oid, Error_Code)                                                                                             { return _reference_name_to_id(repo, name); }
 reference_symbolic_target   :: inline proc(ref : ^Reference) -> string                                                                                                                         { return _reference_symbolic_target(ref); }
 reference_name              :: inline proc(ref : ^Reference) -> string                                                                                                                         { return _reference_name(ref); }
-reference_peel              :: inline proc(ref : ^Reference, kind : Otype) -> (^Object, Error_Code)                                                                                            { return _reference_peel(ref, kind); } 
+reference_peel              :: inline proc(ref : ^Reference, kind : Obj_Type) -> (^Object, Error_Code)                                                                                         { return _reference_peel(ref, kind); } 
 reference_is_branch         :: inline proc(ref : ^Reference) -> bool                                                                                                                           { return git_reference_is_branch(ref); }
 
 ////////////////////////////////////////////
@@ -148,9 +146,11 @@ revwalk_push_ref            :: inline proc(walk : ^Revwalk, refname : string) ->
 //// git_index
 ////
 index_new                   :: inline proc() -> (^Index, Error_Code)                                                                                                                           { return _index_new(); }
-index_add                   :: inline proc(index : ^Index, entry : ^Index_Entry) -> Error_Code                                                                                                 { return git_index_add(index, entry); }
+index_add                   :: proc[index_add_, index_add_bypath];  
+index_add_                  :: inline proc(index : ^Index, entry : ^Index_Entry) -> Error_Code                                                                                                 { return git_index_add(index, entry); }
 index_add_bypath            :: inline proc(index : ^Index, path : string) -> Error_Code                                                                                                        { return _index_add_bypath(index, path); }
-index_remove                :: inline proc(index : ^Index, entry : ^Index_Entry) -> Error_Code                                                                                                 { return git_index_remove(index, entry); }
+index_remove                :: proc[index_remove_, index_remove_bypath];  
+index_remove_               :: inline proc(index : ^Index, entry : ^Index_Entry) -> Error_Code                                                                                                 { return git_index_remove(index, entry); }
 index_remove_bypath         :: inline proc(index : ^Index, path : string) -> Error_Code                                                                                                        { return _index_remove_bypath(index, path); }
 index_entrycount            :: inline proc(index : ^Index) -> uint                                                                                                                             { return git_index_entrycount(index); }
 index_get_byindex           :: inline proc(index : ^Index, n : uint) -> ^Index_Entry                                                                                                           { return git_index_get_byindex(index, n); }
@@ -177,8 +177,15 @@ revparse_single             :: inline proc(repo : ^Repository, spec : string) ->
 ////////////////////////////////////////////
 //// git_object
 ////
-object_lookup               :: inline proc(repo : ^Repository, id : Oid, otype : Otype) -> (^Object, Error_Code)                                                                               { return _object_lookup(repo, id, otype); }
-object_type                 :: inline proc(obj : ^Object) -> Otype                                                                                                                             { return git_object_type(obj); }
+object_lookup               :: inline proc(repo : ^Repository, id : Oid, otype : Obj_Type) -> (^Object, Error_Code)                                                                            { return _object_lookup(repo, id, otype); }
+object_type                 :: inline proc(obj : ^Object) -> Obj_Type                                                                                                                          { return git_object_type(obj); }
+
+////////////////////////////////////////////
+//// git_*_init_options
+////
+fetch_init_options          :: inline proc(version : u32 = FETCH_OPTIONS_VERSION)       -> (Fetch_Options, i32)                                                                                { return _fetch_init_options(version); }
+stash_apply_init_options    :: inline proc(version : u32 = STASH_APPLY_OPTIONS_VERSION) -> (Stash_Apply_Options, i32)                                                                          { return _stash_apply_init_options(version); }
+status_init_options         :: inline proc(version : u32 = STATUS_OPTIONS_VERSION)      -> (Status_Options, i32)                                                                               { return _status_init_options(version); }
 
 ////////////////////////////////////////////
 //// git_err
@@ -391,7 +398,7 @@ _reference_name :: proc(ref : ^Reference) -> string {
     return strings.to_odin_string(c_str);
 }
 
-_reference_peel :: proc(ref : ^Reference, kind : Otype) -> (^Object, Error_Code) {
+_reference_peel :: proc(ref : ^Reference, kind : Obj_Type) -> (^Object, Error_Code) {
     out : ^Object;
     err := git_reference_peel(&out, ref, kind);
     return out, err;
@@ -530,10 +537,28 @@ _revwalk_push_ref :: proc(walk : ^Revwalk, refname : string) -> Error_Code {
     return git_revwalk_push_ref(walk, _make_misc_string(Misc_Buf.One, refname));
 }
 
-_object_lookup :: proc(repo : ^Repository, id : Oid, otype : Otype) -> (^Object, Error_Code) {
+_object_lookup :: proc(repo : ^Repository, id : Oid, otype : Obj_Type) -> (^Object, Error_Code) {
     object : ^Object;
     err := git_object_lookup(&object, repo, &id, otype);
     return object, err;
+}
+
+_fetch_init_options :: proc(version : u32) -> (Fetch_Options, i32) {
+      result := Fetch_Options{};
+      err := git_fetch_init_options(&result, version);
+      return result, err;
+}
+
+_stash_apply_init_options :: proc(version : u32) -> (Stash_Apply_Options, i32) {
+      result := Stash_Apply_Options{};
+      err := git_stash_apply_init_options(&result, version);
+      return result, err;
+}
+
+_status_init_options :: proc(version : u32) -> (Status_Options, i32) {
+      result := Status_Options{};
+      err := git_status_init_options(&result, version);
+      return result, err;
 }
 
 @(default_calling_convention="stdcall")
@@ -541,119 +566,126 @@ foreign libgit {
     giterr_last :: proc() -> ^Git_Error ---;
 
     //libgit2    
-    git_libgit2_init     :: proc() -> Error_Code ---;
-    git_libgit2_shutdown :: proc() -> Error_Code ---;
-    git_libgit2_features :: proc() -> Lib_Features ---;
-    git_libgit2_version  :: proc(major : ^i32, minor : ^i32, rev : ^i32) ---;
+    git_libgit2_init                :: proc() -> Error_Code ---;
+    git_libgit2_shutdown            :: proc() -> Error_Code ---;
+    git_libgit2_features            :: proc() -> Lib_Features ---;
+    git_libgit2_version             :: proc(major : ^i32, minor : ^i32, rev : ^i32) ---;
 
     //Repository
-    git_repository_init     :: proc(out : ^^Repository, path : ^byte, is_bare : u32) -> Error_Code ---;
-    git_repository_init_ext :: proc(out : ^^Repository, path : ^byte, pots : ^Repository_Init_Options) -> Error_Code ---;
-    git_repository_free     :: proc(repo : ^Repository) ---;
-    git_repository_open_ext :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> Error_Code ---;
-    git_repository_head     :: proc(out : ^^Reference, repo : ^Repository) -> Error_Code ---;
-    git_repository_set_head :: proc(repo : ^Repository, refname : ^byte) -> Error_Code ---;
-    git_repository_path     :: proc(repo : ^Repository) -> ^u8 ---;
-    git_repository_index    :: proc(out : ^^Index, repo : ^Repository) -> Error_Code ---;
-    git_repository_set_index  :: proc(repo : ^Repository, index : ^Index) ---;
+    git_repository_init             :: proc(out : ^^Repository, path : ^byte, is_bare : u32) -> Error_Code ---;
+    git_repository_init_ext         :: proc(out : ^^Repository, path : ^byte, pots : ^Repository_Init_Options) -> Error_Code ---;
+    git_repository_free             :: proc(repo : ^Repository) ---;
+    git_repository_open_ext         :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> Error_Code ---;
+    git_repository_head             :: proc(out : ^^Reference, repo : ^Repository) -> Error_Code ---;
+    git_repository_set_head         :: proc(repo : ^Repository, refname : ^byte) -> Error_Code ---;
+    git_repository_path             :: proc(repo : ^Repository) -> ^u8 ---;
+    git_repository_index            :: proc(out : ^^Index, repo : ^Repository) -> Error_Code ---;
+    git_repository_set_index        :: proc(repo : ^Repository, index : ^Index) ---;
    
     //Clone
-    git_clone              :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> Error_Code ---;
-    git_clone_init_options :: proc(options : ^Clone_Options, version: u32) -> Error_Code ---;
+    git_clone                       :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> Error_Code ---;
+    git_clone_init_options          :: proc(options : ^Clone_Options, version: u32) -> Error_Code ---;
 
-    git_status_foreach         :: proc(repo : ^Repository, callback : Status_Cb, payload : rawptr) -> Error_Code ---;
-    git_status_foreach_ext     :: proc(repo : ^Repository, opts : ^Status_Options, callback : Status_Cb, payload : rawptr) -> Error_Code ---;
-    git_status_list_new        :: proc(out : ^^Status_List, repo : ^Repository, opts : ^Status_Options) -> Error_Code ---;
-    git_status_list_free       :: proc(list : ^Status_List) ---;
-    git_status_list_entrycount :: proc(statuslist: ^Status_List) -> uint ---;
-    git_status_byindex         :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
-    git_status_init_options    :: proc(options : ^Status_Options, version : u32) -> Error_Code ---;
+    //Status
+    git_status_foreach              :: proc(repo : ^Repository, callback : Status_Cb, payload : rawptr) -> Error_Code ---;
+    git_status_foreach_ext          :: proc(repo : ^Repository, opts : ^Status_Options, callback : Status_Cb, payload : rawptr) -> Error_Code ---;
+    git_status_list_new             :: proc(out : ^^Status_List, repo : ^Repository, opts : ^Status_Options) -> Error_Code ---;
+    git_status_list_free            :: proc(list : ^Status_List) ---;
+    git_status_list_entrycount      :: proc(statuslist: ^Status_List) -> uint ---;
+    git_status_byindex              :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
 
     // Commits
-    git_commit_create      :: proc(id : ^Oid, repo : ^Repository, update_ref : ^u8, author : ^Git_Signature, committer : ^Git_Signature, message_encoding : ^u8, message : ^u8, tree : ^Tree, parent_count : uint, parents : ^^Commit) -> Error_Code ---;
-    git_commit_free        :: proc(out: ^Commit) ---;
-    git_commit_lookup      :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> Error_Code ---;
-    git_commit_parentcount :: proc(commit : ^Commit) -> Error_Code ---;
-    git_commit_parent_id   :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
-    git_commit_message     :: proc(commit: ^Commit) -> ^u8 ---;
-    git_commit_committer   :: proc(commit : ^Commit) -> ^Git_Signature ---;
-    git_commit_author      :: proc(commit : ^Commit) -> ^Git_Signature ---;
-    git_commit_summary     :: proc(commit : ^Commit) -> ^byte ---;
-    git_commit_raw_header  :: proc(commit : ^Commit) -> ^byte ---;
+    git_commit_create               :: proc(id : ^Oid, repo : ^Repository, update_ref : ^u8, author : ^Git_Signature, committer : ^Git_Signature, message_encoding : ^u8, message : ^u8, tree : ^Tree, parent_count : uint, parents : ^^Commit) -> Error_Code ---;
+    git_commit_free                 :: proc(out: ^Commit) ---;
+    git_commit_lookup               :: proc(out: ^^Commit, repo: ^Repository, id: ^Oid) -> Error_Code ---;
+    git_commit_parentcount          :: proc(commit : ^Commit) -> Error_Code ---;
+    git_commit_parent_id            :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
+    git_commit_message              :: proc(commit: ^Commit) -> ^u8 ---;
+    git_commit_committer            :: proc(commit : ^Commit) -> ^Git_Signature ---;
+    git_commit_author               :: proc(commit : ^Commit) -> ^Git_Signature ---;
+    git_commit_summary              :: proc(commit : ^Commit) -> ^byte ---;
+    git_commit_raw_header           :: proc(commit : ^Commit) -> ^byte ---;
 
-    git_signature_now :: proc(out : ^^Git_Signature, name, email : ^byte) -> Error_Code ---;
-    git_signature_free :: proc(sig : ^Git_Signature) ---;
+    //Signature
+    git_signature_now               :: proc(out : ^^Git_Signature, name, email : ^byte) -> Error_Code ---;
+    git_signature_free              :: proc(sig : ^Git_Signature) ---;
 
     // Oid
-    git_oid_from_str :: proc(out: ^Oid, str: ^u8) -> Error_Code ---;
+    git_oid_from_str                :: proc(out: ^Oid, str: ^u8) -> Error_Code ---;
 
-    git_remote_lookup         :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> Error_Code ---;
-    git_remote_list           :: proc(out : ^Str_Array, repo : ^Repository) -> Error_Code ---;
-    git_remote_default_branch :: proc(out : ^Buf, remote : ^Remote) -> Error_Code ---;
-    git_remote_connect        :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> Error_Code ---;
-    git_remote_disconnect     :: proc(remote : ^Remote) ---;
-    git_remote_init_callbacks :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> Error_Code ---;
-    git_remote_connected      :: proc(remote : ^Remote) -> Error_Code ---;
-    git_remote_fetch          :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> Error_Code ---;
-    git_remote_free           :: proc(remote : ^Remote) ---;
+    //Remote
+    git_remote_lookup               :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> Error_Code ---;
+    git_remote_list                 :: proc(out : ^Str_Array, repo : ^Repository) -> Error_Code ---;
+    git_remote_default_branch       :: proc(out : ^Buf, remote : ^Remote) -> Error_Code ---;
+    git_remote_connect              :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> Error_Code ---;
+    git_remote_disconnect           :: proc(remote : ^Remote) ---;
+    git_remote_init_callbacks       :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> Error_Code ---;
+    git_remote_connected            :: proc(remote : ^Remote) -> Error_Code ---;
+    git_remote_fetch                :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> Error_Code ---;
+    git_remote_free                 :: proc(remote : ^Remote) ---;
 
-    git_index_new           :: proc(out : ^^Index) -> Error_Code ---;
-    git_index_free          :: proc(index : ^Index) -> Error_Code ---;
-    git_index_add           :: proc(index : ^Index, entry : ^Index_Entry) -> Error_Code ---;
-    git_index_add_bypath    :: proc(index : ^Index, path : ^byte) -> Error_Code ---;
-    git_index_remove        :: proc(index : ^Index, entry : ^Index_Entry) -> Error_Code ---;
-    git_index_remove_bypath :: proc(index : ^Index, path : ^byte) -> Error_Code ---;
-    git_index_entrycount    :: proc(index : ^Index) -> uint ---;
-    git_index_get_byindex   :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
-    git_index_write         :: proc(index : ^Index) -> Error_Code ---;
-    git_index_write_tree    :: proc(id : ^Oid, index : ^Index) -> Error_Code ---;
-
+    //Index
+    git_index_new                   :: proc(out : ^^Index) -> Error_Code ---;
+    git_index_free                  :: proc(index : ^Index) -> Error_Code ---;
+    git_index_add                   :: proc(index : ^Index, entry : ^Index_Entry) -> Error_Code ---;
+    git_index_add_bypath            :: proc(index : ^Index, path : ^byte) -> Error_Code ---;
+    git_index_remove                :: proc(index : ^Index, entry : ^Index_Entry) -> Error_Code ---;
+    git_index_remove_bypath         :: proc(index : ^Index, path : ^byte) -> Error_Code ---;
+    git_index_entrycount            :: proc(index : ^Index) -> uint ---;
+    git_index_get_byindex           :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
+    git_index_write                 :: proc(index : ^Index) -> Error_Code ---;
+    git_index_write_tree            :: proc(id : ^Oid, index : ^Index) -> Error_Code ---;
 
     //Cred
     git_cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> Error_Code ---;
     git_cred_has_username           :: proc(cred : ^Cred) -> bool ---;
     git_cred_ssh_key_from_agent     :: proc(out : ^^Cred, username : ^byte) -> Error_Code ---;
 
-    git_reset_default :: proc(repo : ^Repository, target : ^Object, pathspecs : ^Str_Array) -> Error_Code ---;
+    //Reset
+    git_reset_default               :: proc(repo : ^Repository, target : ^Object, pathspecs : ^Str_Array) -> Error_Code ---;
 
     //Reference
-    git_reference_name_to_id      :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> Error_Code ---;
-    git_reference_symbolic_target :: proc(ref : ^Reference) -> ^byte ---;
-    git_reference_name            :: proc(ref : ^Reference) -> ^byte ---;
-    git_reference_peel            :: proc(out : ^^Object, ref : ^Reference, kind : Otype) -> Error_Code ---;
-    git_reference_free            :: proc(ref : ^Reference) ---;
-    git_reference_is_branch       :: proc(ref : ^Reference) -> bool ---;
+    git_reference_name_to_id        :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> Error_Code ---;
+    git_reference_symbolic_target   :: proc(ref : ^Reference) -> ^byte ---;
+    git_reference_name              :: proc(ref : ^Reference) -> ^byte ---;
+    git_reference_peel              :: proc(out : ^^Object, ref : ^Reference, kind : Obj_Type) -> Error_Code ---;
+    git_reference_free              :: proc(ref : ^Reference) ---;
+    git_reference_is_branch         :: proc(ref : ^Reference) -> bool ---;
 
-    git_object_lookup :: proc(object : ^^Object, repo : ^Repository, id : ^Oid, otype : Otype) -> Error_Code ---;
-    git_object_free   :: proc(object : ^Object)          ---;
-    git_object_type :: proc(obj : ^Object)    -> Otype ---;
+    git_object_lookup               :: proc(object : ^^Object, repo : ^Repository, id : ^Oid, otype : Obj_Type) -> Error_Code ---;
+    git_object_free                 :: proc(object : ^Object)          ---;
+    git_object_type                 :: proc(obj : ^Object)    -> Obj_Type ---;
 
     //Branch
-    git_branch_create         :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> Error_Code ---;
-    git_branch_name           :: proc(out : ^^byte, ref : ^Reference) -> Error_Code ---;
-    git_branch_iterator_new   :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Type) -> Error_Code ---;
-    git_branch_iterator_free  :: proc(iter : ^Branch_Iterator) ---;
-    git_branch_next           :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> Error_Code ---;
-    git_branch_delete         :: proc(branch : ^Reference) -> Error_Code ---;
-    git_branch_is_checked_out :: proc(branch : ^Reference) -> bool ---;
+    git_branch_create               :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> Error_Code ---;
+    git_branch_name                 :: proc(out : ^^byte, ref : ^Reference) -> Error_Code ---;
+    git_branch_iterator_new         :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Type) -> Error_Code ---;
+    git_branch_iterator_free        :: proc(iter : ^Branch_Iterator) ---;
+    git_branch_next                 :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> Error_Code ---;
+    git_branch_delete               :: proc(branch : ^Reference) -> Error_Code ---;
+    git_branch_is_checked_out       :: proc(branch : ^Reference) -> bool ---;
 
-    git_revparse_single :: proc(out : ^^Object, repo : ^Repository, spec : ^byte) -> Error_Code ---;
+    //Revparse
+    git_revparse_single             :: proc(out : ^^Object, repo : ^Repository, spec : ^byte) -> Error_Code ---;
 
     //Checkout
-    git_checkout_tree :: proc(repo : ^Repository, treeish : ^Object, opts : ^Checkout_Options) -> Error_Code ---;
+    git_checkout_tree               :: proc(repo : ^Repository, treeish : ^Object, opts : ^Checkout_Options) -> Error_Code ---;
 
     // Stash
-    git_stash_save :: proc(out : ^Oid, repo : ^Repository, stasher : ^Git_Signature, message : ^byte, flags : Stash_Flags) -> Error_Code ---;
-    git_stash_apply :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code ---;
-    git_stash_pop :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code ---;
-    git_stash_drop :: proc(repo : ^Repository, index : uint) -> Error_Code ---;
-    git_stash_foreach :: proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> Error_Code ---;
-    git_stash_apply_init_options :: proc(opts : ^Stash_Apply_Options, version : u32) -> Error_Code ---;
+    git_stash_save                  :: proc(out : ^Oid, repo : ^Repository, stasher : ^Git_Signature, message : ^byte, flags : Stash_Flags) -> Error_Code ---;
+    git_stash_apply                 :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code ---;
+    git_stash_pop                   :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code ---;
+    git_stash_drop                  :: proc(repo : ^Repository, index : uint) -> Error_Code ---;
+    git_stash_foreach               :: proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> Error_Code ---;
 
     //Revwalk
-    git_revwalk_new        :: proc(out : ^^Revwalk, repo : ^Repository) -> Error_Code ---;
-    git_revwalk_next       :: proc(out : ^Oid, walk : ^Revwalk) -> Error_Code ---;
-    git_revwalk_push_range :: proc(walk : ^Revwalk, range : ^byte) -> Error_Code ---;
-    git_revwalk_push_ref   :: proc(walk : ^Revwalk, refname : ^byte) -> Error_Code ---;
-    git_revwalk_free       :: proc(walk : ^Revwalk) ---;
+    git_revwalk_new                 :: proc(out : ^^Revwalk, repo : ^Repository) -> Error_Code ---;
+    git_revwalk_next                :: proc(out : ^Oid, walk : ^Revwalk) -> Error_Code ---;
+    git_revwalk_push_range          :: proc(walk : ^Revwalk, range : ^byte) -> Error_Code ---;
+    git_revwalk_push_ref            :: proc(walk : ^Revwalk, refname : ^byte) -> Error_Code ---;
+    git_revwalk_free                :: proc(walk : ^Revwalk) ---;
+
+    git_fetch_init_options          :: proc(opts : ^Fetch_Options,       version : u32) -> i32 ---;
+    git_stash_apply_init_options    :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
+    git_status_init_options         :: proc(opts : ^Status_Options,      version : u32) -> i32 ---;
 }

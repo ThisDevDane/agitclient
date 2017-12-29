@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 16:31:36 UTC+1
+ *  @Last Time: 29-12-2017 19:31:31 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -372,8 +372,7 @@ Status :: struct {
 
 update_status :: proc(repo : ^git.Repository, status : ^Status) {
     if status.list == nil {
-        options : git.Status_Options;
-        git.status_init_options(&options, 1);
+        options, _ := git.status_init_options();
         options.flags = git.Status_Opt_Flags.Include_Untracked | git.Status_Opt_Flags.Recurse_Untracked_Dirs;
         err : git.Error_Code;
         status.list, err = git.status_list_new(repo, &options);
@@ -522,8 +521,7 @@ open_repo :: proc(new_repo: ^git.Repository) {
     local_branches = get_all_branches(repo, git.Branch_Type.Local);
     remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
 
-    options : git.Status_Options;
-    git.status_init_options(&options, 1);
+    options, _ := git.status_init_options();
     options.flags = git.Status_Opt_Flags.Include_Untracked;
     statuses, err = git.status_list_new(repo, &options);
     log_if_err(err);
@@ -889,10 +887,9 @@ repo_window :: proc(using state : ^State) {
                     ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
                     if !log_if_err(ok) {
                         console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
-                        fetch_opt := git.Fetch_Options{};
+                        fetch_opt, _ := git.fetch_init_options();
+                        
                         fetch_cb, _  := git.remote_init_callbacks();
-                        fetch_opt.version = 1;
-                        fetch_opt.proxy_opts.version = 1;
                         fetch_opt.callbacks = remote_cb;
 
                         ok = git.remote_fetch(remote, nil, &fetch_opt);
@@ -903,22 +900,6 @@ repo_window :: proc(using state : ^State) {
 
                     git.free(remote);
                 }
-
-                /*imgui.input_text("Commit Hash;", commit_hash_buf[..]);
-                if imgui.button("Lookup") {
-                    if repo != nil {
-                        oid_str := cast(string)commit_hash_buf[..];
-                        oid: git.Oid;
-                        ok := git.oid_from_str(&oid, &oid_str[0]);
-                        if !log_if_err(ok) {
-                            free_commit(&current_branch.current_commit);
-                            current_branch.current_commit = get_commit(repo, oid);
-                        }
-                    }
-                    else {
-                        console.log_error("You haven't opened a repo yet!");
-                    }
-                }*/
 
                 imgui.separator();
 
@@ -1010,7 +991,7 @@ repo_window :: proc(using state : ^State) {
 
                         if index, err := git.repository_index(repo); !log_if_err(err) {
                             for entry in to_stage {
-                                err := git.index_add_bypath(index, strings.to_odin_string(entry.index_to_workdir.new_file.path));
+                                err := git.index_add(index, strings.to_odin_string(entry.index_to_workdir.new_file.path));
                                 log_if_err(err);
                             }
 
@@ -1018,7 +999,7 @@ repo_window :: proc(using state : ^State) {
                                 if head, err := git.repository_head(repo); !log_if_err(err) {
                                     defer git.free(head);
 
-                                    if head_commit, err := git.reference_peel(head, git.Otype.Commit); !log_if_err(err) {
+                                    if head_commit, err := git.reference_peel(head, git.Obj_Type.Commit); !log_if_err(err) {
                                         defer git.free(head_commit);
                                         path := strings.to_odin_string(entry.head_to_index.new_file.path);
                                         strs := [...]string{
@@ -1060,7 +1041,7 @@ repo_window :: proc(using state : ^State) {
 
                             if index, err := git.repository_index(repo); !log_if_err(err) {
                                 if tree_id, err := git.index_write_tree(index); !log_if_err(err) {
-                                    if tree, err := git.object_lookup(repo, tree_id, git.Otype.Tree); !log_if_err(err) {
+                                    if tree, err := git.object_lookup(repo, tree_id, git.Obj_Type.Tree); !log_if_err(err) {
                                         if id, err := git.commit_create(repo, "HEAD", &author, &committer, commit_msg,
                                                                         cast(^git.Tree) tree, commit.git_commit); !log_if_err(err) {
                                             // @note(bpunsky): copied again!
@@ -1102,8 +1083,7 @@ repo_window :: proc(using state : ^State) {
                     imgui.same_line();
 
                     if imgui.button("Pop") {
-                        opts : git.Stash_Apply_Options;
-                        git.stash_apply_init_options(&opts, 1);
+                        opts, _ := git.stash_apply_init_options();
                         git.stash_pop(repo, 0, &opts);
                     }
                 }
@@ -1113,10 +1093,10 @@ repo_window :: proc(using state : ^State) {
             open_create_modal := false;
             imgui.set_next_window_pos(imgui.Vec2{0, 18});
             imgui.set_next_window_size(imgui.Vec2{160, f32(wnd_height-18)});
-            if imgui.begin("Branches", nil, imgui.Window_Flags.NoResize |
-                                            imgui.Window_Flags.NoMove |
+            if imgui.begin("Branches", nil, imgui.Window_Flags.NoResize   |
+                                            imgui.Window_Flags.NoMove     |
                                             imgui.Window_Flags.NoCollapse |
-                                            imgui.Window_Flags.MenuBar |
+                                            imgui.Window_Flags.MenuBar    |
                                             imgui.Window_Flags.NoBringToFrontOnFocus) {
                 defer imgui.end();
                 if imgui.begin_menu_bar() {
