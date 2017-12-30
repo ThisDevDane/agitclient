@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 30-12-2017 23:16:20 UTC+1
+ *  @Last Time: 30-12-2017 23:37:08 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -749,28 +749,33 @@ main_menu :: proc(using state : ^State) {
     }
 
     if open_set_signature {
-        fmt.bprintf(name_buf[..], settings.name);
-        fmt.bprintf(email_buf[..], settings.email);
-        imgui.open_popup("Set Signature");
+        if len(settings.username) > 0 do fmt.bprintf(name_buf[..], settings.name);
+                                 else do mem.zero(&name_buf[0], len(name_buf));
+        if len(settings.password) > 0 do fmt.bprintf(email_buf[..], settings.email);
+                                 else do mem.zero(&email_buf[0], len(email_buf));
+        imgui.open_popup("Set Signature##modal");
     }
 
     if open_set_user {
-        fmt.bprintf(username_buf[..], settings.username);
-        fmt.bprintf(password_buf[..], settings.password);
-        imgui.open_popup("Set User");
+        if len(settings.username) > 0 do fmt.bprintf(username_buf[..], settings.username);
+                                 else do mem.zero(&username_buf[0], len(username_buf));
+        if len(settings.password) > 0 do fmt.bprintf(password_buf[..], settings.password);
+                                 else do mem.zero(&password_buf[0], len(password_buf));
+        imgui.open_popup("Set User##modal");
     }
 
     if open_clone_menu {
-        fmt.bprintf(clone_repo_url[..], "");
-        fmt.bprintf(clone_repo_path[..], "");
-        imgui.open_popup("Clone Repo");
+        mem.zero(&clone_repo_url[0], len(clone_repo_url));
+        mem.zero(&clone_repo_path[0], len(clone_repo_path));
+        imgui.open_popup("Clone Repo##modal");
     }
 
-    if imgui.begin_popup_modal("clone_repo_modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
+    if imgui.begin_popup_modal("Clone Repo##modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
         imgui.input_text("URL", clone_repo_url[..]);
         imgui.input_text("Destination path", clone_repo_path[..]);
-        if imgui.button("Clone") {
+        
+        if imgui.button("Clone", imgui.Vec2{160, 30}) {
             options, err := git.clone_init_options(1);
             if !log_if_err(err) {
                 repo, err2 := git.clone(cast(string)clone_repo_url[..], cast(string)clone_repo_path[..], &options);
@@ -781,14 +786,21 @@ main_menu :: proc(using state : ^State) {
 
             imgui.close_current_popup();
         }
+        
+        imgui.same_line();
+        if imgui.button("Cancel", imgui.Vec2{160, 30}) {
+            mem.zero(&clone_repo_url[0],  len(clone_repo_url));
+            mem.zero(&clone_repo_path[0], len(clone_repo_path));
+            imgui.close_current_popup();
+        }
     }
 
-    if imgui.begin_popup_modal("set_signature_modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
+    if imgui.begin_popup_modal("Set Signature##modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
         imgui.input_text("Name", name_buf[..]);
         imgui.input_text("Email", email_buf[..]);
         imgui.separator();
-        if imgui.button("Save", imgui.Vec2{135, 0}) {
+        if imgui.button("Save", imgui.Vec2{135, 30}) {
             { // Save settings
                 name := strings.to_odin_string(&name_buf[0]);
                 settings.name = strings.new_string(name);
@@ -801,19 +813,19 @@ main_menu :: proc(using state : ^State) {
             imgui.close_current_popup();
         }
         imgui.same_line();
-        if imgui.button("Cancel", imgui.Vec2{135, 0}) {
+        if imgui.button("Cancel", imgui.Vec2{135, 30}) {
             mem.zero(&name_buf[0], len(name_buf));
             mem.zero(&email_buf[0], len(email_buf));
             imgui.close_current_popup();
         }
     }
 
-    if imgui.begin_popup_modal("set_user_modal",      nil, imgui.Window_Flags.AlwaysAutoResize) {
+    if imgui.begin_popup_modal("Set User##modal",      nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
         imgui.input_text("Username", username_buf[..]);
         imgui.input_text("Password", password_buf[..], imgui.Input_Text_Flags.Password);
         imgui.separator();
-        if imgui.button("Save", imgui.Vec2{135, 0}) {
+        if imgui.button("Save", imgui.Vec2{135, 30}) {
             { // Save settings
                 username := strings.to_odin_string(&username_buf[0]);
                 settings.username = strings.new_string(username);
@@ -826,7 +838,7 @@ main_menu :: proc(using state : ^State) {
             imgui.close_current_popup();
         }
         imgui.same_line();
-        if imgui.button("Cancel", imgui.Vec2{135, 0}) {
+        if imgui.button("Cancel", imgui.Vec2{135, 30}) {
             mem.zero(&username_buf[0], len(username_buf));
             mem.zero(&password_buf[0], len(password_buf));
             imgui.close_current_popup();
