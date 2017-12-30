@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 19:40:24 UTC+1
+ *  @Last Time: 30-12-2017 23:16:20 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -279,8 +279,7 @@ get_commit :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
 checkout_branch :: proc(repo : ^git.Repository, b : Branch) -> bool {
     obj, err := git.revparse_single(repo, b.name);
     if !log_if_err(err) {
-        opts := git.Checkout_Options{};
-        opts.version = 1;
+        opts, _ := git.checkout_init_options();
         opts.disable_filters = 1; //NOTE(Hoej): User option later
         opts.checkout_strategy = git.Checkout_Strategy_Flags.Safe;
         err = git.checkout_tree(repo, obj, &opts);

@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-12-2017 19:59:31 UTC+1
+ *  @Last Time: 30-12-2017 23:15:56 UTC+1
  *
  *  @Description:
  *
@@ -123,7 +123,7 @@ stash_save                  :: inline proc(repo : ^Repository, stasher : ^Signat
 stash_apply                 :: inline proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code                                                                     { return git_stash_apply(repo, index, options); }
 stash_pop                   :: inline proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code                                                                     { return git_stash_pop(repo, index, options); }
 stash_drop                  :: inline proc(repo : ^Repository, index : uint) -> Error_Code                                                                                                     { return git_stash_drop(repo, index); }
-stash_foreach               :: inline proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> Error_Code                                                              { return git_stash_foreach(repo, callback, payload, index); }
+stash_foreach               :: inline proc(repo : ^Repository, callback : Stash_Cb, payload : rawptr, index : uint) -> Error_Code                                                              { return git_stash_foreach(repo, callback, payload, index); }
 
 ////////////////////////////////////////////
 //// git_reference
@@ -186,7 +186,7 @@ object_type                 :: inline proc(obj : ^Object) -> Obj_Type           
 fetch_init_options          :: inline proc(version : u32 = FETCH_OPTIONS_VERSION)       -> (Fetch_Options, i32)                                                                                { return _fetch_init_options(version); }
 stash_apply_init_options    :: inline proc(version : u32 = STASH_APPLY_OPTIONS_VERSION) -> (Stash_Apply_Options, i32)                                                                          { return _stash_apply_init_options(version); }
 status_init_options         :: inline proc(version : u32 = STATUS_OPTIONS_VERSION)      -> (Status_Options, i32)                                                                               { return _status_init_options(version); }
-
+checkout_init_options       :: inline proc(version : u32 = CHECKOUT_OPTIONS_VERSION)    -> (Checkout_Options, i32)                                                                             { return _checkout_init_options(version); }
 ////////////////////////////////////////////
 //// git_err
 ////
@@ -553,6 +553,12 @@ _status_init_options :: proc(version : u32) -> (Status_Options, i32) {
       return result, err;
 }
 
+_checkout_init_options :: proc(version : u32) -> (Checkout_Options, i32) {
+      result := Checkout_Options{};
+      err := git_checkout_init_options(&result, version);
+      return result, err;
+}
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     giterr_last :: proc() -> ^Git_Error ---;
@@ -669,7 +675,7 @@ foreign libgit {
     git_stash_apply                 :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code ---;
     git_stash_pop                   :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code ---;
     git_stash_drop                  :: proc(repo : ^Repository, index : uint) -> Error_Code ---;
-    git_stash_foreach               :: proc(repo : ^Repository, callback : Stash_CB, payload : rawptr, index : uint) -> Error_Code ---;
+    git_stash_foreach               :: proc(repo : ^Repository, callback : Stash_Cb, payload : rawptr, index : uint) -> Error_Code ---;
 
     //Revwalk
     git_revwalk_new                 :: proc(out : ^^Revwalk, repo : ^Repository) -> Error_Code ---;
@@ -682,4 +688,5 @@ foreign libgit {
     git_fetch_init_options          :: proc(opts : ^Fetch_Options,       version : u32) -> i32 ---;
     git_stash_apply_init_options    :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
     git_status_init_options         :: proc(opts : ^Status_Options,      version : u32) -> i32 ---;
+    git_checkout_init_options       :: proc(opts : ^Checkout_Options,    version : u32) -> i32 ---;
 }
