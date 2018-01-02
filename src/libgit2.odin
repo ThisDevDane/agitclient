@@ -6,13 +6,13 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 30-12-2017 23:15:56 UTC+1
+ *  @Last Time: 02-01-2018 21:10:05 UTC+1
  *
  *  @Description:
  *
  */
 
-foreign import libgit "../external/git2.lib";
+foreign import libgit "../external/libgit2.lib";
 export "libgit2_types.odin";
 import "core:fmt.odin";
 import "core:mem.odin";
