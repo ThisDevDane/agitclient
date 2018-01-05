@@ -8,12 +8,12 @@
         <img src="https://img.shields.io/github/release/thisdrunkdane/agitclient.svg">
     </a>
     <a href="https://github.com/ThisDrunkDane/agitclient/releases/latest">
-        <img src="https://img.shields.io/badge/Platforms-Windows-green.svg">
+        <img src="https://img.shields.io/badge/platforms-Windows-green.svg">
     </a>
     <a href="https://github.com/ThisDrunkDane/agitclient/blob/master/LICENSE">
         <img src="https://img.shields.io/github/license/thisdrunkdane/agitclient.svg">
     </a>
-    <img src="https://img.shields.io/badge/Language-Odin-lightgrey.svg">
+    <img src="https://img.shields.io/badge/language-Odin-lightgrey.svg">
 </p>
 
 ## Made Using Love!
