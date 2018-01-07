@@ -1,15 +1,15 @@
 /*
  *  @Name:     libgit2_types
- *  
+ *
  *  @Author:   Mikkel Hjortshoej
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 29-12-2017 16:05:30 UTC+1
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 30-12-2017 23:21:19 UTC+1
- *  
+ *  @Last By:   Joshua Manton
+ *  @Last Time: 04-01-2018 15:08:43 UTC-8
+ *
  *  @Description:
- *  
+ *
  */
 
 GIT_OID_RAWSZ :: 20;
@@ -26,6 +26,7 @@ Object           :: struct {};
 Revwalk          :: struct {};
 Branch_Iterator  :: struct {};
 Status_List      :: struct {};
+Diff             :: struct {};
 
 Oid :: struct {
     id : [GIT_OID_RAWSZ]byte, // raw binary formatted id
@@ -378,6 +379,70 @@ Proxy_Options :: struct {
     payload : rawptr,
 }
 
+Submodule_Ignore :: enum i32 {
+    Unspecified  = -1, /**< use the submodule's configuration */
+
+    None         = 1,  /**< any change or untracked == dirty */
+    Untracked    = 2,  /**< dirty if tracked files change */
+    Dirty        = 3,  /**< only dirty if HEAD moved */
+    All          = 4,  /**< never dirty */
+}
+
+Diff_Format :: enum u32 {
+    Patch        = 1, /**< full git diff */
+    Patch_Header = 2, /**< just the file headers of patch */
+    Raw          = 3, /**< like git diff --raw */
+    Name_Only    = 4, /**< like git diff --name-only */
+    Name_Status  = 5, /**< like git diff --name-status */
+}
+
+Diff_Notify_CB   :: #type proc(diff_so_far: ^Diff, delta_to_add: ^Diff_Delta, matched_pathspec: ^byte, payload: rawptr) -> i32;
+Diff_Progress_CB :: #type proc(diff_so_far: ^Diff, old_path: ^byte, new_path: ^byte, payload: rawptr) -> i32;
+Diff_Line_CB     :: #type proc(delta: ^Diff_Delta, hunk: ^Diff_Hunk, line: ^Diff_Line, payload: rawptr) -> i32;
+
+GIT_DIFF_HUNK_HEADER_SIZE :: 128;
+
+Diff_Hunk :: struct {
+    old_start:  i32;     /**< Starting line number in old_file */
+    old_lines:  i32;     /**< Number of lines in old_file */
+    new_start:  i32;     /**< Starting line number in new_file */
+    new_lines:  i32;     /**< Number of lines in new_file */
+    header_len: uint;    /**< Number of bytes in header text */
+    header:     [GIT_DIFF_HUNK_HEADER_SIZE]byte;   /**< Header text, NUL-byte terminated */
+}
+
+Diff_Line :: struct {
+    origin:         byte;  /**< A git_diff_line_t value */
+    old_lineno:     i32;   /**< Line number in old file or -1 for added line */
+    new_lineno:     i32;   /**< Line number in new file or -1 for deleted line */
+    num_lines:      i32;   /**< Number of newline characters in content */
+    content_len:    uint;  /**< Number of bytes of data */
+    content_offset: i64;   /**< Offset in the original file to the content */ // git_off_t
+    content:        ^byte; /**< Pointer to diff text, not NUL-byte terminated */
+}
+
+Diff_Options :: struct {
+    version: u32,      /**< version for the struct */
+    flags:   u32,      /**< defaults to GIT_DIFF_NORMAL */
+
+    /* options controlling which files are in the diff */
+
+    ignore_submodules: Submodule_Ignore, /**< submodule ignore rule */
+    pathspec:          Str_Array,        /**< defaults to include all paths */
+    notify_cb:         Diff_Notify_CB,
+    progress_cb:       Diff_Progress_CB,
+    payload:           rawptr,
+
+    /* options controlling how to diff text is generated */
+
+    context_lines:   u32,   /**< defaults to 3 */
+    interhunk_lines: u32,   /**< defaults to 0 */
+    id_abbrev:       u16,   /**< default 'core.abbrev' or 7 if unset */
+    max_size:        i64,   /**< defaults to 512MB */
+    old_prefix:      ^byte, /**< defaults to "a" */
+    new_prefix:      ^byte, /**< defaults to "b" */
+}
+
 Diff_File :: struct {
     id        : Oid,
     path      : ^byte,
@@ -439,7 +504,7 @@ Error_Code :: enum i32 {
     Retry            = -32, // Internal only
     Mismatch         = -33, // Hashsum mismatch in object
 }
- 
+
 Obj_Type :: enum i32 {
     Any       = -2, // Object can be any of the following
     Bad       = -1, // Object is invalid.
@@ -459,8 +524,8 @@ Cred_Type :: enum u32 {
     Ssh_Custom = (1 << 2),         // git_cred_ssh_custom
     Default = (1 << 3),            // git_cred_default
     Ssh_Interactive = (1 << 4),    // git_cred_ssh_interactive
-    Username = (1 << 5),           // Username-only information. 
-                                   // If the SSH transport does not know which username to use, 
+    Username = (1 << 5),           // Username-only information.
+                                   // If the SSH transport does not know which username to use,
                                    // it will ask via this credential type.
     Ssh_Memory = (1 << 6),         // Credentials read from memory. Only available for libssh2+OpenSSL for now.
 }
@@ -557,7 +622,7 @@ Stash_Apply_Progress :: enum i32 {
 
 Checkout_Strategy_Flags :: enum u32 {
     /* default is a dry run, no actual updates */
-    None = 0, 
+    None = 0,
     /* Allow safe updates that cannot overwrite uncommitted data */
     Safe = (1 << 0),
     /* Allow all updates to force working directory to look like index */
