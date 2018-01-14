@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 02-01-2018 21:10:05 UTC+1
+ *  @Last Time: 14-01-2018 23:04:25 UTC+1
  *
  *  @Description:
  *
@@ -110,6 +110,7 @@ branch_iterator_new         :: inline proc(repo : ^Repository, list_flags : Bran
 branch_next                 :: inline proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Type, Error_Code)                                                                                   { return _branch_next(iter); }
 branch_delete               :: inline proc(branch : ^Reference) -> Error_Code                                                                                                                  { return git_branch_delete(branch); }
 branch_is_checked_out       :: inline proc(branch : ^Reference) -> bool                                                                                                                        { return git_branch_is_checked_out(branch) };
+branch_upstream             :: inline proc(branch : ^Reference) -> (^Reference, Error_Code)                                                                                                    { return _branch_upstream(branch); }
 
 ////////////////////////////////////////////
 //// git_checkout
@@ -187,6 +188,12 @@ fetch_init_options          :: inline proc(version : u32 = FETCH_OPTIONS_VERSION
 stash_apply_init_options    :: inline proc(version : u32 = STASH_APPLY_OPTIONS_VERSION) -> (Stash_Apply_Options, i32)                                                                          { return _stash_apply_init_options(version); }
 status_init_options         :: inline proc(version : u32 = STATUS_OPTIONS_VERSION)      -> (Status_Options, i32)                                                                               { return _status_init_options(version); }
 checkout_init_options       :: inline proc(version : u32 = CHECKOUT_OPTIONS_VERSION)    -> (Checkout_Options, i32)                                                                             { return _checkout_init_options(version); }
+
+////////////////////////////////////////////
+//// git_graph_*
+////
+graph_ahead_behind          :: inline proc(repo : ^Repository, local : Oid, upstream : Oid) -> (ahead : uint, behind : uint, err : Error_Code)                                                 { return _graph_ahead_behind(repo, local, upstream); }
+
 ////////////////////////////////////////////
 //// git_err
 ////
@@ -475,6 +482,12 @@ _branch_create :: proc(repo : ^Repository, branch_name : string, target : ^Commi
     return ref, err;
 }
 
+_branch_upstream :: proc(branch : ^Reference) -> (^Reference, Error_Code) {
+    ref : ^Reference = nil;
+    err := git_branch_upstream(&ref, branch);
+    return ref, err;
+}
+
 _revparse_single :: proc(repo : ^Repository, spec : string) -> (^Object, Error_Code) {
     obj : ^Object = nil;
     err := git_revparse_single(&obj, repo, _make_misc_string(Misc_Buf.One, spec));
@@ -558,6 +571,14 @@ _checkout_init_options :: proc(version : u32) -> (Checkout_Options, i32) {
       err := git_checkout_init_options(&result, version);
       return result, err;
 }
+
+_graph_ahead_behind :: proc(repo : ^Repository, local : Oid, upstream : Oid) -> (ahead : uint, behind : uint, err : Error_Code) {
+    ahead : uint = 0;
+    behind : uint = 0;
+    err := git_graph_ahead_behind(&ahead, &behind, repo, &local, &upstream);
+    return ahead, behind, err;
+}
+
 
 @(default_calling_convention="stdcall")
 foreign libgit {
@@ -663,6 +684,7 @@ foreign libgit {
     git_branch_next                 :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> Error_Code ---;
     git_branch_delete               :: proc(branch : ^Reference) -> Error_Code ---;
     git_branch_is_checked_out       :: proc(branch : ^Reference) -> bool ---;
+    git_branch_upstream             :: proc(out : ^^Reference, branch : ^Reference) -> Error_Code ---;
 
     //Revparse
     git_revparse_single             :: proc(out : ^^Object, repo : ^Repository, spec : ^byte) -> Error_Code ---;
@@ -689,4 +711,7 @@ foreign libgit {
     git_stash_apply_init_options    :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
     git_status_init_options         :: proc(opts : ^Status_Options,      version : u32) -> i32 ---;
     git_checkout_init_options       :: proc(opts : ^Checkout_Options,    version : u32) -> i32 ---;
+
+    //Graph
+    git_graph_ahead_behind          :: proc(ahead : ^uint, behind : ^uint, repo : ^Repository, local : ^Oid, upstream : ^Oid) -> Error_Code ---;
 }

@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 30-12-2017 23:37:08 UTC+1
+ *  @Last Time: 14-01-2018 23:13:55 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -55,6 +55,8 @@ Commit :: struct {
 
 Branch :: struct {
     ref           : ^git.Reference,
+    upstream_ref  : ^git.Reference,
+
     name          : string,
     btype         : git.Branch_Type,
     current_commit : Commit,
@@ -225,6 +227,8 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
             oid, ok := git.reference_name_to_id(repo, refname);
             commit := get_commit(repo, oid);
 
+            upstream_ref, _ := git.branch_upstream(ref);
+
             col_name, found := string_util.get_upto_first_from_file(name, '/');
             if !found {
                 col_name = "";
@@ -234,6 +238,7 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
                 if col.name == col_name {
                     b := Branch {
                         ref,
+                        upstream_ref,
                         name,
                         btype,
                         commit,
@@ -248,6 +253,7 @@ get_all_branches :: proc(repo : ^git.Repository, btype : git.Branch_Type) -> []B
                 col.name = col_name;
                 b := Branch {
                     ref,
+                    upstream_ref,
                     name,
                     btype,
                     commit,
@@ -312,6 +318,7 @@ create_branch_branch :: proc(repo : ^git.Repository, b : Branch, force := false)
         commit := get_commit(repo, oid);
         b := Branch {
             ref,
+            nil,
             name,
             git.Branch_Type.Local,
             commit,
@@ -332,6 +339,7 @@ create_branch_name :: proc(repo : ^git.Repository, name : string, target : Commi
         commit := get_commit(repo, oid);
         b := Branch {
             ref,
+            nil,
             name,
             git.Branch_Type.Local,
             commit,
@@ -497,8 +505,11 @@ open_repo :: proc(new_repo: ^git.Repository) {
         refname := git.reference_name(ref);
         oid, ok := git.reference_name_to_id(repo, refname);
         commit := get_commit(repo, oid);
+        upstream, _ := git.branch_upstream(ref);
+
         current_branch = Branch{
             ref,
+            upstream,
             bname,
             git.Branch_Type.Local,
             commit,
@@ -879,6 +890,19 @@ repo_window :: proc(using state : ^State) {
             if imgui.button("Close Repo") {
                 close_repo = true;
             } else {
+                { // Calculate ahead behind
+                    bname := git.reference_name(current_branch.ref);
+                    bid, _ := git.reference_name_to_id(repo, bname);
+
+                    if current_branch.upstream_ref != nil {
+                        uname := git.reference_name(current_branch.upstream_ref);
+                        uid, _ := git.reference_name_to_id(repo, uname);
+                        
+                        ahead, behind, _ := git.graph_ahead_behind(repo, bid, uid);
+                        imgui.text("%d commits ahead upstream.", ahead);
+                        imgui.text("%d commits behind upstream.", behind);
+                    }
+                }
                 if imgui.button("Fetch" ) {
                     remote, ok := git.remote_lookup(repo, "origin");
                     remote_cb, _  := git.remote_init_callbacks();
@@ -1049,8 +1073,10 @@ repo_window :: proc(using state : ^State) {
                                                 refname := git.reference_name(ref);
                                                 oid, ok := git.reference_name_to_id(repo, refname);
                                                 commit := get_commit(repo, oid);
+                                                upstream, _ := git.branch_upstream(ref);
                                                 current_branch = Branch{
                                                     ref,
+                                                    upstream,
                                                     bname,
                                                     git.Branch_Type.Local,
                                                     commit,
@@ -1088,162 +1114,6 @@ repo_window :: proc(using state : ^State) {
                 }
             }
 
-            update_branches := false;
-            open_create_modal := false;
-            imgui.set_next_window_pos(imgui.Vec2{0, 18});
-            imgui.set_next_window_size(imgui.Vec2{160, f32(wnd_height-18)});
-            if imgui.begin("Branches", nil, imgui.Window_Flags.NoResize   |
-                                            imgui.Window_Flags.NoMove     |
-                                            imgui.Window_Flags.NoCollapse |
-                                            imgui.Window_Flags.MenuBar    |
-                                            imgui.Window_Flags.NoBringToFrontOnFocus) {
-                defer imgui.end();
-                if imgui.begin_menu_bar() {
-                    defer imgui.end_menu_bar();
-                    if imgui.begin_menu("Misc") {
-                        defer imgui.end_menu();
-                        if imgui.menu_item("Update") {
-                            update_branches = true;
-                        }
-
-                        if imgui.menu_item("Create branch") {
-                            open_create_modal = true;
-                        }
-                    }
-                }
-
-
-                if open_create_modal {
-                    imgui.open_popup("Create Branch###create_branch_modal");
-                }
-
-                if imgui.begin_popup_modal("Create Branch###create_branch_modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
-                    defer imgui.end_popup();
-                    imgui.text("Branch name:"); imgui.same_line();
-                    imgui.input_text("", create_branch_name[..]);
-                    imgui.checkbox("Checkout new branch?", &checkout_new_branch);
-                    imgui.checkbox("Setup on remote?", &setup_remote_branch);
-                    imgui.separator();
-                    if imgui.button("Create", imgui.Vec2{160, 0}) {
-                        branch_name_str := cast(string)create_branch_name[..];
-                        b := create_branch(repo, branch_name_str, current_branch.current_commit);
-                        if checkout_new_branch {
-                            checkout_branch(repo, b);
-                        }
-                        update_branches = true;
-                        create_branch_name = [1024]u8{};
-                        imgui.close_current_popup();
-                    }
-                    imgui.same_line();
-                    if imgui.button("Cancel", imgui.Vec2{160, 0}) {
-                        create_branch_name = [1024]u8{};
-                        imgui.close_current_popup();
-                    }
-                }
-
-                pos := imgui.get_window_pos();
-                size := imgui.get_window_size();
-
-                print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool, curb : ^Branch) {
-                    branch_to_delete: Branch;
-                    for b in branches {
-                        is_current_branch := git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref);
-                        imgui.selectable(b.name, is_current_branch);
-                        if imgui.is_item_clicked(0) && imgui.is_mouse_double_clicked(0) {
-                            if checkout_branch(repo, b) {
-                                update_branches^ = true;
-                                curb^ = b;
-                            }
-                        }
-                        imgui.push_id(b.name);
-                        defer imgui.pop_id();
-
-
-                        if !is_current_branch {
-                            if imgui.begin_popup_context_item("branch_context", 1) {
-                                defer imgui.end_popup();
-                                if imgui.selectable("Checkout") {
-                                    if checkout_branch(repo, b) {
-                                        update_branches^ = true;
-                                        curb^ = b;
-                                    }
-                                }
-
-                                if imgui.selectable("Delete") {
-                                    branch_to_delete = b;
-                                }
-                            }
-                        }
-
-                        if is_current_branch {
-                            imgui.same_line();
-                            imgui.text("(current)");
-                        }
-                    }
-
-                    if branch_to_delete.ref != nil {
-                        update_branches^ = true;
-                        git.branch_delete(branch_to_delete.ref);
-                    }
-                }
-                imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
-                if imgui.tree_node("Local Branches:") {
-                    defer imgui.tree_pop();
-                    imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
-                    for col in local_branches {
-                        if col.name == "" {
-                            print_branches(repo, col.branches[..], &update_branches, &current_branch);
-                        } else {
-                            imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
-                            if imgui.tree_node(col.name) {
-                                defer imgui.tree_pop();
-                                imgui.indent(5);
-                                print_branches(repo, col.branches[..], &update_branches, &current_branch);
-                                imgui.unindent(5);
-                            }
-                        }
-                    }
-                    imgui.pop_style_color();
-                }
-
-                imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
-                if imgui.tree_node("Remote Branches:") {
-                    defer imgui.tree_pop();
-                    imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
-                    for col in remote_branches[..] {
-                        if col.name == "origin" {
-                            imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
-                        }
-                        if imgui.tree_node(col.name) {
-                            defer imgui.tree_pop();
-                            imgui.indent(5);
-                            for b in col.branches {
-                                if b.name == "origin/HEAD" do continue;
-                                imgui.selectable(b.name);
-                                imgui.push_id(git.reference_name(b.ref));
-                                defer imgui.pop_id();
-                                if imgui.begin_popup_context_item("branch_context", 1) {
-                                    defer imgui.end_popup();
-                                    if imgui.selectable("Checkout") {
-                                        branch := create_branch(repo, b);
-                                        if checkout_branch(repo, branch) {
-                                            update_branches = true;
-                                            current_branch = branch;
-                                        }
-                                    }
-                                }
-                            }
-                            imgui.unindent(5);
-                        }
-                    }
-                    imgui.pop_style_color();
-                }
-            }
-
-            if update_branches {
-                local_branches = get_all_branches(repo, git.Branch_Type.Local);
-                remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
-            }
             commit_count := 0;
             if imgui.begin("Log") {
                 defer imgui.end();
@@ -1326,6 +1196,165 @@ repo_window :: proc(using state : ^State) {
     }
 }
 
+branch_window :: proc(using state : ^State) {
+    update_branches := false;
+    open_create_modal := false;
+    imgui.set_next_window_pos(imgui.Vec2{0, 18});
+    imgui.set_next_window_size(imgui.Vec2{160, f32(wnd_height-18)});
+    if imgui.begin("Branches", nil, imgui.Window_Flags.NoResize   |
+                                    imgui.Window_Flags.NoMove     |
+                                    imgui.Window_Flags.NoCollapse |
+                                    imgui.Window_Flags.MenuBar    |
+                                    imgui.Window_Flags.NoBringToFrontOnFocus) {
+        defer imgui.end();
+        if imgui.begin_menu_bar() {
+            defer imgui.end_menu_bar();
+            if imgui.begin_menu("Misc") {
+                defer imgui.end_menu();
+                if imgui.menu_item("Update") {
+                    update_branches = true;
+                }
+
+                if imgui.menu_item("Create branch") {
+                    open_create_modal = true;
+                }
+            }
+        }
+
+
+        if open_create_modal {
+            imgui.open_popup("Create Branch###create_branch_modal");
+        }
+
+        if imgui.begin_popup_modal("Create Branch###create_branch_modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
+            defer imgui.end_popup();
+            imgui.text("Branch name:"); imgui.same_line();
+            imgui.input_text("", create_branch_name[..]);
+            imgui.checkbox("Checkout new branch?", &checkout_new_branch);
+            imgui.checkbox("Setup on remote?", &setup_remote_branch);
+            imgui.separator();
+            if imgui.button("Create", imgui.Vec2{160, 0}) {
+                branch_name_str := cast(string)create_branch_name[..];
+                b := create_branch(repo, branch_name_str, current_branch.current_commit);
+                if checkout_new_branch {
+                    checkout_branch(repo, b);
+                }
+                update_branches = true;
+                create_branch_name = [1024]u8{};
+                imgui.close_current_popup();
+            }
+            imgui.same_line();
+            if imgui.button("Cancel", imgui.Vec2{160, 0}) {
+                create_branch_name = [1024]u8{};
+                imgui.close_current_popup();
+            }
+        }
+
+        pos := imgui.get_window_pos();
+        size := imgui.get_window_size();
+
+        print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branches : ^bool, curb : ^Branch) {
+            branch_to_delete: Branch;
+            for b in branches {
+                is_current_branch := git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref);
+                imgui.selectable(b.name, is_current_branch);
+                if imgui.is_item_clicked(0) && imgui.is_mouse_double_clicked(0) {
+                    if checkout_branch(repo, b) {
+                        update_branches^ = true;
+                        curb^ = b;
+                    }
+                }
+                imgui.push_id(b.name);
+                defer imgui.pop_id();
+
+
+                if !is_current_branch {
+                    if imgui.begin_popup_context_item("branch_context", 1) {
+                        defer imgui.end_popup();
+                        if imgui.selectable("Checkout") {
+                            if checkout_branch(repo, b) {
+                                update_branches^ = true;
+                                curb^ = b;
+                            }
+                        }
+
+                        if imgui.selectable("Delete") {
+                            branch_to_delete = b;
+                        }
+                    }
+                }
+
+                if is_current_branch {
+                    imgui.same_line();
+                    imgui.text("(current)");
+                }
+            }
+
+            if branch_to_delete.ref != nil {
+                update_branches^ = true;
+                git.branch_delete(branch_to_delete.ref);
+            }
+        }
+        imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
+        if imgui.tree_node("Local Branches:") {
+            defer imgui.tree_pop();
+            imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
+            for col in local_branches {
+                if col.name == "" {
+                    print_branches(repo, col.branches[..], &update_branches, &current_branch);
+                } else {
+                    imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
+                    if imgui.tree_node(col.name) {
+                        defer imgui.tree_pop();
+                        imgui.indent(5);
+                        print_branches(repo, col.branches[..], &update_branches, &current_branch);
+                        imgui.unindent(5);
+                    }
+                }
+            }
+            imgui.pop_style_color();
+        }
+
+        imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
+        if imgui.tree_node("Remote Branches:") {
+            defer imgui.tree_pop();
+            imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+            for col in remote_branches[..] {
+                if col.name == "origin" {
+                    imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
+                }
+                if imgui.tree_node(col.name) {
+                    defer imgui.tree_pop();
+                    imgui.indent(5);
+                    for b in col.branches {
+                        if b.name == "origin/HEAD" do continue;
+                        imgui.selectable(b.name);
+                        imgui.push_id(git.reference_name(b.ref));
+                        defer imgui.pop_id();
+                        if imgui.begin_popup_context_item("branch_context", 1) {
+                            defer imgui.end_popup();
+                            if imgui.selectable("Checkout") {
+                                branch := create_branch(repo, b);
+                                if checkout_branch(repo, branch) {
+                                    update_branches = true;
+                                    current_branch = branch;
+                                }
+                            }
+                        }
+                    }
+                    imgui.unindent(5);
+                }
+            }
+            imgui.pop_style_color();
+        }
+    }
+
+    if update_branches {
+        local_branches = get_all_branches(repo, git.Branch_Type.Local);
+        remote_branches = get_all_branches(repo, git.Branch_Type.Remote);
+    }
+}
+
 main :: proc() {
     console.log("Program start...");
     console.add_default_commands();
@@ -1366,6 +1395,7 @@ main :: proc() {
         main_menu(&state);
 
         repo_window(&state);
+        branch_window(&state);
 
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);
