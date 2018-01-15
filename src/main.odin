@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 01:04:25 UTC+1
+ *  @Last Time: 15-01-2018 01:06:35 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -902,31 +902,34 @@ repo_window :: proc(using state : ^State) {
                         imgui.text("%d commits ahead upstream.", ahead);
                         imgui.text("%d commits behind upstream.", behind);
 
-                        if ahead > 0 && imgui.button("Push") {
-                            remote, _ := git.remote_lookup(repo, "origin");
-                            git.free(remote);
-                            remote_cb, _  := git.remote_init_callbacks();
-                            remote_cb.credentials = credentials_callback;
-                            ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
-                            if !log_if_err(ok) {
-                                refname := git.reference_name(current_branch.ref);
-                                opts, _ := git.push_init_options();
-                                opts.callbacks = remote_cb;
-                                opts.pb_parallelism = 0;
+                        if ahead > 0 {
+                            if imgui.button("Push") {
+                                remote, _ := git.remote_lookup(repo, "origin");
+                                defer git.free(remote);
+                                remote_cb, _  := git.remote_init_callbacks();
+                                remote_cb.credentials = credentials_callback;
+                                ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
+                                if !log_if_err(ok) {
+                                    refname := git.reference_name(current_branch.ref);
+                                    opts, _ := git.push_init_options();
+                                    opts.callbacks = remote_cb;
+                                    opts.pb_parallelism = 0;
 
-                                refspec := []string{
-                                    fmt.aprintf("%s:%s", refname, refname),
-                                };
+                                    refspec := []string{
+                                        fmt.aprintf("%s:%s", refname, refname),
+                                    };
 
-                                err := git.remote_push(remote, refspec, &opts);
-                                log_if_err(err);
+                                    err := git.remote_push(remote, refspec, &opts);
+                                    log_if_err(err);
+                                }
                             }
+                            imgui.same_line();
                         }
                     }
                 }
                 if imgui.button("Fetch" ) {
                     remote, ok := git.remote_lookup(repo, "origin");
-                    git.free(remote);
+                    defer git.free(remote);
                     remote_cb, _  := git.remote_init_callbacks();
                     remote_cb.credentials = credentials_callback;
                     ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
