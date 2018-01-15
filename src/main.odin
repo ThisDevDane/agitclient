@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 03:07:10 UTC+1
+ *  @Last Time: 15-01-2018 03:29:11 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -931,6 +931,8 @@ log_window :: proc(using state : ^State) {
 }
 
 repo_window :: proc(using state : ^State) {
+    open_push_transfer := false;
+
     imgui.set_next_window_pos(imgui.Vec2{160, 18});
     imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
     if imgui.begin("Repo", nil, imgui.Window_Flags.NoResize |
@@ -963,54 +965,69 @@ repo_window :: proc(using state : ^State) {
             if imgui.button("Close Repo") {
                 close_repo = true;
             } else {
-                { // Calculate ahead behind
-                    bname := git.reference_name(current_branch.ref);
-                    bid, _ := git.reference_name_to_id(repo, bname);
+                bname := git.reference_name(current_branch.ref);
+                bid, _ := git.reference_name_to_id(repo, bname);
 
-                    if current_branch.upstream_ref != nil {
-                        uname := git.reference_name(current_branch.upstream_ref);
-                        uid, _ := git.reference_name_to_id(repo, uname);
-                        
-                        ahead, behind, _ := git.graph_ahead_behind(repo, bid, uid);
-                        imgui.text("%d commits ahead upstream.", ahead);
-                        imgui.text("%d commits behind upstream.", behind);
+                if current_branch.upstream_ref != nil {
+                    uname := git.reference_name(current_branch.upstream_ref);
+                    uid, _ := git.reference_name_to_id(repo, uname);
+                    
+                    ahead, behind, _ := git.graph_ahead_behind(repo, bid, uid);
+                    imgui.text("%d commits ahead upstream.", ahead);
+                    imgui.text("%d commits behind upstream.", behind);
 
-                        if ahead > 0 {
-                            if imgui.button("Push") {
+                    if ahead > 0 {
+                        if imgui.button("Push") {
+                            payload :: struct {
+                                remote : ^git.Remote, 
+                                refspec : []string, 
+                                opts : git.Push_Options,
+                            }
+
+                            remote, _ := git.remote_lookup(repo, "origin");
+                            defer git.free(remote);
+                            remote_cb, _  := git.remote_init_callbacks();
+                            remote_cb.credentials = credentials_callback;
+                            ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
+                            if !log_if_err(ok) {
+                                refname := git.reference_name(current_branch.ref);
+                                opts, _ := git.push_init_options();
+                                remote_cb.push_transfer_progress = push_transfer_progress;
+                                remote_cb.payload = &tpayload;
+                                open_push_transfer = true;
+                                opts.callbacks = remote_cb;
+                                opts.pb_parallelism = 0;
+
+                                refspec := []string{
+                                    fmt.aprintf("%s:%s", refname, refname),
+                                };
+
+                                pay := payload {
+                                    remote,
+                                    refspec,
+                                    opts
+                                };
+
+
                                 Push_Thread_Proc :: proc(thread : ^thread.Thread) -> int {
-                                    remote, _ := git.remote_lookup(repo, "origin");
-                                    defer git.free(remote);
-                                    remote_cb, _  := git.remote_init_callbacks();
-                                    remote_cb.credentials = credentials_callback;
-                                    ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
-                                    if !log_if_err(ok) {
-                                        refname := git.reference_name(current_branch.ref);
-                                        opts, _ := git.push_init_options();
-                                        remote_cb.push_transfer_progress = push_transfer_progress;
-                                        opts.callbacks = remote_cb;
-                                        opts.pb_parallelism = 0;
-
-                                        refspec := []string{
-                                            fmt.aprintf("%s:%s", refname, refname),
-                                        };
-
-
-
-                                        err := git.remote_push(remote, refspec, &opts);
-                                        log_if_err(err);
-                                        return int(err);
-                                    }
-
-                                    return int(ok);
+                                    using pay := context.derived.(payload);
+                                    err := git.remote_push(remote, refspec, &opts);
+                                    log_if_err(err);
+                                    return int(err);
                                 }
 
-                                push_thread := thread.create(Push_Thread_Proc);
-                                thread.start(push_thread);
+                                c := context;
+                                c.derived = pay;
+                                context <- c {
+                                    push_thread := thread.create(Push_Thread_Proc);
+                                    thread.start(push_thread);
+                                }
                             }
                             imgui.same_line();
                         }
                     }
                 }
+
                 if imgui.button("Fetch" ) {
                     remote, ok := git.remote_lookup(repo, "origin");
                     defer git.free(remote);
@@ -1221,6 +1238,19 @@ repo_window :: proc(using state : ^State) {
         }
     }
 
+    if open_push_transfer {
+        imgui.open_popup("Pushing...##push_transfer");
+    }
+
+    if imgui.begin_popup_modal("Pushing...##push_transfer", nil, imgui.Window_Flags.AlwaysAutoResize) {
+        defer imgui.end_popup();
+        if(tpayload.current == tpayload.total) {
+            imgui.close_current_popup();
+        }
+
+        imgui.progress_bar(f32(tpayload.current)/f32(tpayload.total));
+    }
+
     if close_repo {
         //FIXME(Hoej): Runtime crash for some reason??
         /*for col in local_branches {
@@ -1238,8 +1268,19 @@ repo_window :: proc(using state : ^State) {
     }
 }
 
+TransferPayload :: struct {
+    current : uint, 
+    total : uint, 
+    bytes : uint
+}
+
+tpayload := TransferPayload{};
+
 push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uint, payload : rawptr) -> i32 {
-    fmt.println("%d/%d %dbytes", current, total, bytes);
+    tp := (^TransferPayload)(payload);
+    tp.current = uint(current); 
+    tp.total = uint(total); 
+    tp.bytes = bytes;
     return 0;
 }
 
