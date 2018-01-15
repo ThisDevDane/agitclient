@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 01:13:07 UTC+1
+ *  @Last Time: 15-01-2018 02:55:51 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -859,6 +859,76 @@ main_menu :: proc(using state : ^State) {
     }
 }
 
+log_window :: proc(using state : ^State) {
+    commit_count := 0;
+    if imgui.begin("Log", nil, imgui.Window_Flags.NoCollapse) {
+        defer imgui.end();
+        if imgui.begin_child("gitlog", imgui.Vec2{0, -25}) {
+            defer imgui.end_child();
+
+            clipper := imgui.ListClipper{items_count = i32(len(git_log.items))};
+            for imgui.list_clipper_step(&clipper) {
+                for i := clipper.display_start; i < clipper.display_end; i += 1 {
+                    item := git_log.items[i];
+                    imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d",
+                               item.commit.author.name,
+                               item.commit.author.email,
+                               item.time.day,
+                               item.time.month,
+                               item.time.year,
+                               item.time.hour,
+                               item.time.minute,
+                               item.time.second,
+                               item.commit.author.time_when.offset < 0 ? "" : "+",
+                               item.commit.author.time_when.offset/60);
+
+                    imgui.indent();
+                    imgui.selectable(item.commit.summary);
+                    if imgui.is_item_hovered() {
+                        imgui.begin_tooltip();
+                        imgui.text(item.commit.message);
+                        imgui.end_tooltip();
+                    }
+                    imgui.unindent();
+                    imgui.separator();
+                }
+            }
+        }
+
+        imgui.separator();
+        imgui.text_colored(imgui.Vec4{1, 1, 1, 0.2}, "Commits: %d", git_log.count); imgui.same_line();
+        if imgui.button("Update") {
+            clear(&git_log.items);
+            git_log.count = 0;
+            GIT_ITEROVER :: -31;
+            walker, err := git.revwalk_new(repo);
+            if !log_if_err(err) {
+                err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
+                log_if_err(err);
+            }
+
+            for {
+                id, err := git.revwalk_next(walker);
+                if err == GIT_ITEROVER {
+                    break;
+                }
+                commit_count += 1;
+                commit := get_commit(repo, id);
+                time := misc.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
+
+                item := Log_Item{
+                    commit,
+                    time,
+                };
+
+                append(&git_log.items, item);
+                git_log.count += 1;
+            }
+            git.free(walker);
+        }
+    }
+}
+
 repo_window :: proc(using state : ^State) {
     imgui.set_next_window_pos(imgui.Vec2{160, 18});
     imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
@@ -1135,70 +1205,7 @@ repo_window :: proc(using state : ^State) {
                         git.stash_pop(repo, 0, &opts);
                     }
                 }
-            }
-
-            commit_count := 0;
-            if imgui.begin("Log") {
-                defer imgui.end();
-                if imgui.begin_child("gitlog", imgui.Vec2{0, -25}) {
-                    defer imgui.end_child();
-                    for item in git_log.items {
-                        imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d",
-                                   item.commit.author.name,
-                                   item.commit.author.email,
-                                   item.time.day,
-                                   item.time.month,
-                                   item.time.year,
-                                   item.time.hour,
-                                   item.time.minute,
-                                   item.time.second,
-                                   item.commit.author.time_when.offset < 0 ? "" : "+",
-                                   item.commit.author.time_when.offset/60);
-
-                        imgui.indent();
-                        imgui.selectable(item.commit.summary);
-                        if imgui.is_item_hovered() {
-                            imgui.begin_tooltip();
-                            imgui.text(item.commit.message);
-                            imgui.end_tooltip();
-                        }
-                        imgui.unindent();
-                        imgui.separator();
-                    }
-                }
-
-                imgui.separator();
-                imgui.text_colored(imgui.Vec4{1, 1, 1, 0.2}, "Commits: %d", git_log.count); imgui.same_line();
-                if imgui.button("Update") {
-                    clear(&git_log.items);
-                    git_log.count = 0;
-                    GIT_ITEROVER :: -31;
-                    walker, err := git.revwalk_new(repo);
-                    if !log_if_err(err) {
-                        err = git.revwalk_push_ref(walker, git.reference_name(current_branch.ref));
-                        log_if_err(err);
-                    }
-
-                    for {
-                        id, err := git.revwalk_next(walker);
-                        if err == GIT_ITEROVER {
-                            break;
-                        }
-                        commit_count += 1;
-                        commit := get_commit(repo, id);
-                        time := misc.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
-
-                        item := Log_Item{
-                            commit,
-                            time,
-                        };
-
-                        append(&git_log.items, item);
-                        git_log.count += 1;
-                    }
-                    git.free(walker);
-                }
-            }
+            }  
         }
     }
 
@@ -1448,6 +1455,7 @@ main :: proc() {
 
         repo_window(&state);
         branch_window(&state);
+        log_window(&state);
 
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);
