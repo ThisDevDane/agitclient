@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 03:49:28 UTC+1
+ *  @Last Time: 15-01-2018 03:54:57 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -1243,7 +1243,8 @@ repo_window :: proc(using state : ^State) {
     if imgui.begin_popup_modal("Pushing...##push_transfer", nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
         sync.mutex_lock(&push_lock);
-        if(tpayload.current == tpayload.total) {
+        if(tpayload.done) {
+            tpayload = TransferPayload{};
             imgui.close_current_popup();
         }
         size := imgui.Vec2{0,0};
@@ -1271,7 +1272,8 @@ repo_window :: proc(using state : ^State) {
 TransferPayload :: struct {
     current : uint, 
     total : uint, 
-    bytes : uint
+    bytes : uint,
+    done := false,
 }
 
 tpayload := TransferPayload{};
@@ -1284,6 +1286,9 @@ push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uin
     tp.current = uint(current); 
     tp.total = uint(total); 
     tp.bytes = bytes;
+    if(current == total) {
+        tp.done = true;
+    }
     sync.mutex_unlock(&push_lock);
     return 0;
 }
