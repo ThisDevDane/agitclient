@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 14-01-2018 23:13:55 UTC+1
+ *  @Last Time: 15-01-2018 01:04:25 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -901,18 +901,38 @@ repo_window :: proc(using state : ^State) {
                         ahead, behind, _ := git.graph_ahead_behind(repo, bid, uid);
                         imgui.text("%d commits ahead upstream.", ahead);
                         imgui.text("%d commits behind upstream.", behind);
+
+                        if ahead > 0 && imgui.button("Push") {
+                            remote, _ := git.remote_lookup(repo, "origin");
+                            git.free(remote);
+                            remote_cb, _  := git.remote_init_callbacks();
+                            remote_cb.credentials = credentials_callback;
+                            ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
+                            if !log_if_err(ok) {
+                                refname := git.reference_name(current_branch.ref);
+                                opts, _ := git.push_init_options();
+                                opts.callbacks = remote_cb;
+                                opts.pb_parallelism = 0;
+
+                                refspec := []string{
+                                    fmt.aprintf("%s:%s", refname, refname),
+                                };
+
+                                err := git.remote_push(remote, refspec, &opts);
+                                log_if_err(err);
+                            }
+                        }
                     }
                 }
                 if imgui.button("Fetch" ) {
                     remote, ok := git.remote_lookup(repo, "origin");
+                    git.free(remote);
                     remote_cb, _  := git.remote_init_callbacks();
                     remote_cb.credentials = credentials_callback;
                     ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
                     if !log_if_err(ok) {
                         console.logf("Origin Connected: %t", cast(bool)git.remote_connected(remote));
                         fetch_opt, _ := git.fetch_init_options();
-                        
-                        fetch_cb, _  := git.remote_init_callbacks();
                         fetch_opt.callbacks = remote_cb;
 
                         ok = git.remote_fetch(remote, nil, &fetch_opt);
@@ -920,8 +940,6 @@ repo_window :: proc(using state : ^State) {
                             console.log("Fetch complete...");
                         }
                     }
-
-                    git.free(remote);
                 }
 
                 imgui.separator();
@@ -1220,7 +1238,9 @@ branch_window :: proc(using state : ^State) {
                 }
             }
         }
-
+        if repo == nil {
+            return;
+        }
 
         if open_create_modal {
             imgui.open_popup("Create Branch###create_branch_modal");
@@ -1236,9 +1256,36 @@ branch_window :: proc(using state : ^State) {
             if imgui.button("Create", imgui.Vec2{160, 0}) {
                 branch_name_str := cast(string)create_branch_name[..];
                 b := create_branch(repo, branch_name_str, current_branch.current_commit);
+                
+                if setup_remote_branch {
+                    remote, _ := git.remote_lookup(repo, "origin");
+                    defer git.free(remote);
+                    remote_cb, _  := git.remote_init_callbacks();
+                    remote_cb.credentials = credentials_callback;
+
+                    ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
+                    if !log_if_err(ok) {
+                        refname := git.reference_name(b.ref);
+                        opts, _ := git.push_init_options();
+                        opts.callbacks = remote_cb;
+                        opts.pb_parallelism = 0;
+
+                        refspec := []string{
+                            fmt.aprintf("%s:%s", refname, refname),
+                        };
+
+                        err := git.remote_push(remote, refspec, &opts);
+                        if !log_if_err(err) {
+                            git.branch_set_upstream(b.ref, fmt.aprintf("%s/%s", git.remote_name(remote), branch_name_str));
+                        }
+                    }
+                }
+                
                 if checkout_new_branch {
                     checkout_branch(repo, b);
                 }
+
+
                 update_branches = true;
                 create_branch_name = [1024]u8{};
                 imgui.close_current_popup();

@@ -6,7 +6,7 @@
  *  @Creation: 29-12-2017 16:05:30 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 30-12-2017 23:21:19 UTC+1
+ *  @Last Time: 15-01-2018 00:04:06 UTC+1
  *  
  *  @Description:
  *  
@@ -240,6 +240,39 @@ Fetch_Options :: struct {
     proxy_opts : Proxy_Options,
     /**
      * Extra headers for this fetch operation
+     */
+    custom_headers : Str_Array,
+}
+
+
+/*
+    Controls the behavior of a git_push object.
+*/
+Push_Options :: struct {
+    version : u32,
+
+    /*
+      If the transport being used to push to the remote requires the creation
+      of a pack file, this controls the number of worker threads used by
+      the packbuilder when creating that pack file to be sent to the remote.
+     
+      If set to 0, the packbuilder will auto-detect the number of threads
+      to create. The default value is 1.
+     */
+    pb_parallelism : u32,
+
+    /*
+      Callbacks to use for this push operation
+     */
+    callbacks : Remote_Callbacks,
+
+    /*
+     Proxy options to use, by default no proxy is used.
+    */
+    proxy_opts : Proxy_Options,
+
+    /*
+      Extra headers for this push operation
      */
     custom_headers : Str_Array,
 }
@@ -926,3 +959,5 @@ FETCH_OPTIONS_VERSION       :: 1;
 STASH_APPLY_OPTIONS_VERSION :: 1;
 STATUS_OPTIONS_VERSION      :: 1;
 CHECKOUT_OPTIONS_VERSION    :: 1;
+PUSH_OPTIONS_VERSION        :: 1;
+PROXY_OPTIONS_VERSION       :: 1;
