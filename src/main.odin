@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 04:54:32 UTC+1
+ *  @Last Time: 15-01-2018 05:00:26 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -979,50 +979,42 @@ repo_window :: proc(using state : ^State) {
 
                     if ahead > 0 {
                         if imgui.button("Push") {
-                            _payload :: struct {
-                                remote : ^git.Remote, 
-                                refspec : []string, 
-                                opts : git.Push_Options,
-                            }
+                            open_push_transfer = true;
+                            Push_Thread_Proc :: proc(thread : ^thread.Thread) -> int {
+                                remote, _ := git.remote_lookup(repo, "origin");
+                                remote_cb, _  := git.remote_init_callbacks();
+                                remote_cb.credentials = credentials_callback;
+                                ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
+                                if !log_if_err(ok) {
+                                    refname := git.reference_name(current_branch.ref);
+                                    opts, _ := git.push_init_options();
+                                    remote_cb.push_transfer_progress = push_transfer_progress;
+                                    remote_cb.payload = &tpayload;
+                                    opts.callbacks = remote_cb;
+                                    opts.pb_parallelism = 0;
 
-                            remote, _ := git.remote_lookup(repo, "origin");
-                            remote_cb, _  := git.remote_init_callbacks();
-                            remote_cb.credentials = credentials_callback;
-                            ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
-                            if !log_if_err(ok) {
-                                refname := git.reference_name(current_branch.ref);
-                                opts, _ := git.push_init_options();
-                                remote_cb.push_transfer_progress = push_transfer_progress;
-                                remote_cb.payload = &tpayload;
-                                open_push_transfer = true;
-                                opts.callbacks = remote_cb;
-                                opts.pb_parallelism = 0;
-
-                                refspec := []string{
-                                    fmt.aprintf("%s:%s", refname, refname),
-                                };
-
-                                pay := _payload {
-                                    remote,
-                                    refspec,
-                                    opts
-                                };
+                                    refspec := []string{
+                                        fmt.aprintf("%s:%s", refname, refname),
+                                    };
 
 
-                                Push_Thread_Proc :: proc(thread : ^thread.Thread) -> int {
-                                    using pay := thread.data.(_payload);
+
                                     err := git.remote_push(remote, refspec, &opts);
                                     log_if_err(err);
                                     git.free(remote);
                                     return int(err);
-                                }
 
-                                push_thread := thread.create(Push_Thread_Proc);
-                                push_thread.data = pay;
-                                thread.start(push_thread);
+                                } else {
+                                    return int(ok);
+                                }
                             }
-                            imgui.same_line();
+
+                            push_thread := thread.create(Push_Thread_Proc);
+                            thread.start(push_thread);
+
                         }
+
+                        imgui.same_line();
                     }
                 }
 
@@ -1254,16 +1246,6 @@ repo_window :: proc(using state : ^State) {
     }
 
     if close_repo {
-        //FIXME(Hoej): Runtime crash for some reason??
-        /*for col in local_branches {
-            free(col.branches);
-        }
-
-        for col in remote_branches {
-            free(col.branches);
-        }
-        free(local_branches);
-        free(remote_branches);*/
         git.free(repo);
         repo = nil;
         close_repo = false;
@@ -1283,7 +1265,7 @@ push_lock : sync.Mutex;
 push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uint, payload : rawptr) -> i32 {
     sync.mutex_lock(&push_lock);
     tp := (^TransferPayload)(payload);
-    console.logf("%d/%d %dbytes", current, total, bytes);
+    console.logf("Push Progress: %d/%d %d bytes", current, total, bytes);
     tp.current = uint(current); 
     tp.total = uint(total); 
     tp.bytes = bytes;
