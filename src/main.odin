@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 05:02:12 UTC+1
+ *  @Last Time: 15-01-2018 05:05:04 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -1156,56 +1156,57 @@ repo_window :: proc(using state : ^State) {
                     clear(&to_unstage);
 
                     imgui.separator();
+                    if len(status.staged) > 0 {
+                        imgui.text("Commit Message:");
+                        imgui.input_text          ("Summary", summary_buf[..]);
+                        imgui.input_text_multiline("Message", message_buf[..], imgui.Vec2{0, 100});
 
-                    imgui.text("Commit Message:");
-                    imgui.input_text          ("Summary", summary_buf[..]);
-                    imgui.input_text_multiline("Message", message_buf[..], imgui.Vec2{0, 100});
+                        if imgui.button("Commit") {
+                            // @note(bpunsky): do the commit!
+                            commit_msg := fmt.aprintf("%s\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
+                            defer free(commit_msg);
 
-                    if imgui.button("Commit") {
-                        // @note(bpunsky): do the commit!
-                        commit_msg := fmt.aprintf("%s\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
-                        defer free(commit_msg);
+                            committer, _ := git.signature_now(settings.name, settings.email);
+                            author       := committer;
 
-                        committer, _ := git.signature_now(settings.name, settings.email);
-                        author       := committer;
+                            // @note(bpunsky): copied from above, should probably be a switch to reload HEAD or something
+                            if ref, err := git.repository_head(repo); !log_if_err(err) {
+                                refname := git.reference_name(ref);
+                                oid, ok := git.reference_name_to_id(repo, refname);
+                                commit := get_commit(repo, oid);
 
-                        // @note(bpunsky): copied from above, should probably be a switch to reload HEAD or something
-                        if ref, err := git.repository_head(repo); !log_if_err(err) {
-                            refname := git.reference_name(ref);
-                            oid, ok := git.reference_name_to_id(repo, refname);
-                            commit := get_commit(repo, oid);
-
-                            if index, err := git.repository_index(repo); !log_if_err(err) {
-                                if tree_id, err := git.index_write_tree(index); !log_if_err(err) {
-                                    if tree, err := git.object_lookup(repo, tree_id, git.Obj_Type.Tree); !log_if_err(err) {
-                                        if id, err := git.commit_create(repo, "HEAD", &author, &committer, commit_msg,
-                                                                        cast(^git.Tree) tree, commit.git_commit); !log_if_err(err) {
-                                            // @note(bpunsky): copied again!
-                                            if ref, err := git.repository_head(repo); !log_if_err(err) {
-                                                bname, err := git.branch_name(ref);
-                                                refname := git.reference_name(ref);
-                                                oid, ok := git.reference_name_to_id(repo, refname);
-                                                commit := get_commit(repo, oid);
-                                                upstream, _ := git.branch_upstream(ref);
-                                                current_branch = Branch{
-                                                    ref,
-                                                    upstream,
-                                                    bname,
-                                                    git.Branch_Type.Local,
-                                                    commit,
-                                                };
+                                if index, err := git.repository_index(repo); !log_if_err(err) {
+                                    if tree_id, err := git.index_write_tree(index); !log_if_err(err) {
+                                        if tree, err := git.object_lookup(repo, tree_id, git.Obj_Type.Tree); !log_if_err(err) {
+                                            if id, err := git.commit_create(repo, "HEAD", &author, &committer, commit_msg,
+                                                                            cast(^git.Tree) tree, commit.git_commit); !log_if_err(err) {
+                                                // @note(bpunsky): copied again!
+                                                if ref, err := git.repository_head(repo); !log_if_err(err) {
+                                                    bname, err := git.branch_name(ref);
+                                                    refname := git.reference_name(ref);
+                                                    oid, ok := git.reference_name_to_id(repo, refname);
+                                                    commit := get_commit(repo, oid);
+                                                    upstream, _ := git.branch_upstream(ref);
+                                                    current_branch = Branch{
+                                                        ref,
+                                                        upstream,
+                                                        bname,
+                                                        git.Branch_Type.Local,
+                                                        commit,
+                                                    };
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        summary_buf = [512+1]u8{};
-                        message_buf = [4096+1]u8{};
+                            summary_buf = [512+1]u8{};
+                            message_buf = [4096+1]u8{};
+                        }
+                        imgui.same_line();
                     }
 
-                    imgui.same_line();
 
                     if imgui.button("Stash") {
                         // TODO(josh): Get the stashers real name and email
