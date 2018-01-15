@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 01:06:35 UTC+1
+ *  @Last Time: 15-01-2018 01:13:07 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -99,6 +99,10 @@ Settings :: struct {
     use_ssh_agent : bool,
 
     recent_repos  : [dynamic]string,
+
+    //Stuff for persistence over multiple runs
+    auto_checkout_new_branch : bool,
+    auto_setup_remote_branch : bool,
 }
 
 settings := init_settings();
@@ -571,8 +575,6 @@ State :: struct {
 
     commit_hash_buf      :  [1024]byte,
 
-    checkout_new_branch  := true,
-    setup_remote_branch  := true,
     create_branch_name   :  [1024]byte,
 
     close_repo           := false,
@@ -1253,14 +1255,14 @@ branch_window :: proc(using state : ^State) {
             defer imgui.end_popup();
             imgui.text("Branch name:"); imgui.same_line();
             imgui.input_text("", create_branch_name[..]);
-            imgui.checkbox("Checkout new branch?", &checkout_new_branch);
-            imgui.checkbox("Setup on remote?", &setup_remote_branch);
+            imgui.checkbox("Checkout new branch?", &settings.auto_checkout_new_branch);
+            imgui.checkbox("Setup on remote?", &settings.auto_setup_remote_branch);
             imgui.separator();
             if imgui.button("Create", imgui.Vec2{160, 0}) {
                 branch_name_str := cast(string)create_branch_name[..];
                 b := create_branch(repo, branch_name_str, current_branch.current_commit);
                 
-                if setup_remote_branch {
+                if settings.auto_setup_remote_branch {
                     remote, _ := git.remote_lookup(repo, "origin");
                     defer git.free(remote);
                     remote_cb, _  := git.remote_init_callbacks();
@@ -1284,7 +1286,7 @@ branch_window :: proc(using state : ^State) {
                     }
                 }
                 
-                if checkout_new_branch {
+                if settings.auto_checkout_new_branch {
                     checkout_branch(repo, b);
                 }
 
