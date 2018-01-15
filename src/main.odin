@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 02:55:51 UTC+1
+ *  @Last Time: 15-01-2018 03:07:10 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -16,6 +16,7 @@ import "core:fmt.odin";
 import "core:strings.odin";
 import "core:os.odin";
 import "core:mem.odin";
+import "core:thread.odin";
 
 import       "shared:libbrew/win/window.odin";
 import       "shared:libbrew/win/msg.odin";
@@ -976,24 +977,35 @@ repo_window :: proc(using state : ^State) {
 
                         if ahead > 0 {
                             if imgui.button("Push") {
-                                remote, _ := git.remote_lookup(repo, "origin");
-                                defer git.free(remote);
-                                remote_cb, _  := git.remote_init_callbacks();
-                                remote_cb.credentials = credentials_callback;
-                                ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
-                                if !log_if_err(ok) {
-                                    refname := git.reference_name(current_branch.ref);
-                                    opts, _ := git.push_init_options();
-                                    opts.callbacks = remote_cb;
-                                    opts.pb_parallelism = 0;
+                                Push_Thread_Proc :: proc(thread : ^thread.Thread) -> int {
+                                    remote, _ := git.remote_lookup(repo, "origin");
+                                    defer git.free(remote);
+                                    remote_cb, _  := git.remote_init_callbacks();
+                                    remote_cb.credentials = credentials_callback;
+                                    ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
+                                    if !log_if_err(ok) {
+                                        refname := git.reference_name(current_branch.ref);
+                                        opts, _ := git.push_init_options();
+                                        remote_cb.push_transfer_progress = push_transfer_progress;
+                                        opts.callbacks = remote_cb;
+                                        opts.pb_parallelism = 0;
 
-                                    refspec := []string{
-                                        fmt.aprintf("%s:%s", refname, refname),
-                                    };
+                                        refspec := []string{
+                                            fmt.aprintf("%s:%s", refname, refname),
+                                        };
 
-                                    err := git.remote_push(remote, refspec, &opts);
-                                    log_if_err(err);
+
+
+                                        err := git.remote_push(remote, refspec, &opts);
+                                        log_if_err(err);
+                                        return int(err);
+                                    }
+
+                                    return int(ok);
                                 }
+
+                                push_thread := thread.create(Push_Thread_Proc);
+                                thread.start(push_thread);
                             }
                             imgui.same_line();
                         }
@@ -1226,6 +1238,11 @@ repo_window :: proc(using state : ^State) {
     }
 }
 
+push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uint, payload : rawptr) -> i32 {
+    fmt.println("%d/%d %dbytes", current, total, bytes);
+    return 0;
+}
+
 branch_window :: proc(using state : ^State) {
     update_branches := false;
     open_create_modal := false;
@@ -1456,6 +1473,12 @@ main :: proc() {
         repo_window(&state);
         branch_window(&state);
         log_window(&state);
+
+        c := context;
+        c.derived = 12;
+        context <- c {
+
+        }
 
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);
