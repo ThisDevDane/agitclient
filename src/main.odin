@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 03:54:57 UTC+1
+ *  @Last Time: 15-01-2018 04:54:32 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -624,7 +624,7 @@ init :: proc(using state : ^State) {
     lib_ver_string = fmt.aprintf("libgit2 v%d.%d.%d",
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
 
-    status_refresh_timer = time_util.create_timer(1, true);
+    status_refresh_timer = time_util.create_timer(2.5, true);
 }
 
 begin_frame :: proc(using state : ^State) {
@@ -1249,6 +1249,7 @@ repo_window :: proc(using state : ^State) {
         }
         size := imgui.Vec2{0,0};
         imgui.progress_bar(f32(tpayload.current)/f32(tpayload.total), &size);
+        imgui.text("Sent: %d bytes", tpayload.bytes);
         sync.mutex_unlock(&push_lock);
     }
 
