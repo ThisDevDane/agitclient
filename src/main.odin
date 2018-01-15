@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 03:29:11 UTC+1
+ *  @Last Time: 15-01-2018 03:49:28 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -17,6 +17,7 @@ import "core:strings.odin";
 import "core:os.odin";
 import "core:mem.odin";
 import "core:thread.odin";
+import "core:sync.odin";
 
 import       "shared:libbrew/win/window.odin";
 import       "shared:libbrew/win/msg.odin";
@@ -978,14 +979,13 @@ repo_window :: proc(using state : ^State) {
 
                     if ahead > 0 {
                         if imgui.button("Push") {
-                            payload :: struct {
+                            _payload :: struct {
                                 remote : ^git.Remote, 
                                 refspec : []string, 
                                 opts : git.Push_Options,
                             }
 
                             remote, _ := git.remote_lookup(repo, "origin");
-                            defer git.free(remote);
                             remote_cb, _  := git.remote_init_callbacks();
                             remote_cb.credentials = credentials_callback;
                             ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
@@ -1002,7 +1002,7 @@ repo_window :: proc(using state : ^State) {
                                     fmt.aprintf("%s:%s", refname, refname),
                                 };
 
-                                pay := payload {
+                                pay := _payload {
                                     remote,
                                     refspec,
                                     opts
@@ -1010,18 +1010,16 @@ repo_window :: proc(using state : ^State) {
 
 
                                 Push_Thread_Proc :: proc(thread : ^thread.Thread) -> int {
-                                    using pay := context.derived.(payload);
+                                    using pay := thread.data.(_payload);
                                     err := git.remote_push(remote, refspec, &opts);
                                     log_if_err(err);
+                                    git.free(remote);
                                     return int(err);
                                 }
 
-                                c := context;
-                                c.derived = pay;
-                                context <- c {
-                                    push_thread := thread.create(Push_Thread_Proc);
-                                    thread.start(push_thread);
-                                }
+                                push_thread := thread.create(Push_Thread_Proc);
+                                push_thread.data = pay;
+                                thread.start(push_thread);
                             }
                             imgui.same_line();
                         }
@@ -1244,11 +1242,13 @@ repo_window :: proc(using state : ^State) {
 
     if imgui.begin_popup_modal("Pushing...##push_transfer", nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
+        sync.mutex_lock(&push_lock);
         if(tpayload.current == tpayload.total) {
             imgui.close_current_popup();
         }
-
-        imgui.progress_bar(f32(tpayload.current)/f32(tpayload.total));
+        size := imgui.Vec2{0,0};
+        imgui.progress_bar(f32(tpayload.current)/f32(tpayload.total), &size);
+        sync.mutex_unlock(&push_lock);
     }
 
     if close_repo {
@@ -1275,12 +1275,16 @@ TransferPayload :: struct {
 }
 
 tpayload := TransferPayload{};
+push_lock : sync.Mutex;
 
 push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uint, payload : rawptr) -> i32 {
+    sync.mutex_lock(&push_lock);
     tp := (^TransferPayload)(payload);
+    console.logf("%d/%d %dbytes", current, total, bytes);
     tp.current = uint(current); 
     tp.total = uint(total); 
     tp.bytes = bytes;
+    sync.mutex_unlock(&push_lock);
     return 0;
 }
 
@@ -1479,6 +1483,8 @@ main :: proc() {
     console.add_command("set_signature", set_signature);
     console.add_command("save_settings", save_settings_cmd);
     console.add_command("load_settings", load_settings_cmd);
+
+    sync.mutex_init(&push_lock);
 
     load_settings();
     save_settings();
