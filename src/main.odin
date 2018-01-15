@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 05:00:26 UTC+1
+ *  @Last Time: 15-01-2018 05:02:12 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -1002,6 +1002,7 @@ repo_window :: proc(using state : ^State) {
                                     err := git.remote_push(remote, refspec, &opts);
                                     log_if_err(err);
                                     git.free(remote);
+                                    tpayload.done = true;
                                     return int(err);
 
                                 } else {
@@ -1269,9 +1270,6 @@ push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uin
     tp.current = uint(current); 
     tp.total = uint(total); 
     tp.bytes = bytes;
-    if(current == total) {
-        tp.done = true;
-    }
     sync.mutex_unlock(&push_lock);
     return 0;
 }
