@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 02-01-2018 21:10:05 UTC+1
+ *  @Last Time: 18-01-2018 16:46:07 UTC+1
  *
  *  @Description:
  *
@@ -73,6 +73,9 @@ remote_disconnect           :: inline proc(remote : ^Remote)                    
 remote_init_callbacks       :: inline proc() -> (Remote_Callbacks, Error_Code)                                                                                                                 { return _remote_init_callbacks(); }
 remote_connected            :: inline proc(remote : ^Remote) -> Error_Code                                                                                                                     { return git_remote_connected(remote); }
 remote_fetch                :: inline proc(remote : ^Remote, refspecs : []string, opts : ^Fetch_Options, reflog_message := "fetch") -> Error_Code                                              { return _remote_fetch(remote, refspecs, opts, reflog_message); }
+remote_push                 :: inline proc(remote : ^Remote, refspecs : []string, opts : ^Push_Options) -> Error_Code                                                                          { return _remote_push(remote, refspecs, opts); }
+remote_update_tips          :: inline proc(remote : ^Remote, callbacks : ^Remote_Callbacks, update_fetchhead : bool, download_tags : Remote_Autotag_Option_Flags, reflog_message := "fetch") -> Error_Code { return _remote_update_tips(remote, callbacks, update_fetchhead, download_tags, reflog_message); }
+remote_name                 :: inline proc(remote : ^Remote) -> string                                                                                                                         { return _remote_name(remote); }
 
 ////////////////////////////////////////////
 //// git_status
@@ -110,6 +113,8 @@ branch_iterator_new         :: inline proc(repo : ^Repository, list_flags : Bran
 branch_next                 :: inline proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Type, Error_Code)                                                                                   { return _branch_next(iter); }
 branch_delete               :: inline proc(branch : ^Reference) -> Error_Code                                                                                                                  { return git_branch_delete(branch); }
 branch_is_checked_out       :: inline proc(branch : ^Reference) -> bool                                                                                                                        { return git_branch_is_checked_out(branch) };
+branch_upstream             :: inline proc(branch : ^Reference) -> (^Reference, Error_Code)                                                                                                    { return _branch_upstream(branch); }
+branch_set_upstream         :: inline proc(branch : ^Reference, upstream_name : string) -> Error_Code                                                                                          { return _branch_set_upstream(branch, upstream_name); }
 
 ////////////////////////////////////////////
 //// git_checkout
@@ -187,6 +192,14 @@ fetch_init_options          :: inline proc(version : u32 = FETCH_OPTIONS_VERSION
 stash_apply_init_options    :: inline proc(version : u32 = STASH_APPLY_OPTIONS_VERSION) -> (Stash_Apply_Options, i32)                                                                          { return _stash_apply_init_options(version); }
 status_init_options         :: inline proc(version : u32 = STATUS_OPTIONS_VERSION)      -> (Status_Options, i32)                                                                               { return _status_init_options(version); }
 checkout_init_options       :: inline proc(version : u32 = CHECKOUT_OPTIONS_VERSION)    -> (Checkout_Options, i32)                                                                             { return _checkout_init_options(version); }
+push_init_options           :: inline proc(version : u32 = PUSH_OPTIONS_VERSION)        -> (Push_Options, i32)                                                                                 { return _push_init_options(version); }
+proxy_init_options          :: inline proc(version : u32 = PROXY_OPTIONS_VERSION)       -> (Proxy_Options, i32)                                                                                { return _proxy_init_options(version); }
+
+////////////////////////////////////////////
+//// git_graph_*
+////
+graph_ahead_behind          :: inline proc(repo : ^Repository, local : Oid, upstream : Oid) -> (ahead : uint, behind : uint, err : Error_Code)                                                 { return _graph_ahead_behind(repo, local, upstream); }
+
 ////////////////////////////////////////////
 //// git_err
 ////
@@ -240,6 +253,13 @@ _slice_to_str_array :: proc(slice : []string) -> Str_Array {
             cslice[i] = &(slice[i])[0];
       }
       return Str_Array{&cslice[0], uint(len(cslice))};
+}
+
+_free_str_array :: proc(stra : ^Str_Array) {
+    raw_strings := mem.slice_ptr(stra.strings, int(stra.count));
+    for _, i in raw_strings {
+        _global.free(raw_strings[i]);
+    }
 }
 
 ///////////////////////// Odin Wrappers /////////////////////////
@@ -326,13 +346,41 @@ _remote_init_callbacks :: proc() -> (Remote_Callbacks, Error_Code) {
 }
 
 _remote_fetch :: proc(remote : ^Remote, refspecs : []string, opts : ^Fetch_Options, reflog_message : string = nil) -> Error_Code {
+    sa := Str_Array{};
     if refspecs != nil && len(refspecs) > 0 {
-        //NOTIMPLEMENTED
-        panic("NOTIMPLEMENTED(Hoej): We gotta convert a []string to a Str_Array");
+        sa = _slice_to_str_array(refspecs);
     }
-    return git_remote_fetch(remote, nil, opts, _make_misc_string(Misc_Buf.One, reflog_message));
+    err := git_remote_fetch(remote, &sa, opts, _make_misc_string(Misc_Buf.One, reflog_message));
+    _free_str_array(&sa);
+    return err;
 }
 
+_remote_push :: proc(remote : ^Remote, refspecs : []string, opts : ^Push_Options) -> Error_Code {
+    sa := Str_Array{};
+    if refspecs != nil && len(refspecs) > 0 {
+        sa = _slice_to_str_array(refspecs);
+    }
+    err := git_remote_push(remote, &sa, opts);
+    _free_str_array(&sa);
+    return err;
+}
+
+_remote_update_tips :: proc(remote : ^Remote, 
+                            callbacks : ^Remote_Callbacks, 
+                            update_fetchhead : bool, 
+                            download_tags : Remote_Autotag_Option_Flags, 
+                            reflog_message : string) -> Error_Code {
+    return git_remote_update_tips(remote, 
+                               callbacks, 
+                               update_fetchhead, 
+                               download_tags, 
+                               _make_misc_string(Misc_Buf.One, reflog_message));
+}
+
+_remote_name :: proc(remote : ^Remote) -> string {
+    c_str := git_remote_name(remote);
+    return strings.to_odin_string(c_str);
+}
 
 _index_new :: proc() -> (^Index, Error_Code) {
     out : ^Index;
@@ -475,6 +523,16 @@ _branch_create :: proc(repo : ^Repository, branch_name : string, target : ^Commi
     return ref, err;
 }
 
+_branch_upstream :: proc(branch : ^Reference) -> (^Reference, Error_Code) {
+    ref : ^Reference = nil;
+    err := git_branch_upstream(&ref, branch);
+    return ref, err;
+}
+
+_branch_set_upstream :: proc(branch : ^Reference, upstream_name : string) -> Error_Code {
+    return git_branch_set_upstream(branch, _make_misc_string(Misc_Buf.One, upstream_name));
+}
+
 _revparse_single :: proc(repo : ^Repository, spec : string) -> (^Object, Error_Code) {
     obj : ^Object = nil;
     err := git_revparse_single(&obj, repo, _make_misc_string(Misc_Buf.One, spec));
@@ -559,6 +617,24 @@ _checkout_init_options :: proc(version : u32) -> (Checkout_Options, i32) {
       return result, err;
 }
 
+_push_init_options :: proc(version : u32) -> (Push_Options, i32) {
+      result := Push_Options{};
+      err := git_push_init_options(&result, version);
+      return result, err;
+}
+
+_proxy_init_options :: proc(version : u32) -> (Proxy_Options, i32) {
+      result := Proxy_Options{};
+      err := git_proxy_init_options(&result, version);
+      return result, err;
+}
+
+_graph_ahead_behind :: proc(repo : ^Repository, local : Oid, upstream : Oid) -> (ahead : uint, behind : uint, err : Error_Code) {
+    err = git_graph_ahead_behind(&ahead, &behind, repo, &local, &upstream);
+    return;
+}
+
+
 @(default_calling_convention="stdcall")
 foreign libgit {
     giterr_last :: proc() -> ^Git_Error ---;
@@ -621,6 +697,9 @@ foreign libgit {
     git_remote_connected            :: proc(remote : ^Remote) -> Error_Code ---;
     git_remote_fetch                :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> Error_Code ---;
     git_remote_free                 :: proc(remote : ^Remote) ---;
+    git_remote_push                 :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Push_Options) -> Error_Code ---;
+    git_remote_update_tips          :: proc(remote : ^Remote, callbacks : ^Remote_Callbacks, update_fetchhead : bool, download_tags : Remote_Autotag_Option_Flags, reflog_message : ^byte) -> Error_Code ---;
+    git_remote_name                 :: proc(remote : ^Remote) -> ^byte ---;
 
     //Index
     git_index_new                   :: proc(out : ^^Index) -> Error_Code ---;
@@ -663,6 +742,8 @@ foreign libgit {
     git_branch_next                 :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> Error_Code ---;
     git_branch_delete               :: proc(branch : ^Reference) -> Error_Code ---;
     git_branch_is_checked_out       :: proc(branch : ^Reference) -> bool ---;
+    git_branch_upstream             :: proc(out : ^^Reference, branch : ^Reference) -> Error_Code ---;
+    git_branch_set_upstream         :: proc(branch : ^Reference, upstream_name : ^byte) -> Error_Code ---;
 
     //Revparse
     git_revparse_single             :: proc(out : ^^Object, repo : ^Repository, spec : ^byte) -> Error_Code ---;
@@ -689,4 +770,9 @@ foreign libgit {
     git_stash_apply_init_options    :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
     git_status_init_options         :: proc(opts : ^Status_Options,      version : u32) -> i32 ---;
     git_checkout_init_options       :: proc(opts : ^Checkout_Options,    version : u32) -> i32 ---;
+    git_push_init_options           :: proc(opts : ^Push_Options,        version : u32) -> i32 ---;
+    git_proxy_init_options          :: proc(opts : ^Proxy_Options,       version : u32) -> i32 ---;
+
+    //Graph
+    git_graph_ahead_behind          :: proc(ahead : ^uint, behind : ^uint, repo : ^Repository, local : ^Oid, upstream : ^Oid) -> Error_Code ---;
 }
