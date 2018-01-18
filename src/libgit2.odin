@@ -5,33 +5,37 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-01-2018 16:46:07 UTC+1
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 07-01-2018 18:45:38 UTC-5
  *
  *  @Description:
  *
  */
 
-foreign import libgit "../external/libgit2.lib";
-export "libgit2_types.odin";
+export "libgit2_foreign.odin";
+
 import "core:fmt.odin";
 import "core:mem.odin";
 import "core:strings.odin";
 
 ////////////////////////////////////////////
-//// git_*_free
+//// git.*_free
 ////
-free :: proc[git_commit_free, 
-             git_repository_free, 
-             git_index_free, 
-             git_remote_free, 
-             git_revwalk_free, 
-             _signature_free, 
-             git_signature_free,
-             git_reference_free,
-             git_status_list_free,
-             git_branch_iterator_free,
-             git_object_free];
+free :: proc[
+    git_commit_free,
+    git_repository_free,
+    git_index_free,
+    git_remote_free,
+    git_revwalk_free,
+    _signature_free,
+    git_signature_free,
+    git_reference_free,
+    git_status_list_free,
+    git_branch_iterator_free,
+    git_object_free,
+    git_diff_free,
+    git_patch_free,
+];
 
 ////////////////////////////////////////////
 //// git_libgit2
@@ -163,6 +167,19 @@ index_write                 :: inline proc(index : ^Index) -> Error_Code        
 index_write_tree            :: inline proc(index : ^Index) -> (Oid, Error_Code)                                                                                                                { return _index_write_tree(index); }
 
 ////////////////////////////////////////////
+//// git_diff
+////
+diff_index_to_workdir           :: inline proc(repo : ^Repository, index : ^Index, opts : ^Diff_Options) -> (^Diff, Error_Code)                                                                { return _diff_index_to_workdir(repo, index, opts); }
+diff_tree_to_index              :: inline proc(repo : ^Repository, old_tree : ^Tree, index : ^Index, opts : ^Diff_Options) -> (^Diff, Error_Code)                                              { return _diff_tree_to_index(repo, old_tree, index, opts); }
+diff_tree_to_tree               :: inline proc(repo : ^Repository, old_tree, new_tree : ^Tree, opts : ^Diff_Options) -> (^Diff, Error_Code)                                                    { return _diff_tree_to_tree(repo, old_tree, new_tree, opts); }
+diff_tree_to_workdir_with_index :: inline proc(repo : ^Repository, old_tree : ^Tree, opts : ^Diff_Options) -> (^Diff, Error_Code)                                                              { return _diff_tree_to_workdir_with_index(repo, old_tree, opts); }
+
+////////////////////////////////////////////
+//// git_patch
+////
+patch_from_diff             :: inline proc(diff : ^Diff, idx : uint) -> (^Patch, i32)                                                                                                          { return _patch_from_diff(diff, idx); }
+
+////////////////////////////////////////////
 //// git_cred
 ////
 cred_userpass_plaintext_new :: inline proc(username : string, password : string) -> (^Cred, Error_Code)                                                                                        { return _cred_userpass_plaintext_new(username, password); }
@@ -186,7 +203,7 @@ object_lookup               :: inline proc(repo : ^Repository, id : Oid, otype :
 object_type                 :: inline proc(obj : ^Object) -> Obj_Type                                                                                                                          { return git_object_type(obj); }
 
 ////////////////////////////////////////////
-//// git_*_init_options
+//// git.*_init_options
 ////
 fetch_init_options          :: inline proc(version : u32 = FETCH_OPTIONS_VERSION)       -> (Fetch_Options, i32)                                                                                { return _fetch_init_options(version); }
 stash_apply_init_options    :: inline proc(version : u32 = STASH_APPLY_OPTIONS_VERSION) -> (Stash_Apply_Options, i32)                                                                          { return _stash_apply_init_options(version); }
@@ -203,7 +220,7 @@ graph_ahead_behind          :: inline proc(repo : ^Repository, local : Oid, upst
 ////////////////////////////////////////////
 //// git_err
 ////
-err_last        :: proc() -> Error {
+err_last :: proc() -> Error {
     err := giterr_last();
     if err == nil {
         return Error{"N/A", ErrorType.Unknown};
@@ -617,6 +634,11 @@ _checkout_init_options :: proc(version : u32) -> (Checkout_Options, i32) {
       return result, err;
 }
 
+_diff_index_to_workdir :: inline proc(repo : ^Repository, index : ^Index, opts : ^Diff_Options) -> (^Diff, Error_Code) {
+    diff : ^Diff;
+    err := git_diff_index_to_workdir(&diff, repo, index, opts);
+    return diff, err;
+}
 _push_init_options :: proc(version : u32) -> (Push_Options, i32) {
       result := Push_Options{};
       err := git_push_init_options(&result, version);
@@ -635,10 +657,11 @@ _graph_ahead_behind :: proc(repo : ^Repository, local : Oid, upstream : Oid) -> 
 }
 
 
-@(default_calling_convention="stdcall")
-foreign libgit {
-    giterr_last :: proc() -> ^Git_Error ---;
-
+_diff_tree_to_index :: inline proc(repo : ^Repository, old_tree : ^Tree, index : ^Index, opts : ^Diff_Options) -> (^Diff, Error_Code) {
+    diff : ^Diff;
+    err := git_diff_tree_to_index(&diff, repo, old_tree, index, opts);
+    return diff, err;
+}
     //libgit2    
     git_libgit2_init                :: proc() -> Error_Code ---;
     git_libgit2_shutdown            :: proc() -> Error_Code ---;
@@ -775,4 +798,20 @@ foreign libgit {
 
     //Graph
     git_graph_ahead_behind          :: proc(ahead : ^uint, behind : ^uint, repo : ^Repository, local : ^Oid, upstream : ^Oid) -> Error_Code ---;
+_diff_tree_to_tree :: inline proc(repo : ^Repository, old_tree, new_tree : ^Tree, opts : ^Diff_Options) -> (^Diff, Error_Code) {
+    diff : ^Diff;
+    err := git_diff_tree_to_tree(&diff, repo, old_tree, new_tree, opts);
+    return diff, err;
 }
+
+_diff_tree_to_workdir_with_index :: inline proc(repo : ^Repository, old_tree : ^Tree, opts : ^Diff_Options) -> (^Diff, Error_Code) {
+    diff : ^Diff;
+    err := git_diff_tree_to_workdir_with_index(&diff, repo, old_tree, opts);
+    return diff, err;
+}
+
+_patch_from_diff :: inline proc(diff : ^Diff, idx : uint) -> (^Patch, i32) {
+    out : ^Patch;
+    err := git_patch_from_diff(&out, diff, idx);
+    return out, err;
+};

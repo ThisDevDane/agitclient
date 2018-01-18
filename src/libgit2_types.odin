@@ -5,9 +5,9 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 29-12-2017 16:05:30 UTC+1
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 00:04:06 UTC+1
- *  
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 07-01-2018 18:41:09 UTC-5
+ *
  *  @Description:
  *  
  */
@@ -26,6 +26,8 @@ Object           :: struct {};
 Revwalk          :: struct {};
 Branch_Iterator  :: struct {};
 Status_List      :: struct {};
+Diff             :: struct {};
+Patch            :: struct {};
 
 Oid :: struct {
     id : [GIT_OID_RAWSZ]byte, // raw binary formatted id
@@ -411,6 +413,73 @@ Proxy_Options :: struct {
     payload : rawptr,
 }
 
+Submodule_Ignore :: enum i32 {
+    Unspecified  = -1, /**< use the submodule's configuration */
+
+    None         = 1,  /**< any change or untracked == dirty */
+    Untracked    = 2,  /**< dirty if tracked files change */
+    Dirty        = 3,  /**< only dirty if HEAD moved */
+    All          = 4,  /**< never dirty */
+}
+
+Diff_Format :: enum u32 {
+    Patch        = 1, /**< full git diff */
+    Patch_Header = 2, /**< just the file headers of patch */
+    Raw          = 3, /**< like git diff --raw */
+    Name_Only    = 4, /**< like git diff --name-only */
+    Name_Status  = 5, /**< like git diff --name-status */
+}
+
+Diff_Notify_Cb   :: #type proc(diff_so_far : ^Diff, delta_to_add : ^Diff_Delta, matched_pathspec : ^byte, payload : rawptr) -> i32;
+Diff_Progress_Cb :: #type proc(diff_so_far : ^Diff, old_path : ^byte, new_path : ^byte, payload : rawptr) -> i32;
+Diff_Line_Cb     :: #type proc(delta : ^Diff_Delta, hunk : ^Diff_Hunk, line : ^Diff_Line, payload : rawptr) -> i32;
+Diff_File_Cb     :: #type proc(delta : ^Diff_Delta, progress : f32, payload : rawptr) -> i32;
+Diff_Binary_Cb   :: #type proc(delta : ^Diff_Delta, binary : ^Diff_Binary, payload : rawptr) -> i32;
+Diff_Hunk_Cb     :: #type proc(delta : ^Diff_Delta, hunk : ^Diff_Hunk, payload : rawptr) -> i32;
+
+GIT_DIFF_HUNK_HEADER_SIZE :: 128;
+
+Diff_Hunk :: struct {
+    old_start:  i32,     /**< Starting line number in old_file */
+    old_lines:  i32,     /**< Number of lines in old_file */
+    new_start:  i32,     /**< Starting line number in new_file */
+    new_lines:  i32,     /**< Number of lines in new_file */
+    header_len: uint,    /**< Number of bytes in header text */
+    header:     [GIT_DIFF_HUNK_HEADER_SIZE]byte,   /**< Header text, NUL-byte terminated */
+}
+
+Diff_Line :: struct {
+    origin:         byte,  /**< A git_diff_line_t value */
+    old_lineno:     i32,   /**< Line number in old file or -1 for added line */
+    new_lineno:     i32,   /**< Line number in new file or -1 for deleted line */
+    num_lines:      i32,   /**< Number of newline characters in content */
+    content_len:    uint,  /**< Number of bytes of data */
+    content_offset: i64,   /**< Offset in the original file to the content */ // git_off_t
+    content:        ^byte, /**< Pointer to diff text, not NUL-byte terminated */
+}
+
+Diff_Options :: struct {
+    version: u32,      /**< version for the struct */
+    flags:   u32,      /**< defaults to GIT_DIFF_NORMAL */
+
+    /* options controlling which files are in the diff */
+
+    ignore_submodules: Submodule_Ignore, /**< submodule ignore rule */
+    pathspec:          Str_Array,        /**< defaults to include all paths */
+    notify_cb:         Diff_Notify_Cb,
+    progress_cb:       Diff_Progress_Cb,
+    payload:           rawptr,
+
+    /* options controlling how to diff text is generated */
+
+    context_lines:   u32,   /**< defaults to 3 */
+    interhunk_lines: u32,   /**< defaults to 0 */
+    id_abbrev:       u16,   /**< default 'core.abbrev' or 7 if unset */
+    max_size:        i64,   /**< defaults to 512MB */
+    old_prefix:      ^byte, /**< defaults to "a" */
+    new_prefix:      ^byte, /**< defaults to "b" */
+}
+
 Diff_File :: struct {
     id        : Oid,
     path      : ^byte,
@@ -418,6 +487,44 @@ Diff_File :: struct {
     flags     : Diff_Flags,
     mode      : u16,
     id_abbrev : u16,
+}
+
+Diff_Find_Options :: struct {
+    version                       : u32,
+    flags                         : u32,
+    rename_threshold              : u16,
+    rename_from_rewrite_threshold : u16,
+    copy_threshold                : u16,
+    break_rewrite_threshold       : u16,
+    rename_limit                  : uint,
+    metric                        : ^Diff_Similarity_Metric,
+}
+
+Diff_Similarity_Metric :: struct {
+    file_signature    : #type proc(out : ^rawptr, file : ^Diff_File, fullpath : ^u8, payload : rawptr) -> i32,
+    buffer_signature  : #type proc(out : ^rawptr, file : ^Diff_File, buf : ^u8, buflen : uint, payload : rawptr) -> i32,
+    free_signature    : #type proc(sig : rawptr, payload : rawptr),
+    similarity        : #type proc(score : ^i32, siga, sigb : rawptr, payload : rawptr),
+    payload           : rawptr,
+}
+
+Diff_Binary_T :: enum i32 {
+    None,
+    Literal,
+    Delta,
+}
+
+Diff_Binary_File :: struct {
+    typ         : Diff_Binary_T,
+    data        : ^u8,
+    datalen     : uint,
+    inflatedlen : uint,
+}
+
+Diff_Binary :: struct {
+    contains_data : u32,
+    old_file      : Diff_Binary_File,
+    new_file      : Diff_Binary_File,
 }
 
 Status_Options :: struct {
