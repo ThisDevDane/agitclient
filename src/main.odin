@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 05:05:04 UTC+1
+ *  @Last Time: 18-01-2018 22:12:01 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -29,6 +29,7 @@ import       "shared:libbrew/string_util.odin";
 import       "shared:libbrew/time_util.odin";
 import imgui "shared:libbrew/brew_imgui.odin";
 import       "shared:libbrew/gl.odin";
+import       "shared:libbrew/leakcheck.odin";
 
 import git     "libgit2.odin";
 import console "console.odin";
@@ -872,27 +873,25 @@ log_window :: proc(using state : ^State) {
             for imgui.list_clipper_step(&clipper) {
                 for i := clipper.display_start; i < clipper.display_end; i += 1 {
                     item := git_log.items[i];
-                    imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%v <%v> | %d/%d/%d %2d:%2d:%2d UTC%s%d",
-                               item.commit.author.name,
-                               item.commit.author.email,
-                               item.time.day,
-                               item.time.month,
-                               item.time.year,
-                               item.time.hour,
-                               item.time.minute,
-                               item.time.second,
-                               item.commit.author.time_when.offset < 0 ? "" : "+",
-                               item.commit.author.time_when.offset/60);
-
-                    imgui.indent();
                     imgui.selectable(item.commit.summary);
                     if imgui.is_item_hovered() {
                         imgui.begin_tooltip();
+                        imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, 
+                                           "Time: %d/%d/%d %d:%d:%d UTC%s%d",
+                                           item.time.day,
+                                           item.time.month,
+                                           item.time.year,
+                                           item.time.hour,
+                                           item.time.minute,
+                                           item.time.second,
+                                           item.commit.author.time_when.offset < 0 ? "" : "+",
+                                           item.commit.author.time_when.offset/60);
                         imgui.text(item.commit.message);
                         imgui.end_tooltip();
                     }
-                    imgui.unindent();
-                    imgui.separator();
+                    imgui.same_line();
+                    imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%s <%s>", item.commit.author.name, 
+                                                                                      item.commit.author.email);
                 }
             }
         }
@@ -1464,6 +1463,10 @@ branch_window :: proc(using state : ^State) {
 }
 
 main :: proc() {
+    load_settings();
+    save_settings();
+    defer save_settings();
+
     console.log("Program start...");
     console.add_default_commands();
     console.add_command("set_user", set_user);
@@ -1472,10 +1475,6 @@ main :: proc() {
     console.add_command("load_settings", load_settings_cmd);
 
     sync.mutex_init(&push_lock);
-
-    load_settings();
-    save_settings();
-    defer save_settings();
 
     state := State{};
     init(&state);
@@ -1507,12 +1506,6 @@ main :: proc() {
         repo_window(&state);
         branch_window(&state);
         log_window(&state);
-
-        c := context;
-        c.derived = 12;
-        context <- c {
-
-        }
 
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);
