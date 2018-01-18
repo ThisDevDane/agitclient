@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://cdn.rawgit.com/ThisDrunkDane/agitclient/86e7f122/logo.png" alt="AGC logo" height=250px/>
+    <img src="https://cdn.rawgit.com/ThisDrunkDane/agitclient/a113ecb5/logo.png" alt="AGC logo" height=250px/>
     <br/>
     A Git Client that doesn't suck (hopefully) 
     <br/>
