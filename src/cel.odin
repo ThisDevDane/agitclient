@@ -219,9 +219,9 @@ unmarshal :: proc(value: Value, data: any) -> bool {
         if _, ok := type_info.variant.(Type_Info_Integer); !ok do return false; // @error
         
         switch type_info.size {
-        case 16:
+       /* case 16:
             tmp := i128(v);
-            mem.copy(data.data, &tmp, type_info.size);
+            mem.copy(data.data, &tmp, type_info.size);*/
 
         case 8:
             tmp := i64(v);
@@ -307,7 +307,7 @@ marshal :: proc(data: any) -> Value {
         i: i64;
 
         switch type_info.size {
-        case 16: i = cast(i64) (cast(^i128) data.data)^;
+        /*case 16: i = cast(i64) (cast(^i128) data.data)^;*/
         case 8:  i = cast(i64) (cast(^i64)  data.data)^;
         case 4:  i = cast(i64) (cast(^i32)  data.data)^;
         case 2:  i = cast(i64) (cast(^i16)  data.data)^;

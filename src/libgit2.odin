@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-01-2018 00:53:09 UTC+1
+ *  @Last Time: 18-01-2018 16:46:07 UTC+1
  *
  *  @Description:
  *
@@ -630,10 +630,8 @@ _proxy_init_options :: proc(version : u32) -> (Proxy_Options, i32) {
 }
 
 _graph_ahead_behind :: proc(repo : ^Repository, local : Oid, upstream : Oid) -> (ahead : uint, behind : uint, err : Error_Code) {
-    ahead : uint = 0;
-    behind : uint = 0;
-    err := git_graph_ahead_behind(&ahead, &behind, repo, &local, &upstream);
-    return ahead, behind, err;
+    err = git_graph_ahead_behind(&ahead, &behind, repo, &local, &upstream);
+    return;
 }
 
 
