@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 18-01-2018 22:12:01 UTC+1
+ *  @Last By:   Brendan Punsky
+ *  @Last Time: 18-01-2018 21:09:35 UTC-5
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -37,6 +37,7 @@ using import _ "debug.odin";
 import         "cel.odin";
 import pat     "path.odin";
 import         "remove.odin";
+import         "color.odin";
 
 Log_Item :: struct {
     commit : Commit,
@@ -189,8 +190,7 @@ set_signature :: proc(args : []string) {
     }
 }
 
-credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte,
-                              username_from_url : ^byte, allowed_types : git.Cred_Type, payload : rawptr) -> i32 {
+credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte, username_from_url : ^byte, allowed_types : git.Cred_Type, payload : rawptr) -> i32 {
     ERR :: -1;
     FAILED :: 1;
     SUCCESS :: 0;
@@ -876,7 +876,7 @@ log_window :: proc(using state : ^State) {
                     imgui.selectable(item.commit.summary);
                     if imgui.is_item_hovered() {
                         imgui.begin_tooltip();
-                        imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, 
+                        imgui.text_colored(color.lightgray, 
                                            "Time: %d/%d/%d %d:%d:%d UTC%s%d",
                                            item.time.day,
                                            item.time.month,
@@ -890,14 +890,14 @@ log_window :: proc(using state : ^State) {
                         imgui.end_tooltip();
                     }
                     imgui.same_line();
-                    imgui.text_colored(imgui.Vec4{0.60, 0.60, 0.60, 1.00}, "%s <%s>", item.commit.author.name, 
-                                                                                      item.commit.author.email);
+                    imgui.text_colored(color.lightgray, "%s <%s>", item.commit.author.name, 
+                                                                   item.commit.author.email);
                 }
             }
         }
 
         imgui.separator();
-        imgui.text_colored(imgui.Vec4{1, 1, 1, 0.2}, "Commits: %d", git_log.count); imgui.same_line();
+        imgui.text_colored(color.alpha(color.white, 0.2), "Commits: %d", git_log.count); imgui.same_line();
         if imgui.button("Update") {
             clear(&git_log.items);
             git_log.count = 0;
@@ -1058,7 +1058,7 @@ repo_window :: proc(using state : ^State) {
                     imgui.text("Staged files:");
                     if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
                         imgui.columns(count = 3, border = false);
-                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
+                        imgui.push_style_color(imgui.Color.Text, color.green);
 
                         for entry, i in status.staged {
                             imgui.set_column_width(-1, 60);
@@ -1080,7 +1080,7 @@ repo_window :: proc(using state : ^State) {
                     imgui.text("Unstaged files:");
                     if imgui.begin_child("Unstaged", imgui.Vec2{0, 100}) {
                         imgui.columns(count = 3, border = false);
-                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+                        imgui.push_style_color(imgui.Color.Text, color.crimson);
 
                         for entry, i in status.unstaged {
                             imgui.set_column_width(-1, 60);
@@ -1102,7 +1102,7 @@ repo_window :: proc(using state : ^State) {
                     imgui.text("Untracked files:");
                     if imgui.begin_child("Untracked", imgui.Vec2{0, 100}) {
                         imgui.columns(count = 3, border = false);
-                        imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+                        imgui.push_style_color(imgui.Color.Text, color.crimson);
 
                         for entry, i in status.untracked {
                             imgui.set_column_width(-1, 60);
@@ -1405,7 +1405,7 @@ branch_window :: proc(using state : ^State) {
         imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
         if imgui.tree_node("Local Branches:") {
             defer imgui.tree_pop();
-            imgui.push_style_color(imgui.Color.Text, imgui.Vec4{0, 1, 0, 1});
+            imgui.push_style_color(imgui.Color.Text, color.green);
             for col in local_branches {
                 if col.name == "" {
                     print_branches(repo, col.branches[..], &update_branches, &current_branch);
@@ -1425,7 +1425,7 @@ branch_window :: proc(using state : ^State) {
         imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
         if imgui.tree_node("Remote Branches:") {
             defer imgui.tree_pop();
-            imgui.push_style_color(imgui.Color.Text, imgui.Vec4{1, 0, 0, 1});
+            imgui.push_style_color(imgui.Color.Text, color.crimson);
             for col in remote_branches[..] {
                 if col.name == "origin" {
                     imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
