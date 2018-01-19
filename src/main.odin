@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 00:59:20
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 18-01-2018 21:09:35 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 19-01-2018 17:11:56 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -875,6 +875,7 @@ log_window :: proc(using state : ^State) {
                     item := git_log.items[i];
                     imgui.selectable(item.commit.summary);
                     if imgui.is_item_hovered() {
+                        imgui.set_next_window_size(imgui.Vec2{350, 0});
                         imgui.begin_tooltip();
                         imgui.text_colored(color.lightgray, 
                                            "Time: %d/%d/%d %d:%d:%d UTC%s%d",
@@ -886,7 +887,7 @@ log_window :: proc(using state : ^State) {
                                            item.time.second,
                                            item.commit.author.time_when.offset < 0 ? "" : "+",
                                            item.commit.author.time_when.offset/60);
-                        imgui.text(item.commit.message);
+                        imgui.text_wrapped(item.commit.message);
                         imgui.end_tooltip();
                     }
                     imgui.same_line();
