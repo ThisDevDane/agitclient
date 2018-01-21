@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 21-01-2018 22:36:01 UTC+1
+ *  @Last Time: 21-01-2018 23:47:07 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -160,9 +160,9 @@ agc_style :: proc() {
     style.colors[imgui.Color.Border]                = imgui.Vec4{0.18, 0.18, 0.18, 0.98};
     style.colors[imgui.Color.BorderShadow]          = imgui.Vec4{0.00, 0.00, 0.00, 0.04};
     style.colors[imgui.Color.FrameBg]               = imgui.Vec4{0.00, 0.00, 0.00, 0.29};
-    style.colors[imgui.Color.TitleBg]               = imgui.Vec4{0.25, 0.25, 0.25, 0.98};
+    style.colors[imgui.Color.TitleBg]               = imgui.Vec4{32.0/255.00, 32.0/255.00, 32.0/255.00, 1};
     style.colors[imgui.Color.TitleBgCollapsed]      = imgui.Vec4{0.12, 0.12, 0.12, 0.49};
-    style.colors[imgui.Color.TitleBgActive]         = imgui.Vec4{0.33, 0.33, 0.33, 0.98};
+    style.colors[imgui.Color.TitleBgActive]         = imgui.Vec4{32.0/255.00, 32.0/255.00, 32.0/255.00, 1};
     style.colors[imgui.Color.MenuBarBg]             = imgui.Vec4{0.11, 0.11, 0.11, 0.42};
     style.colors[imgui.Color.ScrollbarBg]           = imgui.Vec4{0.00, 0.00, 0.00, 0.08};
     style.colors[imgui.Color.ScrollbarGrab]         = imgui.Vec4{0.27, 0.27, 0.27, 1.00};
@@ -223,6 +223,8 @@ open_repo :: proc(new_repo: ^git.Repository, using state : ^State) {
         oid, ok := git.reference_name_to_id(repo, refname);
         commit := com.from_oid(repo, oid);
         upstream, _ := git.branch_upstream(ref);
+        uid, _          := git.reference_name_to_id(repo, git.reference_name(upstream));
+        ahead, behind, _ := git.graph_ahead_behind(repo, oid, uid);
 
         current_branch = brnch.Branch{
             ref,
@@ -230,6 +232,8 @@ open_repo :: proc(new_repo: ^git.Repository, using state : ^State) {
             bname,
             git.Branch_Type.Local,
             commit,
+            ahead,
+            behind,
         };
     }
 
@@ -734,6 +738,8 @@ commit_window :: proc(using state : ^State) {
                                         bname,
                                         git.Branch_Type.Local,
                                         commit,
+                                        0,
+                                        0,
                                     };
                                 }
                             }
