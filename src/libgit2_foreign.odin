@@ -5,8 +5,8 @@
  *  @Email:    bpunsky@gmail.com
  *  @Creation: 13-12-2017 23:52:55 UTC-5
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 18-01-2018 16:33:11 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 21-01-2018 22:18:51 UTC+1
  *  
  *  @Description:
  *  
@@ -77,11 +77,11 @@ foreign libgit {
     remote_connect              :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> Error_Code ---;
     remote_disconnect           :: proc(remote : ^Remote) ---;
     remote_init_callbacks       :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> Error_Code ---;
-    remote_connected            :: proc(remote : ^Remote) -> Error_Code ---;
+    remote_connected            :: proc(remote : ^Remote) -> b32 ---;
     remote_fetch                :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> Error_Code ---;
     remote_free                 :: proc(remote : ^Remote) ---;
     remote_push                 :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Push_Options) -> Error_Code ---;
-    remote_update_tips          :: proc(remote : ^Remote, callbacks : ^Remote_Callbacks, update_fetchhead : bool, download_tags : Remote_Autotag_Option_Flags, reflog_message : ^byte) -> Error_Code ---;
+    remote_update_tips          :: proc(remote : ^Remote, callbacks : ^Remote_Callbacks, update_fetchhead : b32, download_tags : Remote_Autotag_Option_Flags, reflog_message : ^byte) -> Error_Code ---;
     remote_name                 :: proc(remote : ^Remote) -> ^byte ---;
 
     // Index
@@ -98,7 +98,7 @@ foreign libgit {
 
     // Cred
     cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> Error_Code ---;
-    cred_has_username           :: proc(cred : ^Cred) -> bool ---;
+    cred_has_username           :: proc(cred : ^Cred) -> b32 ---;
     cred_ssh_key_from_agent     :: proc(out : ^^Cred, username : ^byte) -> Error_Code ---;
 
     // Reset
@@ -110,7 +110,7 @@ foreign libgit {
     reference_name              :: proc(ref : ^Reference) -> ^byte ---;
     reference_peel              :: proc(out : ^^Object, ref : ^Reference, kind : Obj_Type) -> Error_Code ---;
     reference_free              :: proc(ref : ^Reference) ---;
-    reference_is_branch         :: proc(ref : ^Reference) -> bool ---;
+    reference_is_branch         :: proc(ref : ^Reference) -> b32 ---;
 
     // Object
     object_lookup               :: proc(object : ^^Object, repo : ^Repository, id : ^Oid, otype : Obj_Type) -> Error_Code ---;
@@ -169,7 +169,7 @@ foreign libgit {
     branch_iterator_free        :: proc(iter : ^Branch_Iterator) ---;
     branch_next                 :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> Error_Code ---;
     branch_delete               :: proc(branch : ^Reference) -> Error_Code ---;
-    branch_is_checked_out       :: proc(branch : ^Reference) -> bool ---;
+    branch_is_checked_out       :: proc(branch : ^Reference) -> b32 ---;
     branch_upstream             :: proc(out : ^^Reference, branch : ^Reference) -> Error_Code ---;
     branch_set_upstream         :: proc(branch : ^Reference, upstream_name : ^byte) -> Error_Code ---;
 

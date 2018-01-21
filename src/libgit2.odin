@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 12-12-2017 01:50:33
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 18-01-2018 17:06:09 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 21-01-2018 22:19:07 UTC+1
  *
  *  @Description:
  *
@@ -76,7 +76,7 @@ remote_list                 :: inline proc(repo : ^Repository) -> ([]string, Err
 remote_connect              :: inline proc(remote : ^Remote, direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> Error_Code     { return git.remote_connect(remote, direction, callbacks, proxy_opts, custom_headers); }
 remote_disconnect           :: inline proc(remote : ^Remote)                                                                                                                                   { git.remote_disconnect(remote); }
 remote_init_callbacks       :: inline proc() -> (Remote_Callbacks, Error_Code)                                                                                                                 { return _remote_init_callbacks(); }
-remote_connected            :: inline proc(remote : ^Remote) -> Error_Code                                                                                                                     { return git.remote_connected(remote); }
+remote_connected            :: inline proc(remote : ^Remote) -> bool                                                                                                                           { return cast(bool)git.remote_connected(remote); }
 remote_fetch                :: inline proc(remote : ^Remote, refspecs : []string, opts : ^Fetch_Options, reflog_message := "fetch") -> Error_Code                                              { return _remote_fetch(remote, refspecs, opts, reflog_message); }
 remote_push                 :: inline proc(remote : ^Remote, refspecs : []string, opts : ^Push_Options) -> Error_Code                                                                          { return _remote_push(remote, refspecs, opts); }
 remote_update_tips          :: inline proc(remote : ^Remote, callbacks : ^Remote_Callbacks, update_fetchhead : bool, download_tags : Remote_Autotag_Option_Flags, reflog_message := "fetch") -> Error_Code { return _remote_update_tips(remote, callbacks, update_fetchhead, download_tags, reflog_message); }
@@ -117,7 +117,7 @@ branch_name                 :: inline proc(ref : ^Reference) -> (string, Error_C
 branch_iterator_new         :: inline proc(repo : ^Repository, list_flags : Branch_Type) -> (^Branch_Iterator, Error_Code)                                                                     { return _branch_iterator_new(repo, list_flags); }
 branch_next                 :: inline proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Type, Error_Code)                                                                                   { return _branch_next(iter); }
 branch_delete               :: inline proc(branch : ^Reference) -> Error_Code                                                                                                                  { return git.branch_delete(branch); }
-branch_is_checked_out       :: inline proc(branch : ^Reference) -> bool                                                                                                                        { return git.branch_is_checked_out(branch) };
+branch_is_checked_out       :: inline proc(branch : ^Reference) -> bool                                                                                                                        { return cast(bool)git.branch_is_checked_out(branch) };
 branch_upstream             :: inline proc(branch : ^Reference) -> (^Reference, Error_Code)                                                                                                    { return _branch_upstream(branch); }
 branch_set_upstream         :: inline proc(branch : ^Reference, upstream_name : string) -> Error_Code                                                                                          { return _branch_set_upstream(branch, upstream_name); }
 
@@ -142,7 +142,7 @@ reference_name_to_id        :: inline proc(repo : ^Repository, name : string) ->
 reference_symbolic_target   :: inline proc(ref : ^Reference) -> string                                                                                                                         { return _reference_symbolic_target(ref); }
 reference_name              :: inline proc(ref : ^Reference) -> string                                                                                                                         { return _reference_name(ref); }
 reference_peel              :: inline proc(ref : ^Reference, kind : Obj_Type) -> (^Object, Error_Code)                                                                                         { return _reference_peel(ref, kind); } 
-reference_is_branch         :: inline proc(ref : ^Reference) -> bool                                                                                                                           { return git.reference_is_branch(ref); }
+reference_is_branch         :: inline proc(ref : ^Reference) -> bool                                                                                                                           { return cast(bool)git.reference_is_branch(ref); }
 
 ////////////////////////////////////////////
 //// git_revwalk
@@ -184,7 +184,7 @@ patch_from_diff             :: inline proc(diff : ^Diff, idx : uint) -> (^Patch,
 //// git_cred
 ////
 cred_userpass_plaintext_new :: inline proc(username : string, password : string) -> (^Cred, Error_Code)                                                                                        { return _cred_userpass_plaintext_new(username, password); }
-cred_has_username           :: inline proc(cred : ^Cred) -> bool                                                                                                                               { return git.cred_has_username(cred); }
+cred_has_username           :: inline proc(cred : ^Cred) -> bool                                                                                                                               { return cast(bool)git.cred_has_username(cred); }
 cred_ssh_key_from_agent     :: inline proc(username : string) -> (^Cred, Error_Code)                                                                                                           { return _cred_ssh_key_from_agent(username); }
 
 ////////////////////////////////////////////
@@ -390,7 +390,7 @@ _remote_update_tips :: proc(remote : ^Remote,
                             reflog_message : string) -> Error_Code {
     return git.remote_update_tips(remote, 
                                callbacks, 
-                               update_fetchhead, 
+                               cast(b32)update_fetchhead, 
                                download_tags, 
                                _make_misc_string(Misc_Buf.One, reflog_message));
 }
