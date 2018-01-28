@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 21-01-2018 23:47:07 UTC+1
+ *  @Last Time: 28-01-2018 21:44:41 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -30,13 +30,13 @@ import       "shared:libbrew/time_util.odin";
 import imgui "shared:libbrew/brew_imgui.odin";
 import       "shared:libbrew/gl.odin";
 import       "shared:libbrew/leakcheck.odin";
+import       "shared:libbrew/cel.odin";
+import       "shared:libbrew/dyna_util.odin";
 
 import git        "libgit2.odin";
 import console    "console.odin";
 using import _    "debug.odin";
-import            "cel.odin";
 import pat        "path.odin";
-import            "remove.odin";
 import            "color.odin";
 import            "log.odin";
 import com        "commit.odin";
@@ -198,14 +198,14 @@ open_repo :: proc(new_repo: ^git.Repository, using state : ^State) {
     for s, i in settings.instance.recent_repos {
         if s == full_path {
             found = true;
-            remove.remove_ordered(&settings.instance.recent_repos, i);
-            remove.append_front(&settings.instance.recent_repos, strings.new_string(full_path));
+            dyna_util.remove_ordered(&settings.instance.recent_repos, i);
+            dyna_util.append_front(&settings.instance.recent_repos, strings.new_string(full_path));
             break;
         }
     }
 
     if !found {
-        remove.append_front(&settings.instance.recent_repos, strings.new_string(full_path));
+        dyna_util.append_front(&settings.instance.recent_repos, strings.new_string(full_path));
     }
 
     repo = new_repo;
@@ -253,13 +253,13 @@ init :: proc(using state : ^State) {
     time_data = misc.create_time_data();
 
     app_handle = misc.get_app_handle();
-    wnd_handle = window.create_window(app_handle, "A Git Client", false, 1280, 720);
+    wnd_handle = window.create_window(app_handle, "A Git Client", 1280, 720);
     gl_ctx     = wgl.create_gl_context(wnd_handle, 3, 3);
 
     gl.load_functions(set_proc, load_lib, free_lib);
 
     dear_state = new(imgui.State);
-    imgui.init(dear_state, wnd_handle, agc_style);
+    imgui.init(dear_state, wnd_handle, agc_style, true);
     wgl.swap_interval(-1);
     gl.clear_color(0.10, 0.10, 0.10, 1);
 
@@ -288,7 +288,7 @@ begin_frame :: proc(using state : ^State) {
             case msg.MsgKey : {
                 switch msg.key {
                     case input.VirtualKey.Escape : {
-                        if msg.down == true && shift_down {
+                        if msg.down && shift_down {
                             running = false;
                         }
                     }
@@ -586,8 +586,8 @@ do_async_push :: proc(repo : ^git.Repository, branches_to_push : []brnch.Branch)
 repo_window :: proc(using state : ^State) {
     open_push_transfer := false;
 
-    imgui.set_next_window_pos(imgui.Vec2{160, 18});
-    imgui.set_next_window_size(imgui.Vec2{500, f32(wnd_height-18)});
+    imgui.set_next_window_pos(imgui.Vec2{250, 18});
+    imgui.set_next_window_size(imgui.Vec2{410, f32(wnd_height-18)});
     if imgui.begin("Repo", nil, imgui.Window_Flags.NoResize |
                                 imgui.Window_Flags.NoMove |
                                 imgui.Window_Flags.NoCollapse |
@@ -768,11 +768,13 @@ push_lock : sync.Mutex;
 
 push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uint, payload : rawptr) -> i32 {
     sync.mutex_lock(&push_lock);
-    tp := (^TransferPayload)(payload);
-    console.logf("Push Progress: %d/%d %d bytes", current, total, bytes);
-    tp.current = uint(current); 
-    tp.total = uint(total); 
-    tp.bytes = bytes;
+    {
+        tp := (^TransferPayload)(payload);
+        console.logf("Push Progress: %d/%d %d bytes", current, total, bytes);
+        tp.current = uint(current); 
+        tp.total = uint(total); 
+        tp.bytes = bytes;
+    }
     sync.mutex_unlock(&push_lock);
     return 0;
 }

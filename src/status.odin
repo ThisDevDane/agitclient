@@ -90,7 +90,7 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
     }
 
     imgui.text("Staged files:");
-    if imgui.begin_child("Staged", imgui.Vec2{0, 100}) {
+    if imgui.begin_child("Staged", imgui.Vec2{0, 150}) {
         imgui.columns(count = 3, border = false);
         imgui.push_style_color(imgui.Color.Text, color.light_greenA400);
 
@@ -112,7 +112,7 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
     imgui.end_child();
 
     imgui.text("Unstaged files:");
-    if imgui.begin_child("Unstaged", imgui.Vec2{0, 100}) {
+    if imgui.begin_child("Unstaged", imgui.Vec2{0, 150}) {
         imgui.columns(count = 3, border = false);
         imgui.push_style_color(imgui.Color.Text, color.deep_orange600);
 
@@ -134,7 +134,7 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
     imgui.end_child();
 
     imgui.text("Untracked files:");
-    if imgui.begin_child("Untracked", imgui.Vec2{0, 100}) {
+    if imgui.begin_child("Untracked", imgui.Vec2{0, 150}) {
         imgui.columns(count = 3, border = false);
         imgui.push_style_color(imgui.Color.Text, color.alizarin);
 

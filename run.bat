@@ -1,4 +1,4 @@
 @echo off
 pushd run_tree
-..\build\main.exe
+..\build\agc.exe
 popd

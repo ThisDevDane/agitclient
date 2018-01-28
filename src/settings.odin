@@ -1,6 +1,6 @@
 import "core:strings.odin";
 
-import "cel.odin";
+import "shared:libbrew/cel.odin";
 import "console.odin";
 
 SETTINGS_FILE :: "settings.cel";

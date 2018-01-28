@@ -175,9 +175,9 @@ window :: proc(settings : ^settings.Settings, wnd_height : int,
     update_branches := false;
     open_create_modal := false;
     half_height := (wnd_height - 18) / 2;
-
+    widget_width :: 250;
     imgui.set_next_window_pos(imgui.Vec2{0, 18});
-    imgui.set_next_window_size(imgui.Vec2{160, f32(half_height)});
+    imgui.set_next_window_size(imgui.Vec2{widget_width, f32(half_height)});
     buf : [1024]byte;
     label := fmt.bprintf(buf[..], "%s %s", icon.BARS, "Local Branches");
     if imgui.begin(label, nil, imgui.Window_Flags.NoResize   |
@@ -277,7 +277,7 @@ window :: proc(settings : ^settings.Settings, wnd_height : int,
     }
 
     imgui.set_next_window_pos(imgui.Vec2{0, f32(18+half_height)});
-    imgui.set_next_window_size(imgui.Vec2{160, f32(half_height)});
+    imgui.set_next_window_size(imgui.Vec2{widget_width, f32(half_height)});
     label = fmt.bprintf(buf[..], "%s %s", icon.CLOUD, "Remote Branches");
     if imgui.begin(label, nil, imgui.Window_Flags.NoResize   |
                                     imgui.Window_Flags.NoMove     |
