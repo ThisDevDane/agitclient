@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 28-01-2018 21:44:41 UTC+1
+ *  @Last Time: 29-01-2018 02:58:05 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -44,6 +44,7 @@ import brnch      "branch.odin";
 import            "settings.odin";
 using import _    "state.odin";
 import git_status "status.odin";
+import explorer   "file_explorer.odin"
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -223,8 +224,11 @@ open_repo :: proc(new_repo: ^git.Repository, using state : ^State) {
         oid, ok := git.reference_name_to_id(repo, refname);
         commit := com.from_oid(repo, oid);
         upstream, _ := git.branch_upstream(ref);
-        uid, _          := git.reference_name_to_id(repo, git.reference_name(upstream));
-        ahead, behind, _ := git.graph_ahead_behind(repo, oid, uid);
+        ahead, behind : uint;
+        if upstream != nil {
+            uid, _          := git.reference_name_to_id(repo, git.reference_name(upstream));
+            ahead, behind, _ = git.graph_ahead_behind(repo, oid, uid);
+        } 
 
         current_branch = brnch.Branch{
             ref,
@@ -360,6 +364,7 @@ main_menu :: proc(using state : ^State) {
         defer imgui.end_main_menu_bar();
 
         if imgui.begin_menu("Menu") {
+            defer imgui.end_menu();
             if imgui.menu_item("Clone...") {
                 open_clone_menu = true;
             }
@@ -379,9 +384,9 @@ main_menu :: proc(using state : ^State) {
             if imgui.menu_item("Close", "Shift+ESC") {
                 running = false;
             }
-            imgui.end_menu();
         }
         if imgui.begin_menu("Preferences") {
+            defer imgui.end_menu();
             imgui.checkbox("Show Console", &draw_console);
             imgui.checkbox("Show Demo Window", &draw_demo_window);
             if imgui.checkbox("Use SSH Agent", &settings.instance.use_ssh_agent) {
@@ -396,12 +401,11 @@ main_menu :: proc(using state : ^State) {
                 open_set_user = true;
             }
 
-            imgui.end_menu();
         }
         if imgui.begin_menu("Help") {
+            defer imgui.end_menu();
             imgui.menu_item(label = "A Git Client v0.0.0a", enabled = false);
             imgui.menu_item(label = lib_ver_string, enabled = false);
-            imgui.end_menu();
         }
     }
 
@@ -805,11 +809,11 @@ main :: proc() {
     console.logf("\tLibGit2 is %s",
                  feature_set(git.Lib_Features.Threads, lib_features) ? "thread-safe." : "not thread-safe");
     console.logf("\tHttps is %s",
-             feature_set(git.Lib_Features.Https, lib_features) ? "supported." : "not supported");
+             feature_set(git.Lib_Features.Https, lib_features)       ? "supported."   : "not supported");
     console.logf("\tSSH is %s",
-             feature_set(git.Lib_Features.Ssh, lib_features) ? "supported." : "not supported");
+             feature_set(git.Lib_Features.Ssh, lib_features)         ? "supported."   : "not supported");
     console.logf("\tNsec is %s",
-             feature_set(git.Lib_Features.Nsec, lib_features) ? "supported." : "not supported");
+             feature_set(git.Lib_Features.Nsec, lib_features)        ? "supported."   : "not supported");
 
     _settings := debug_get_settings();
     _settings.print_location = true;
@@ -818,6 +822,7 @@ main :: proc() {
     state.credentials_cb = credentials_callback;
 
     state.running = true;
+    fvctx := explorer.new_context("W:\\agitclient\\");
     for state.running {
         begin_frame(&state);
         main_menu(&state);
@@ -828,6 +833,8 @@ main :: proc() {
                      &state.current_branch, state.credentials_cb,
                      &state.local_branches, &state.remote_branches);
         log.window(&state.git_log, state.repo, state.current_branch.ref);
+
+        explorer.window(&fvctx, nil);
 
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);

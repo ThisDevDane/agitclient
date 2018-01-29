@@ -1,5 +1,5 @@
 opt_level = 0
-generate_debug = false
+generate_debug = true
 keep_temp_files = false
 main_file = "src/main.odin"
 app_name = "agc"
