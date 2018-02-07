@@ -6,7 +6,7 @@
  *  @Creation: 28-01-2018 22:20:23 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 07-02-2018 19:30:16 UTC+1
+ *  @Last Time: 07-02-2018 20:59:09 UTC+1
  *  
  *  @Description:
  *  
@@ -24,19 +24,6 @@ import       "shared:libbrew/string_util.odin";
 
 import icon "icon-fa.odin";
 
-FileEntry :: struct {
-    name     : string,
-    modified : misc.Datetime,
-    type_    : string,
-    dir      : bool,
-    size     : int,
-
-    hidden   := false,
-    system   := false,
-}
-
-
-
 _misc_buf : [4096]u8;
 
 Context :: struct {
@@ -44,7 +31,7 @@ Context :: struct {
     show_hidden    := true,
     show_extension := true,
     show_system    := false,
-    files          : []FileEntry,
+    files          : []file.DiskEntry,
 
     _writing_path  : bool,
     _path_buf      : [1024]byte,
@@ -55,7 +42,7 @@ Context :: struct {
 new_context :: proc(path : string) -> Context {
     ctx := Context{};
     ctx.path = path;
-    ctx.files = _get_files(path); 
+    ctx.files = file.get_all_entries_in_directory(path); 
     fmt.bprint(ctx._path_buf[..], path);
     return ctx;
 }
@@ -65,6 +52,9 @@ _make_misc_string :: proc(fmt_: string, args: ...any) -> string {
     _misc_buf[len(s)] = 0;
     return s;
 }
+
+_new_idx : i32 = -1;
+_new_buf : [256]byte;
 
 window :: proc(ctx : ^Context, show : ^bool) {
     if imgui.begin("File Explorer", show, imgui.Window_Flags.NoCollapse | imgui.Window_Flags.MenuBar) {
@@ -139,7 +129,7 @@ window :: proc(ctx : ^Context, show : ^bool) {
             imgui.columns(count = 3, border = false);
             defer imgui.end_child();
             clipper := imgui.ListClipper{items_count = i32(len(ctx.files))};
-            for imgui.list_clipper_step(&clipper) {
+            outer: for imgui.list_clipper_step(&clipper) {
                 for i := clipper.display_start; i < clipper.display_end; i += 1 {
                     file := ctx.files[i];
                     if !ctx.show_hidden && file.hidden do continue;
@@ -148,8 +138,10 @@ window :: proc(ctx : ^Context, show : ^bool) {
                     if imgui.selectable(str, ctx._selected == int(i), imgui.Selectable_Flags.SpanAllColumns | 
                                                              imgui.Selectable_Flags.AllowDoubleClick) {
                         if imgui.is_mouse_double_clicked(0) {
-                            if file.dir do _open_folder(ctx, file);
-                            break;
+                            if file.dir {
+                                _open_folder(ctx, file);
+                                break outer;
+                            }
                         } else {
                             mem.zero(&ctx._input_buf[0], len(ctx._input_buf));
                             fmt.bprintf(ctx._input_buf[..], "%s", file.name);
@@ -161,8 +153,15 @@ window :: proc(ctx : ^Context, show : ^bool) {
                     if imgui.begin_popup_context_item("file_context", 1) {
                         defer imgui.end_popup();
                         if imgui.begin_menu("New") {
-                            imgui.text_disabled("New File");
-                            imgui.text_disabled("New Folder");
+                            if imgui.selectable("New File") {
+                                fmt.bprintf(_new_buf[..], "new file");
+                                _new_idx = i;
+                            }
+                            
+                            if imgui.selectable("New Folder") {
+                                fmt.bprintf(_new_buf[..], "new folder");
+                                _new_idx = i;
+                            }
                             imgui.end_menu();
                         }
                     }
@@ -193,6 +192,20 @@ window :: proc(ctx : ^Context, show : ^bool) {
 
                     }
                     imgui.next_column();
+
+                    if _new_idx == i {
+                        if imgui.input_text("##new_input", _new_buf[..], imgui.Input_Text_Flags.EnterReturnsTrue) {
+                            mem.zero(&_new_buf[0], len(_new_buf));
+                            _new_idx = -1;
+                        }
+                        imgui.next_column();
+                        if imgui.button("Cancel") {
+                            mem.zero(&_new_buf[0], len(_new_buf));
+                            _new_idx = -1;
+                        }
+                        imgui.next_column();
+                        imgui.next_column();
+                    }
                 }
             }
         }
@@ -208,20 +221,12 @@ window :: proc(ctx : ^Context, show : ^bool) {
 _go_up_one_folder :: proc(ctx : ^Context) {
     path, found := string_util.to_second_last_rune(ctx.path, '\\');
     if found {
-        ctx.path = strings.new_string(path);
-        mem.zero(&ctx._path_buf[0], len(ctx._path_buf));
-        fmt.bprint(ctx._path_buf[..], ctx.path);
-        free(ctx.files);
-        ctx.files = _get_files(ctx.path);
+        _set_and_open(ctx, strings.new_string(path));
     }
 }
 
-_open_folder :: proc(ctx : ^Context, folder : FileEntry) {
-    ctx.path = fmt.aprintf("%s%s\\", ctx.path, folder.name);
-    mem.zero(&ctx._path_buf[0], len(ctx._path_buf));
-    fmt.bprint(ctx._path_buf[..], ctx.path);
-    free(ctx.files);
-    ctx.files = _get_files(ctx.path);
+_open_folder :: proc(ctx : ^Context, folder : file.DiskEntry) {
+    _set_and_open(ctx, fmt.aprintf("%s%s\\", ctx.path, folder.name));
 }
 
 _open_folder_path :: proc(ctx : ^Context, path : string) {
@@ -229,84 +234,13 @@ _open_folder_path :: proc(ctx : ^Context, path : string) {
     if(path[len(path)-1] != '\\') {
         path = fmt.bprintf(buf[..], "%s\\", path);
     }
-    ctx.path = strings.new_string(path);
+    _set_and_open(ctx, strings.new_string(path));
+}
+
+_set_and_open :: proc(ctx : ^Context, path : string) {
+    ctx.path = path;
     mem.zero(&ctx._path_buf[0], len(ctx._path_buf));
     fmt.bprint(ctx._path_buf[..], ctx.path);
     free(ctx.files);
-    ctx.files = _get_files(ctx.path);
-}
-
-_get_files :: proc(path : string) -> []FileEntry {
-    buf : [1024]byte;
-    if(path[len(path)-1] != '*') {
-        path = fmt.bprintf(buf[..], "%s*", path);
-    }
-    find_data := win32.Find_Data{};
-    file_handle := win32.find_first_file_a(&path[0], &find_data);
-
-    result := make([]FileEntry, _count_files(file_handle, &find_data));
-
-    file_handle = win32.find_first_file_a(&path[0], &find_data);
-    i := 0;
-    if file_handle != win32.INVALID_HANDLE {
-        if !_skip_dot(find_data.file_name[..]) {
-            result[i] = _make_file_from_find_data(find_data);
-            i += 1;
-        }
-        for win32.find_next_file_a(file_handle, &find_data) == true {
-            if _skip_dot(find_data.file_name[..]) {
-                continue;
-            }
-
-            result[i] = _make_file_from_find_data(find_data);
-            i += 1;
-        }
-    }
-
-    win32.find_close(file_handle); 
-
-    return result;
-}
-
-_make_file_from_find_data :: proc(data : win32.Find_Data) -> FileEntry {
-    result := FileEntry{};
-    tmp := strings.to_odin_string(&data.file_name[0]);
-    tmp = tmp[..string_util.clen(tmp)];
-    result.name = strings.new_string(tmp);
-    result.modified = misc.filetime_to_datetime(data.last_write_time);
-    result.size = int(data.file_size_low) | int(data.file_size_high) << 32;
-
-    is_set :: proc(v, t : u32) -> bool {
-        return v & t == t;
-    }
-
-    result.dir    = is_set(data.file_attributes, win32.FILE_ATTRIBUTE_DIRECTORY);
-    result.hidden = is_set(data.file_attributes, win32.FILE_ATTRIBUTE_HIDDEN); // Not being set???
-    result.system = is_set(data.file_attributes, win32.FILE_ATTRIBUTE_SYSTEM); // Not being set???
-
-    return result;
-}
-
-_count_files :: proc(handle : win32.Handle, find_data : ^win32.Find_Data) -> int {
-    count := 0;
-    if handle != win32.INVALID_HANDLE {
-        if !_skip_dot(find_data.file_name[..]) {
-            count += 1;
-        }
-        for win32.find_next_file_a(handle, find_data) {
-            if _skip_dot(find_data.file_name[..]) {
-                continue;
-            }
-            count += 1;
-        }
-    }
-
-    return count;
-}
-
-_skip_dot :: proc(c_str : []u8) -> bool {
-    len := string_util.get_c_string_length(&c_str[0]);
-    f := string(c_str[..len]);
-
-    return f == "." || f == ".."; 
+    ctx.files = file.get_all_entries_in_directory(ctx.path);
 }
