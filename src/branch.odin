@@ -301,9 +301,9 @@ window :: proc(settings : ^settings.Settings, wnd_height : int,
                     imgui.push_id(git.reference_name(b.ref));
                     defer imgui.pop_id();
                     if imgui.begin_popup_context_item("branch_context", 1) {
+                        defer imgui.end_popup();
                         imgui.push_style_color(imgui.Color.Text, color.white);
                         defer imgui.pop_style_color();
-                        defer imgui.end_popup();
                         label = fmt.bprintf(buf[..], "%r Checkout", icon.CHECK);
                         if imgui.selectable(label) {
                             branch := create_branch(repo, b);
