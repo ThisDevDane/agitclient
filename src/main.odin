@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 07-02-2018 19:14:13 UTC+1
+ *  @Last Time: 07-02-2018 21:11:42 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -19,11 +19,11 @@ import "core:mem.odin";
 import "core:thread.odin";
 import "core:sync.odin";
 
-import       "shared:libbrew/win/window.odin";
-import       "shared:libbrew/win/msg.odin";
-import misc  "shared:libbrew/win/misc.odin";
-import input "shared:libbrew/win/keys.odin";
-import wgl   "shared:libbrew/win/opengl.odin";
+import       "shared:libbrew/sys/window.odin";
+import       "shared:libbrew/sys/msg.odin";
+import misc  "shared:libbrew/sys/misc.odin";
+import input "shared:libbrew/sys/keys.odin";
+import wgl   "shared:libbrew/sys/opengl.odin";
 
 import         "shared:libbrew/string_util.odin";
 import         "shared:libbrew/time_util.odin";

@@ -6,7 +6,7 @@
  *  @Creation: 28-01-2018 22:20:23 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 07-02-2018 20:59:09 UTC+1
+ *  @Last Time: 07-02-2018 21:12:04 UTC+1
  *  
  *  @Description:
  *  
@@ -15,10 +15,8 @@ import "core:fmt.odin";
 import "core:mem.odin";
 import "core:strings.odin";
 
-import win32 "core:sys/windows.odin";
-
-import       "shared:libbrew/win/file.odin";
-import       "shared:libbrew/win/misc.odin";
+import       "shared:libbrew/sys/file.odin";
+import       "shared:libbrew/sys/misc.odin";
 import imgui "shared:libbrew/brew_imgui.odin";
 import       "shared:libbrew/string_util.odin";
 

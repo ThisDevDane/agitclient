@@ -1,7 +1,7 @@
-import misc  "shared:libbrew/win/misc.odin";
-import       "shared:libbrew/win/window.odin";
-import       "shared:libbrew/win/msg.odin";
-import wgl   "shared:libbrew/win/opengl.odin";
+import misc  "shared:libbrew/sys/misc.odin";
+import       "shared:libbrew/sys/window.odin";
+import       "shared:libbrew/sys/msg.odin";
+import wgl   "shared:libbrew/sys/opengl.odin";
 
 import imgui "shared:libbrew/brew_imgui.odin";
 import       "shared:libbrew/time_util.odin";
@@ -18,7 +18,7 @@ State :: struct {
 
     app_handle           :  misc.AppHandle,
     wnd_handle           :  window.WndHandle,
-    gl_ctx               :  wgl.GlContext,
+    gl_ctx               :  wgl.Gl_Context,
 
     dear_state           :  ^imgui.State,
 

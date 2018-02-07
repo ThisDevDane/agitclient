@@ -1,6 +1,6 @@
 import imgui "shared:libbrew/brew_imgui.odin";
 
-import misc  "shared:libbrew/win/misc.odin";
+import misc  "shared:libbrew/sys/misc.odin";
 
 //import   "commit.odin";
 import git "libgit2.odin";
