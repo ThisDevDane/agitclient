@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-01-2018 02:58:05 UTC+1
+ *  @Last Time: 07-02-2018 19:14:13 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -25,16 +25,16 @@ import misc  "shared:libbrew/win/misc.odin";
 import input "shared:libbrew/win/keys.odin";
 import wgl   "shared:libbrew/win/opengl.odin";
 
-import       "shared:libbrew/string_util.odin";
-import       "shared:libbrew/time_util.odin";
-import imgui "shared:libbrew/brew_imgui.odin";
-import       "shared:libbrew/gl.odin";
-import       "shared:libbrew/leakcheck.odin";
-import       "shared:libbrew/cel.odin";
-import       "shared:libbrew/dyna_util.odin";
+import         "shared:libbrew/string_util.odin";
+import         "shared:libbrew/time_util.odin";
+import imgui   "shared:libbrew/brew_imgui.odin";
+import         "shared:libbrew/gl.odin";
+import         "shared:libbrew/leakcheck.odin";
+import         "shared:libbrew/cel.odin";
+import         "shared:libbrew/dyna_util.odin";
+import console "shared:libbrew/imgui_console.odin";
 
 import git        "libgit2.odin";
-import console    "console.odin";
 using import _    "debug.odin";
 import pat        "path.odin";
 import            "color.odin";
@@ -351,7 +351,7 @@ begin_frame :: proc(using state : ^State) {
 }
 
 end_frame :: proc(using state : ^State) {
-    imgui.render_proc(dear_state, wnd_width, wnd_height);
+    imgui.render_proc(dear_state, true, wnd_width, wnd_height);
     window.swap_buffers(wnd_handle);
 }
 
@@ -822,7 +822,7 @@ main :: proc() {
     state.credentials_cb = credentials_callback;
 
     state.running = true;
-    fvctx := explorer.new_context("W:\\agitclient\\");
+    fvctx := explorer.new_context("E:\\");
     for state.running {
         begin_frame(&state);
         main_menu(&state);

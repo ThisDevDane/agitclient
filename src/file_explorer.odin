@@ -6,7 +6,7 @@
  *  @Creation: 28-01-2018 22:20:23 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 29-01-2018 03:19:29 UTC+1
+ *  @Last Time: 07-02-2018 19:30:16 UTC+1
  *  
  *  @Description:
  *  
@@ -30,6 +30,9 @@ FileEntry :: struct {
     type_    : string,
     dir      : bool,
     size     : int,
+
+    hidden   := false,
+    system   := false,
 }
 
 
@@ -38,8 +41,9 @@ _misc_buf : [4096]u8;
 
 Context :: struct {
     path           : string,
-    show_hidden    : bool,
-    show_extension : bool,
+    show_hidden    := true,
+    show_extension := true,
+    show_system    := false,
     files          : []FileEntry,
 
     _writing_path  : bool,
@@ -63,8 +67,19 @@ _make_misc_string :: proc(fmt_: string, args: ...any) -> string {
 }
 
 window :: proc(ctx : ^Context, show : ^bool) {
-    if imgui.begin("File Explorer", show, imgui.Window_Flags.NoCollapse) {
+    if imgui.begin("File Explorer", show, imgui.Window_Flags.NoCollapse | imgui.Window_Flags.MenuBar) {
         defer imgui.end();
+
+        if imgui.begin_menu_bar() {
+            defer imgui.end_menu_bar();
+
+            if imgui.begin_menu("Misc") {
+                defer imgui.end_menu();
+                imgui.checkbox("Show Hidden", &ctx.show_hidden);
+                imgui.checkbox("Show Extension", &ctx.show_extension);
+                imgui.checkbox("Show System", &ctx.show_system);
+            }
+        }
 
         imgui.button(_make_misc_string("%r", icon.ARROW_CIRCLE_LEFT)); imgui.same_line();
         imgui.button(_make_misc_string("%r", icon.ARROW_CIRCLE_RIGHT)); imgui.same_line();
@@ -82,7 +97,7 @@ window :: proc(ctx : ^Context, show : ^bool) {
             open :: proc(ctx : ^Context) {
                 ctx._writing_path = false;
                 str := string(ctx._path_buf[..]);
-                if file.does_file_or_dir_exists(str[..string_util.clen(str)]) {
+                if file.is_path_valid(str[..string_util.clen(str)]) {
                     _open_folder_path(ctx, str[..string_util.clen(str)]);
                 } else {
                     fail(ctx);
@@ -123,57 +138,63 @@ window :: proc(ctx : ^Context, show : ^bool) {
 
             imgui.columns(count = 3, border = false);
             defer imgui.end_child();
-            for file, i in ctx.files {
-                str := _make_misc_string("%r %s", file.dir ? icon.FOLDER_O : icon.FILE, file.name);
-                if imgui.selectable(str, ctx._selected == i, imgui.Selectable_Flags.SpanAllColumns | 
-                                                         imgui.Selectable_Flags.AllowDoubleClick) {
-                    if imgui.is_mouse_double_clicked(0) {
-                        if file.dir do _open_folder(ctx, file);
-                    } else {
-                        mem.zero(&ctx._input_buf[0], len(ctx._input_buf));
-                        fmt.bprintf(ctx._input_buf[..], "%s", file.name);
-                        ctx._selected = i;
-                    }
-                }
-                imgui.push_id(i);
-                defer imgui.pop_id();
-                if imgui.begin_popup_context_item("file_context", 1) {
-                    defer imgui.end_popup();
-                    if imgui.begin_menu("New") {
-                        imgui.text_disabled("New File");
-                        imgui.text_disabled("New Folder");
-                        imgui.end_menu();
-                    }
-                }
-                imgui.next_column();
-                imgui.text("%d-%d-%d %d:%d", file.modified.day, 
-                                             file.modified.month, 
-                                             file.modified.year, 
-                                             file.modified.hour, 
-                                             file.modified.minute);
-                imgui.next_column();
-
-                kilobytes :: inline proc "contextless" (x : f32) -> f32 do return          (x) / 1024;
-                megabytes :: inline proc "contextless" (x : f32) -> f32 do return kilobytes(x) / 1024;
-                gigabytes :: inline proc "contextless" (x : f32) -> f32 do return megabytes(x) / 1024;
-                
-                if !file.dir {
-                    kb := kilobytes(f32(file.size));
-                    gb := gigabytes(f32(file.size));
-                    if kb >= 1 {
-                        if gb >= 1 {
-                            imgui.text("%.2f gb", gb);
+            clipper := imgui.ListClipper{items_count = i32(len(ctx.files))};
+            for imgui.list_clipper_step(&clipper) {
+                for i := clipper.display_start; i < clipper.display_end; i += 1 {
+                    file := ctx.files[i];
+                    if !ctx.show_hidden && file.hidden do continue;
+                    if !ctx.show_system && file.system do continue;
+                    str := _make_misc_string("%r %s", file.dir ? icon.FOLDER_O : icon.FILE, file.name);
+                    if imgui.selectable(str, ctx._selected == int(i), imgui.Selectable_Flags.SpanAllColumns | 
+                                                             imgui.Selectable_Flags.AllowDoubleClick) {
+                        if imgui.is_mouse_double_clicked(0) {
+                            if file.dir do _open_folder(ctx, file);
+                            break;
                         } else {
-                            imgui.text("%.0f kb", kb);
+                            mem.zero(&ctx._input_buf[0], len(ctx._input_buf));
+                            fmt.bprintf(ctx._input_buf[..], "%s", file.name);
+                            ctx._selected = int(i);
                         }
-                    } else {
-                        imgui.text("%d b", file.size);
                     }
+                    imgui.push_id(i);
+                    defer imgui.pop_id();
+                    if imgui.begin_popup_context_item("file_context", 1) {
+                        defer imgui.end_popup();
+                        if imgui.begin_menu("New") {
+                            imgui.text_disabled("New File");
+                            imgui.text_disabled("New Folder");
+                            imgui.end_menu();
+                        }
+                    }
+                    imgui.next_column();
+                    imgui.text("%2d-%2d-%2d %2d:%2d", file.modified.day, 
+                                                      file.modified.month, 
+                                                      file.modified.year, 
+                                                      file.modified.hour, 
+                                                      file.modified.minute);
+                    imgui.next_column();
 
+                    kilobytes :: inline proc "contextless" (x : f32) -> f32 do return          (x) / 1024;
+                    megabytes :: inline proc "contextless" (x : f32) -> f32 do return kilobytes(x) / 1024;
+                    gigabytes :: inline proc "contextless" (x : f32) -> f32 do return megabytes(x) / 1024;
+                    
+                    if !file.dir {
+                        kb := kilobytes(f32(file.size));
+                        gb := gigabytes(f32(file.size));
+                        if kb >= 1 {
+                            if gb >= 1 {
+                                imgui.text("%.2f gb", gb);
+                            } else {
+                                imgui.text("%.0f kb", kb);
+                            }
+                        } else {
+                            imgui.text("%d b", file.size);
+                        }
+
+                    }
+                    imgui.next_column();
                 }
-                imgui.next_column();
             }
-
         }
         imgui.columns_reset();
         imgui.separator();
@@ -241,7 +262,6 @@ _get_files :: proc(path : string) -> []FileEntry {
             i += 1;
         }
     }
-    fmt.println(i);
 
     win32.find_close(file_handle); 
 
@@ -255,9 +275,15 @@ _make_file_from_find_data :: proc(data : win32.Find_Data) -> FileEntry {
     result.name = strings.new_string(tmp);
     result.modified = misc.filetime_to_datetime(data.last_write_time);
     result.size = int(data.file_size_low) | int(data.file_size_high) << 32;
-    if data.file_attributes & win32.FILE_ATTRIBUTE_DIRECTORY == win32.FILE_ATTRIBUTE_DIRECTORY {
-        result.dir = true;
+
+    is_set :: proc(v, t : u32) -> bool {
+        return v & t == t;
     }
+
+    result.dir    = is_set(data.file_attributes, win32.FILE_ATTRIBUTE_DIRECTORY);
+    result.hidden = is_set(data.file_attributes, win32.FILE_ATTRIBUTE_HIDDEN); // Not being set???
+    result.system = is_set(data.file_attributes, win32.FILE_ATTRIBUTE_SYSTEM); // Not being set???
+
     return result;
 }
 
