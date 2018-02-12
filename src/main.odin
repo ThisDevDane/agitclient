@@ -839,7 +839,7 @@ main :: proc() {
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);
         }
-        
+
         if state.draw_log {
             console.draw_log(&state.draw_log);
         }

@@ -109,8 +109,7 @@ window :: proc(ctx : ^Context, show : ^bool) {
                 ctx._writing_path = true;
             }
         }
-        imgui.begin_child("##files_header", imgui.Vec2{0, 26});
-        {
+        if imgui.begin_child("##files_header", imgui.Vec2{0, 26}) {
             imgui.columns(count = 3, border = false);
             imgui.text("Name");
             imgui.next_column();
@@ -123,9 +122,7 @@ window :: proc(ctx : ^Context, show : ^bool) {
         imgui.end_child();
 
         if imgui.begin_child("##files", imgui.Vec2{0, -26}) {
-
             imgui.columns(count = 3, border = false);
-            defer imgui.end_child();
             clipper := imgui.ListClipper{items_count = i32(len(ctx.files))};
             outer: for imgui.list_clipper_step(&clipper) {
                 for i := clipper.display_start; i < clipper.display_end; i += 1 {
@@ -207,6 +204,8 @@ window :: proc(ctx : ^Context, show : ^bool) {
                 }
             }
         }
+        imgui.end_child();
+
         imgui.columns_reset();
         imgui.separator();
         imgui.text("%d items", len(ctx.files)); imgui.same_line();
