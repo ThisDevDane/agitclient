@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-02-2018 14:19:42 UTC+1
+ *  @Last Time: 13-02-2018 15:20:55 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -18,6 +18,7 @@ import "core:os.odin";
 import "core:mem.odin";
 import "core:thread.odin";
 import "core:sync.odin";
+import win32 "core:sys/windows.odin";
 
 import       "shared:libbrew/sys/window.odin";
 import       "shared:libbrew/sys/msg.odin";
@@ -351,6 +352,8 @@ begin_frame :: proc(using state : ^State) {
 }
 
 end_frame :: proc(using state : ^State) {
+    io := imgui.get_io();
+    if io.want_capture_mouse do set_cursor();
     imgui.render_proc(dear_state, true, wnd_width, wnd_height);
     window.swap_buffers(wnd_handle);
 }
@@ -783,6 +786,32 @@ push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uin
     return 0;
 }
 
+//////FIXME: SO BAD, FIX PL0X
+MAKEINTRESOURCEA :: inline proc(i : u16) -> ^u8 {
+    return (^u8)(rawptr(uintptr(int(u16(i)))));
+}
+
+IDC_ARROW    := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32512));
+IDC_IBEAM    := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32513));
+IDC_SIZENESW := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32643));
+IDC_SIZENS   := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32645));
+IDC_SIZENWSE := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32642));
+IDC_SIZEWE   := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32644));
+
+set_cursor :: proc() {
+    cur := imgui.get_mouse_cursor();
+    using imgui;
+    switch cur {
+        case Mouse_Cursor.Arrow      : win32.set_cursor(IDC_ARROW);
+        case Mouse_Cursor.TextInput  : win32.set_cursor(IDC_IBEAM);
+        case Mouse_Cursor.ResizeNS   : win32.set_cursor(IDC_SIZENS);
+        case Mouse_Cursor.ResizeEW   : win32.set_cursor(IDC_SIZEWE);
+        case Mouse_Cursor.ResizeNESW : win32.set_cursor(IDC_SIZENESW);
+        case Mouse_Cursor.ResizeNWSE : win32.set_cursor(IDC_SIZENWSE);
+    }
+}
+///////
+
 main :: proc() {
     settings.load();
     settings.save();
@@ -833,6 +862,7 @@ main :: proc() {
                      &state.current_branch, state.credentials_cb,
                      &state.local_branches, &state.remote_branches);
         log.window(&state.git_log, state.repo, state.current_branch.ref);
+
 
         //explorer.window(&fvctx, nil);
 
