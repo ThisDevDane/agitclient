@@ -6,7 +6,7 @@
  *  @Creation: 28-01-2018 22:20:23 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 07-02-2018 21:12:04 UTC+1
+ *  @Last Time: 13-02-2018 12:00:40 UTC+1
  *  
  *  @Description:
  *  
@@ -109,20 +109,15 @@ window :: proc(ctx : ^Context, show : ^bool) {
                 ctx._writing_path = true;
             }
         }
-        if imgui.begin_child("##files_header", imgui.Vec2{0, 26}) {
-            imgui.columns(count = 3, border = false);
-            imgui.text("Name");
-            imgui.next_column();
-            imgui.text("Date Modified");
-            imgui.next_column();
-            imgui.text("Size");
-            imgui.next_column();
-            imgui.columns_reset();
-        }
-        imgui.end_child();
 
         if imgui.begin_child("##files", imgui.Vec2{0, -26}) {
             imgui.columns(count = 3, border = false);
+            imgui.text_disabled("Name");
+            imgui.next_column();
+            imgui.text_disabled("Date Modified");
+            imgui.next_column();
+            imgui.text_disabled("Size");
+            imgui.next_column();
             clipper := imgui.ListClipper{items_count = i32(len(ctx.files))};
             outer: for imgui.list_clipper_step(&clipper) {
                 for i := clipper.display_start; i < clipper.display_end; i += 1 {

@@ -351,9 +351,9 @@ print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branc
 
 
         if imgui.begin_popup_context_item("branch_context", 1) {
+            defer imgui.end_popup();
             imgui.push_style_color(imgui.Color.Text, color.white);
             defer imgui.pop_style_color();
-            defer imgui.end_popup();
             label := fmt.bprintf(buf[..], "%r Checkout", icon.CHECK);
             if !is_current_branch {
                 if imgui.selectable(label) {

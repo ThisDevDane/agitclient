@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 07-02-2018 21:11:42 UTC+1
+ *  @Last Time: 13-02-2018 14:19:42 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -834,7 +834,7 @@ main :: proc() {
                      &state.local_branches, &state.remote_branches);
         log.window(&state.git_log, state.repo, state.current_branch.ref);
 
-        explorer.window(&fvctx, nil);
+        //explorer.window(&fvctx, nil);
 
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);
