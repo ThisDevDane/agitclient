@@ -2,8 +2,8 @@ import "core:fmt.odin"
 
 import "shared:libbrew/string_util.odin";
 
-import git "libgit2.odin"
-import     "console.odin"
+import git     "libgit2.odin"
+import console "shared:libbrew/imgui_console.odin"
 
 
 /////////////////Debuggification/////////////////////

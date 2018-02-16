@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 28-01-2018 21:44:41 UTC+1
+ *  @Last Time: 13-02-2018 15:20:55 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -18,23 +18,24 @@ import "core:os.odin";
 import "core:mem.odin";
 import "core:thread.odin";
 import "core:sync.odin";
+import win32 "core:sys/windows.odin";
 
-import       "shared:libbrew/win/window.odin";
-import       "shared:libbrew/win/msg.odin";
-import misc  "shared:libbrew/win/misc.odin";
-import input "shared:libbrew/win/keys.odin";
-import wgl   "shared:libbrew/win/opengl.odin";
+import       "shared:libbrew/sys/window.odin";
+import       "shared:libbrew/sys/msg.odin";
+import misc  "shared:libbrew/sys/misc.odin";
+import input "shared:libbrew/sys/keys.odin";
+import wgl   "shared:libbrew/sys/opengl.odin";
 
-import       "shared:libbrew/string_util.odin";
-import       "shared:libbrew/time_util.odin";
-import imgui "shared:libbrew/brew_imgui.odin";
-import       "shared:libbrew/gl.odin";
-import       "shared:libbrew/leakcheck.odin";
-import       "shared:libbrew/cel.odin";
-import       "shared:libbrew/dyna_util.odin";
+import         "shared:libbrew/string_util.odin";
+import         "shared:libbrew/time_util.odin";
+import imgui   "shared:libbrew/brew_imgui.odin";
+import         "shared:libbrew/gl.odin";
+import         "shared:libbrew/leakcheck.odin";
+import         "shared:libbrew/cel.odin";
+import         "shared:libbrew/dyna_util.odin";
+import console "shared:libbrew/imgui_console.odin";
 
 import git        "libgit2.odin";
-import console    "console.odin";
 using import _    "debug.odin";
 import pat        "path.odin";
 import            "color.odin";
@@ -44,6 +45,7 @@ import brnch      "branch.odin";
 import            "settings.odin";
 using import _    "state.odin";
 import git_status "status.odin";
+import explorer   "file_explorer.odin"
 
 set_proc :: inline proc(lib_ : rawptr, p: rawptr, name: string) {
     lib := misc.LibHandle(lib_);
@@ -223,8 +225,11 @@ open_repo :: proc(new_repo: ^git.Repository, using state : ^State) {
         oid, ok := git.reference_name_to_id(repo, refname);
         commit := com.from_oid(repo, oid);
         upstream, _ := git.branch_upstream(ref);
-        uid, _          := git.reference_name_to_id(repo, git.reference_name(upstream));
-        ahead, behind, _ := git.graph_ahead_behind(repo, oid, uid);
+        ahead, behind : uint;
+        if upstream != nil {
+            uid, _          := git.reference_name_to_id(repo, git.reference_name(upstream));
+            ahead, behind, _ = git.graph_ahead_behind(repo, oid, uid);
+        } 
 
         current_branch = brnch.Branch{
             ref,
@@ -347,7 +352,9 @@ begin_frame :: proc(using state : ^State) {
 }
 
 end_frame :: proc(using state : ^State) {
-    imgui.render_proc(dear_state, wnd_width, wnd_height);
+    io := imgui.get_io();
+    if io.want_capture_mouse do set_cursor();
+    imgui.render_proc(dear_state, true, wnd_width, wnd_height);
     window.swap_buffers(wnd_handle);
 }
 
@@ -360,6 +367,7 @@ main_menu :: proc(using state : ^State) {
         defer imgui.end_main_menu_bar();
 
         if imgui.begin_menu("Menu") {
+            defer imgui.end_menu();
             if imgui.menu_item("Clone...") {
                 open_clone_menu = true;
             }
@@ -379,9 +387,9 @@ main_menu :: proc(using state : ^State) {
             if imgui.menu_item("Close", "Shift+ESC") {
                 running = false;
             }
-            imgui.end_menu();
         }
         if imgui.begin_menu("Preferences") {
+            defer imgui.end_menu();
             imgui.checkbox("Show Console", &draw_console);
             imgui.checkbox("Show Demo Window", &draw_demo_window);
             if imgui.checkbox("Use SSH Agent", &settings.instance.use_ssh_agent) {
@@ -396,12 +404,11 @@ main_menu :: proc(using state : ^State) {
                 open_set_user = true;
             }
 
-            imgui.end_menu();
         }
         if imgui.begin_menu("Help") {
+            defer imgui.end_menu();
             imgui.menu_item(label = "A Git Client v0.0.0a", enabled = false);
             imgui.menu_item(label = lib_ver_string, enabled = false);
-            imgui.end_menu();
         }
     }
 
@@ -779,6 +786,32 @@ push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uin
     return 0;
 }
 
+//////FIXME: SO BAD, FIX PL0X
+MAKEINTRESOURCEA :: inline proc(i : u16) -> ^u8 {
+    return (^u8)(rawptr(uintptr(int(u16(i)))));
+}
+
+IDC_ARROW    := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32512));
+IDC_IBEAM    := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32513));
+IDC_SIZENESW := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32643));
+IDC_SIZENS   := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32645));
+IDC_SIZENWSE := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32642));
+IDC_SIZEWE   := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32644));
+
+set_cursor :: proc() {
+    cur := imgui.get_mouse_cursor();
+    using imgui;
+    switch cur {
+        case Mouse_Cursor.Arrow      : win32.set_cursor(IDC_ARROW);
+        case Mouse_Cursor.TextInput  : win32.set_cursor(IDC_IBEAM);
+        case Mouse_Cursor.ResizeNS   : win32.set_cursor(IDC_SIZENS);
+        case Mouse_Cursor.ResizeEW   : win32.set_cursor(IDC_SIZEWE);
+        case Mouse_Cursor.ResizeNESW : win32.set_cursor(IDC_SIZENESW);
+        case Mouse_Cursor.ResizeNWSE : win32.set_cursor(IDC_SIZENWSE);
+    }
+}
+///////
+
 main :: proc() {
     settings.load();
     settings.save();
@@ -805,11 +838,11 @@ main :: proc() {
     console.logf("\tLibGit2 is %s",
                  feature_set(git.Lib_Features.Threads, lib_features) ? "thread-safe." : "not thread-safe");
     console.logf("\tHttps is %s",
-             feature_set(git.Lib_Features.Https, lib_features) ? "supported." : "not supported");
+             feature_set(git.Lib_Features.Https, lib_features)       ? "supported."   : "not supported");
     console.logf("\tSSH is %s",
-             feature_set(git.Lib_Features.Ssh, lib_features) ? "supported." : "not supported");
+             feature_set(git.Lib_Features.Ssh, lib_features)         ? "supported."   : "not supported");
     console.logf("\tNsec is %s",
-             feature_set(git.Lib_Features.Nsec, lib_features) ? "supported." : "not supported");
+             feature_set(git.Lib_Features.Nsec, lib_features)        ? "supported."   : "not supported");
 
     _settings := debug_get_settings();
     _settings.print_location = true;
@@ -818,6 +851,7 @@ main :: proc() {
     state.credentials_cb = credentials_callback;
 
     state.running = true;
+    fvctx := explorer.new_context("E:\\");
     for state.running {
         begin_frame(&state);
         main_menu(&state);
@@ -829,10 +863,13 @@ main :: proc() {
                      &state.local_branches, &state.remote_branches);
         log.window(&state.git_log, state.repo, state.current_branch.ref);
 
+
+        //explorer.window(&fvctx, nil);
+
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);
         }
-        
+
         if state.draw_log {
             console.draw_log(&state.draw_log);
         }
