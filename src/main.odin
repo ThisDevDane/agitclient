@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-02-2018 15:20:55 UTC+1
+ *  @Last Time: 19-02-2018 16:51:54 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -43,6 +43,7 @@ import            "log.odin";
 import com        "commit.odin";
 import brnch      "branch.odin";
 import            "settings.odin";
+import            "diff_view.odin";
 using import _    "state.odin";
 import git_status "status.odin";
 import explorer   "file_explorer.odin"
@@ -511,6 +512,7 @@ main_menu :: proc(using state : ^State) {
 }
 
 do_async_fetch :: proc(repo : ^git.Repository) {
+    console.log("Starting Fetch...");
     _payload :: struct {
         repo : ^git.Repository,
     }
@@ -524,7 +526,7 @@ do_async_fetch :: proc(repo : ^git.Repository) {
         remote_cb.credentials = credentials_callback;
         ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
         if !log_if_err(ok) {
-            console.logf("Origin Connected: %t", git.remote_connected(remote));
+            console.logf("Connected to %s", git.remote_name(remote));
             fetch_opt, _ := git.fetch_init_options();
             fetch_opt.callbacks = remote_cb;
 
@@ -544,6 +546,7 @@ do_async_fetch :: proc(repo : ^git.Repository) {
 }
 
 do_async_push :: proc(repo : ^git.Repository, branches_to_push : []brnch.Branch) {
+    console.log("Starting Push...");
     _payload :: struct {
         repo : ^git.Repository,
         branches : []brnch.Branch,
@@ -559,6 +562,7 @@ do_async_push :: proc(repo : ^git.Repository, branches_to_push : []brnch.Branch)
         remote_cb.credentials = credentials_callback;
         ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
         if !log_if_err(ok) {
+            console.logf("Connected to %s", git.remote_name(remote));
             refspec : [dynamic]string; defer free(refspec);
             for b in branches {
                 refname := git.reference_name(b.ref);
@@ -574,7 +578,9 @@ do_async_push :: proc(repo : ^git.Repository, branches_to_push : []brnch.Branch)
 
 
             err := git.remote_push(remote, refspec[..], &opts);
-            log_if_err(err);
+            if !log_if_err(err) {
+                console.log("Push Complete...");
+            }
             git.free(remote);
             tpayload.done = true;
             free(p);
@@ -652,7 +658,7 @@ repo_window :: proc(using state : ^State) {
 
                 imgui.separator();
 
-                git_status.window(dt, &status, repo);
+                git_status.window(dt, &status, repo, &state.diff_ctx);
 
                 imgui.separator();
                 commit_window(state);
@@ -710,7 +716,7 @@ commit_window :: proc(using state : ^State) {
 
         if imgui.button("Commit") {
             // @note(bpunsky): do the commit!
-            commit_msg := fmt.aprintf("%s\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
+            commit_msg := fmt.aprintf("%s\r\n\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
             defer _global.free(commit_msg);
 
             committer, _ := git.signature_now(settings.instance.name, settings.instance.email);
@@ -851,7 +857,7 @@ main :: proc() {
     state.credentials_cb = credentials_callback;
 
     state.running = true;
-    fvctx := explorer.new_context("E:\\");
+
     for state.running {
         begin_frame(&state);
         main_menu(&state);
@@ -863,8 +869,14 @@ main :: proc() {
                      &state.local_branches, &state.remote_branches);
         log.window(&state.git_log, state.repo, state.current_branch.ref);
 
-
-        //explorer.window(&fvctx, nil);
+        if state.diff_ctx != nil {
+            keep_open := true;
+            diff_view.window(state.diff_ctx, &keep_open);
+            if !keep_open {
+                diff_view.free(state.diff_ctx);
+                state.diff_ctx = nil;
+            }
+        }
 
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);

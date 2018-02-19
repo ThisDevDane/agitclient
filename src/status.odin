@@ -1,20 +1,38 @@
+/*
+ *  @Name:     status
+ *  
+ *  @Author:   Mikkel Hjortshoej
+ *  @Email:    fyoucon@gmail.com
+ *  @Creation: 13-02-2018 14:26:12 UTC+1
+ *
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 19-02-2018 16:49:51 UTC+1
+ *  
+ *  @Description:
+ *  
+ */
+
 using import _ "debug.odin";
 
 import "core:strings.odin";
 import "core:fmt.odin";
 
-import       "shared:libbrew/time_util.odin";
-import imgui "shared:libbrew/brew_imgui.odin";
+import         "shared:libbrew/time_util.odin";
+import imgui   "shared:libbrew/brew_imgui.odin";
+import console "shared:libbrew/imgui_console.odin";
 
 import git "libgit2.odin";
 import pat "path.odin";
 import     "color.odin";
+import     "diff_view.odin";
 
 Status :: struct {
     list      : ^git.Status_List,
     staged    : [dynamic]^git.Status_Entry,
     unstaged  : [dynamic]^git.Status_Entry,
     untracked : [dynamic]^git.Status_Entry,
+
+    diff      : ^git.Diff,
 }
 
 update :: proc(repo : ^git.Repository, status : ^Status) {
@@ -54,6 +72,11 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
             }
         }
     }
+
+    //ROBUSTNESS(Hoej): Error checking
+    git.free(status.diff);
+    opt, _ := git.diff_init_options();
+    status.diff, _ = git.diff_index_to_workdir(repo, nil, &opt);
 }
 
 free :: proc(status : ^Status) {
@@ -72,7 +95,7 @@ to_stage             :  [dynamic]^git.Status_Entry;
 to_unstage           :  [dynamic]^git.Status_Entry;
 show_status_window   := true;
 
-window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
+window :: proc(dt : f64, status : ^Status, repo : ^git.Repository, diff_ctx : ^^diff_view.Context) {
     if imgui.button("Status") {
         if show_status_window {
             show_status_window = false;
@@ -103,7 +126,7 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
             imgui.set_column_width(-1, 100);
             imgui.text("%v", entry.head_to_index.status);
             imgui.next_column();
-            imgui.text(strings.to_odin_string(entry.head_to_index.new_file.path));
+            imgui.selectable(strings.to_odin_string(entry.head_to_index.new_file.path));
             imgui.next_column();
         }
 
@@ -117,15 +140,16 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
         imgui.push_style_color(imgui.Color.Text, color.deep_orange600);
 
         for entry, i in status.unstaged {
-            imgui.set_column_width(-1, 60);
-            imgui.push_id(i);
+            imgui.set_column_width(width = 80);
+            imgui.push_id(i); defer imgui.pop_id();
             if imgui.button("stage") do append(&to_stage, entry);
-            imgui.pop_id();
+            imgui.same_line(); 
+            if imgui.button("diff")  do open_diff(repo, status.diff, entry, diff_ctx);
             imgui.next_column();
             imgui.set_column_width(-1, 100);
             imgui.text("%v", entry.index_to_workdir.status);
             imgui.next_column();
-            imgui.text(strings.to_odin_string(entry.index_to_workdir.new_file.path));
+            imgui.selectable(strings.to_odin_string(entry.index_to_workdir.new_file.path));
             imgui.next_column();
         }
 
@@ -147,7 +171,7 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
             imgui.set_column_width(-1, 100);
             imgui.text("%v", entry.index_to_workdir.status);
             imgui.next_column();
-            imgui.text(strings.to_odin_string(entry.index_to_workdir.new_file.path));
+            imgui.selectable(strings.to_odin_string(entry.index_to_workdir.new_file.path));
             imgui.next_column();
         }
 
@@ -171,7 +195,7 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
                     if head_commit, err := git.reference_peel(head, git.Obj_Type.Commit); !log_if_err(err) {
                         defer git.free(head_commit);
                         path := strings.to_odin_string(entry.head_to_index.new_file.path);
-                        strs := [...]string{
+                        strs := [?]string{
                             path,
                         };
                         err = git.reset_default(repo, head_commit, strs[..]);
@@ -187,4 +211,34 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
 
     clear(&to_stage);
     clear(&to_unstage);
+}
+
+open_diff :: proc(repo : ^git.Repository, diff : ^git.Diff, entry : ^git.Status_Entry, diff_ctx : ^^diff_view.Context) {
+    patch := find_patch(repo, diff, entry);
+    ctx := diff_ctx^;
+    if ctx != nil do diff_view.free(ctx);
+    ctx = diff_view.create_context(strings.to_odin_string(entry.index_to_workdir.new_file.path), patch);
+    diff_ctx^ = ctx;
+}
+
+find_patch :: proc(repo : ^git.Repository, diff : ^git.Diff, entry : ^git.Status_Entry) -> ^git.Patch {
+    //Find common delta by old_file oid, new_file might be null
+    num_deltas := git.diff_num_deltas(diff);
+    di := -1;
+    for i in 0..int(num_deltas) {
+        d := git.diff_get_delta(diff, uint(i));
+        if git.oid_equal(&d.old_file.id, &entry.index_to_workdir.old_file.id) {
+            di = i;
+            break;
+        }
+    }
+
+    if di == -1 {
+        console.log_error("Could not find matching delta, wtf?");
+        return nil;
+    }
+
+    //Create Patch
+    patch, _ := git.patch_from_diff(diff, uint(di));
+    return patch;
 }

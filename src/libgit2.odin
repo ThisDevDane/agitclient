@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 21-01-2018 22:19:07 UTC+1
+ *  @Last Time: 19-02-2018 15:26:21 UTC+1
  *
  *  @Description:
  *
@@ -174,11 +174,17 @@ diff_index_to_workdir           :: inline proc(repo : ^Repository, index : ^Inde
 diff_tree_to_index              :: inline proc(repo : ^Repository, old_tree : ^Tree, index : ^Index, opts : ^Diff_Options) -> (^Diff, Error_Code)                                              { return _diff_tree_to_index(repo, old_tree, index, opts); }
 diff_tree_to_tree               :: inline proc(repo : ^Repository, old_tree, new_tree : ^Tree, opts : ^Diff_Options) -> (^Diff, Error_Code)                                                    { return _diff_tree_to_tree(repo, old_tree, new_tree, opts); }
 diff_tree_to_workdir_with_index :: inline proc(repo : ^Repository, old_tree : ^Tree, opts : ^Diff_Options) -> (^Diff, Error_Code)                                                              { return _diff_tree_to_workdir_with_index(repo, old_tree, opts); }
+diff_num_deltas                 :: inline proc(diff : ^Diff) -> uint                                                                                                                           { return _diff_num_deltas(diff); }
+diff_get_delta                  :: inline proc(diff : ^Diff, idx : uint) -> ^Diff_Delta                                                                                                        { return git.diff_get_delta(diff, idx); }
 
 ////////////////////////////////////////////
 //// git_patch
 ////
 patch_from_diff             :: inline proc(diff : ^Diff, idx : uint) -> (^Patch, i32)                                                                                                          { return _patch_from_diff(diff, idx); }
+patch_num_hunks             :: inline proc(patch : ^Patch) -> uint                                                                                                                             { return git.patch_num_hunks(patch); }
+patch_get_hunk              :: inline proc(patch : ^Patch, hunk_idx : uint) -> (^Diff_Hunk, uint, i32)                                                                                         { return _patch_get_hunk(patch, hunk_idx); }
+patch_get_line_in_hunk      :: inline proc(patch : ^Patch, hunk_idx : uint, line_idx : uint) -> (^Diff_Line, i32)                                                                              { return _patch_get_line_in_hunk(patch, hunk_idx, line_idx); }
+
 
 ////////////////////////////////////////////
 //// git_cred
@@ -212,11 +218,17 @@ status_init_options         :: inline proc(version : u32 = STATUS_OPTIONS_VERSIO
 checkout_init_options       :: inline proc(version : u32 = CHECKOUT_OPTIONS_VERSION)    -> (Checkout_Options, i32)                                                                             { return _checkout_init_options(version); }
 push_init_options           :: inline proc(version : u32 = PUSH_OPTIONS_VERSION)        -> (Push_Options, i32)                                                                                 { return _push_init_options(version); }
 proxy_init_options          :: inline proc(version : u32 = PROXY_OPTIONS_VERSION)       -> (Proxy_Options, i32)                                                                                { return _proxy_init_options(version); }
+diff_init_options           :: inline proc(version : u32 = DIFF_OPTIONS_VERSION)        -> (Diff_Options, i32)                                                                                 { return _diff_init_options(version); }
 
 ////////////////////////////////////////////
 //// git_graph_*
 ////
 graph_ahead_behind          :: inline proc(repo : ^Repository, local : Oid, upstream : Oid) -> (ahead : uint, behind : uint, err : Error_Code)                                                 { return _graph_ahead_behind(repo, local, upstream); }
+
+////////////////////////////////////////////
+////
+////
+oid_equal                   :: proc(a, b : ^Oid) -> bool                                                                                                                                       { return bool(git.oid_equal(a, b)); }
 
 ////////////////////////////////////////////
 //// git_err
@@ -612,39 +624,45 @@ _object_lookup :: proc(repo : ^Repository, id : Oid, otype : Obj_Type) -> (^Obje
 }
 
 _fetch_init_options :: proc(version : u32) -> (Fetch_Options, i32) {
-      result := Fetch_Options{};
-      err := git.fetch_init_options(&result, version);
-      return result, err;
+    result := Fetch_Options{};
+    err := git.fetch_init_options(&result, version);
+    return result, err;
 }
 
 _stash_apply_init_options :: proc(version : u32) -> (Stash_Apply_Options, i32) {
-      result := Stash_Apply_Options{};
-      err := git.stash_apply_init_options(&result, version);
-      return result, err;
+    result := Stash_Apply_Options{};
+    err := git.stash_apply_init_options(&result, version);
+    return result, err;
 }
 
 _status_init_options :: proc(version : u32) -> (Status_Options, i32) {
-      result := Status_Options{};
-      err := git.status_init_options(&result, version);
-      return result, err;
+    result := Status_Options{};
+    err := git.status_init_options(&result, version);
+    return result, err;
 }
 
 _checkout_init_options :: proc(version : u32) -> (Checkout_Options, i32) {
-      result := Checkout_Options{};
-      err := git.checkout_init_options(&result, version);
-      return result, err;
+    result := Checkout_Options{};
+    err := git.checkout_init_options(&result, version);
+    return result, err;
 }
 
 _push_init_options :: proc(version : u32) -> (Push_Options, i32) {
-      result := Push_Options{};
-      err := git.push_init_options(&result, version);
-      return result, err;
+    result := Push_Options{};
+    err := git.push_init_options(&result, version);
+    return result, err;
 }
 
 _proxy_init_options :: proc(version : u32) -> (Proxy_Options, i32) {
-      result := Proxy_Options{};
-      err := git.proxy_init_options(&result, version);
-      return result, err;
+    result := Proxy_Options{};
+    err := git.proxy_init_options(&result, version);
+    return result, err;
+}
+
+_diff_init_options :: proc(version : u32) -> (Diff_Options, i32) {
+    result := Diff_Options{};
+    err := git.diff_init_options(&result, version);
+    return result, err;
 }
 
 _diff_index_to_workdir :: inline proc(repo : ^Repository, index : ^Index, opts : ^Diff_Options) -> (^Diff, Error_Code) {
@@ -676,8 +694,25 @@ _diff_tree_to_workdir_with_index :: inline proc(repo : ^Repository, old_tree : ^
     return diff, err;
 }
 
+_diff_num_deltas :: inline proc(diff : ^Diff) -> uint {
+    return git.diff_num_deltas(diff);
+}
+
 _patch_from_diff :: inline proc(diff : ^Diff, idx : uint) -> (^Patch, i32) {
     out : ^Patch;
     err := git.patch_from_diff(&out, diff, idx);
+    return out, err;
+}
+
+_patch_get_hunk :: proc(patch : ^Patch, hunk_idx : uint) -> (^Diff_Hunk, uint, i32) {
+    out : ^Diff_Hunk;
+    lines : uint;
+    err := git.patch_get_hunk(&out, &lines, patch, hunk_idx);
+    return out, lines, err;
+}
+
+_patch_get_line_in_hunk :: proc(patch : ^Patch, hunk_idx : uint, line_idx : uint) -> (^Diff_Line, i32) {
+    out : ^Diff_Line;
+    err := git.patch_get_line_in_hunk(&out, patch, hunk_idx, line_idx);
     return out, err;
 }
