@@ -117,10 +117,10 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
         imgui.push_style_color(imgui.Color.Text, color.deep_orange600);
 
         for entry, i in status.unstaged {
-            imgui.set_column_width(-1, 60);
-            imgui.push_id(i);
+            imgui.set_column_width(width = 80);
+            imgui.push_id(i); defer imgui.pop_id();
             if imgui.button("stage") do append(&to_stage, entry);
-            imgui.pop_id();
+            imgui.same_line(); imgui.button("diff");
             imgui.next_column();
             imgui.set_column_width(-1, 100);
             imgui.text("%v", entry.index_to_workdir.status);
@@ -171,7 +171,7 @@ window :: proc(dt : f64, status : ^Status, repo : ^git.Repository) {
                     if head_commit, err := git.reference_peel(head, git.Obj_Type.Commit); !log_if_err(err) {
                         defer git.free(head_commit);
                         path := strings.to_odin_string(entry.head_to_index.new_file.path);
-                        strs := [...]string{
+                        strs := [?]string{
                             path,
                         };
                         err = git.reset_default(repo, head_commit, strs[..]);

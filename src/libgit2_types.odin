@@ -5,8 +5,8 @@
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 29-12-2017 16:05:30 UTC+1
  *
- *  @Last By:   Brendan Punsky
- *  @Last Time: 18-01-2018 16:29:06 UTC-5
+ *  @Last By:   Mikkel Hjortshoej
+ *  @Last Time: 16-02-2018 06:33:15 UTC+1
  *
  *  @Description:
  *  
@@ -478,6 +478,15 @@ Diff_Options :: struct {
     max_size:        i64,   /**< defaults to 512MB */
     old_prefix:      ^byte, /**< defaults to "a" */
     new_prefix:      ^byte, /**< defaults to "b" */
+}
+
+Filemode :: enum u32 {
+    Unreadable     = 0000000,
+    Tree           = 0040000,
+    Blob           = 0100644,
+    BlobExecutable = 0100755,
+    Link           = 0120000,
+    Commit         = 0160000,
 }
 
 Diff_File :: struct {
@@ -1068,3 +1077,4 @@ STATUS_OPTIONS_VERSION      :: 1;
 CHECKOUT_OPTIONS_VERSION    :: 1;
 PUSH_OPTIONS_VERSION        :: 1;
 PROXY_OPTIONS_VERSION       :: 1;
+DIFF_OPTIONS_VERSION        :: 1;

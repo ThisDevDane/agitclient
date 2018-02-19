@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 13-02-2018 15:20:55 UTC+1
+ *  @Last Time: 17-02-2018 14:56:04 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -851,7 +851,17 @@ main :: proc() {
     state.credentials_cb = credentials_callback;
 
     state.running = true;
-    fvctx := explorer.new_context("E:\\");
+
+    diff : ^git.Diff;
+    num_deltas : uint;
+    delta : ^git.Diff_Delta;
+    delta_select := uint(0);
+    patch : ^git.Patch;
+    num_hunks : uint;
+    hunk_select := uint(0);
+    hunk : ^git.Diff_Hunk;
+    hunk_lines : uint;
+
     for state.running {
         begin_frame(&state);
         main_menu(&state);
@@ -864,7 +874,100 @@ main :: proc() {
         log.window(&state.git_log, state.repo, state.current_branch.ref);
 
 
-        //explorer.window(&fvctx, nil);
+        if state.repo != nil {
+            if imgui.begin("TEST") {
+                if imgui.button("Update") {
+                    opt, _ := git.diff_init_options();
+                    diff, _ = git.diff_index_to_workdir(state.repo, nil, &opt);
+
+                    num_deltas = git.diff_num_deltas(diff);
+                    delta = git.diff_get_delta(diff, 0);
+                    patch, _ = git.patch_from_diff(diff, 0);
+                    if patch != nil {
+                        num_hunks = git.patch_num_hunks(patch);
+                        hunk, hunk_lines, _ = git.patch_get_hunk(patch, 0); 
+                    }
+                }
+                imgui.text("diff: %v", diff);
+                
+                imgui.indent();
+                imgui.text("num: %v", num_deltas);
+                imgui.text("Select: %v", delta_select);
+                if imgui.button("+") {
+                    delta_select += 1;
+                    delta = git.diff_get_delta(diff, delta_select);
+                    patch, _ = git.patch_from_diff(diff, delta_select);
+                    if patch != nil {
+                        num_hunks = git.patch_num_hunks(patch);
+                        hunk, hunk_lines, _ = git.patch_get_hunk(patch, 0); 
+                        hunk_select = 0;
+                    }
+                }
+
+                if imgui.button("-") {
+                    delta_select -= 1;
+                    delta = git.diff_get_delta(diff, delta_select);
+                    patch, _ = git.patch_from_diff(diff, delta_select);
+                    if patch != nil {
+                        num_hunks = git.patch_num_hunks(patch);
+                        hunk, hunk_lines, _ = git.patch_get_hunk(patch, 0); 
+                        hunk_select = 0;
+                    }
+                }
+
+                if delta != nil {
+                    imgui.text("delta: %#v", delta^);
+                    imgui.text("path: %v", strings.to_odin_string(delta.old_file.path));
+                    imgui.text("path: %v", strings.to_odin_string(delta.new_file.path));
+                }
+                imgui.unindent();
+                imgui.separator();
+                if patch != nil {
+                    imgui.indent();
+                    if imgui.button("+##hunk") {
+                        hunk_select += 1;
+                        hunk, hunk_lines, _ = git.patch_get_hunk(patch, hunk_select); 
+                    }
+
+                    if imgui.button("-##hunk") {
+                        hunk_select -= 1;
+                        hunk, hunk_lines, _ = git.patch_get_hunk(patch, hunk_select); 
+                    }
+
+                    imgui.text("Patch: %v", patch);
+                    imgui.text("num hunks: %v", num_hunks);
+                    imgui.text("select %v", hunk_select);
+                    imgui.text("hunk: %#v", hunk^);
+                    imgui.text("hunk lines: %v", hunk_lines);
+                    if imgui.begin_child("diff lines") {
+                        imgui.push_font(imgui.mono_font); defer imgui.pop_font();
+                        for i in 0..hunk_lines {
+                            line, _ := git.patch_get_line_in_hunk(patch, hunk_select, i);
+                            origin := rune(line.origin);
+                            pop := false;
+                            line_idx := line.old_lineno;
+                            switch origin { 
+                                case '-' : {
+                                    pop = true;
+                                    imgui.push_style_color(imgui.Color.Text, color.deep_orange600);
+                                    line_idx = line.old_lineno;
+                                }
+                                case '+' : {
+                                    pop = true;
+                                    imgui.push_style_color(imgui.Color.Text, color.light_greenA400);
+                                    line_idx = line.new_lineno;
+                                }
+                            }
+                            imgui.text("%d %r %s", line_idx, origin, string(mem.slice_ptr(line.content, int(line.content_len))));
+                            if pop do imgui.pop_style_color();
+                        }
+                    } imgui.end_child();
+
+                    imgui.unindent();
+                }
+            }
+            imgui.end();
+        }
 
         if state.draw_console {
             console.draw_console(&state.draw_console, &state.draw_log, &state.draw_history);

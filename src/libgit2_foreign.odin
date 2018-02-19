@@ -6,7 +6,7 @@
  *  @Creation: 13-12-2017 23:52:55 UTC-5
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 21-01-2018 22:18:51 UTC+1
+ *  @Last Time: 16-02-2018 07:19:40 UTC+1
  *  
  *  @Description:
  *  
@@ -129,7 +129,7 @@ foreign libgit {
     // diff_format_email_init_options         :: proc() ---;
     diff_free                              :: proc(diff : ^Diff) ---;
     // diff_from_buffer                       :: proc() ---;
-    // diff_get_delta                         :: proc() ---;
+    diff_get_delta                         :: proc(diff : ^Diff, idx : uint) -> ^Diff_Delta ---;
     // diff_get_perfdata                      :: proc() ---;
     // diff_get_stats                         :: proc() ---;
     // diff_index_to_index                    :: proc() ---;
@@ -137,7 +137,7 @@ foreign libgit {
     // diff_init_options                      :: proc() ---;
     // diff_is_sorted_icase                   :: proc() ---;
     // diff_merge                             :: proc() ---;
-    // diff_num_deltas                        :: proc() ---;
+    diff_num_deltas                        :: proc(diff : ^Diff) -> uint ---;
     // diff_num_deltas_of_type                :: proc() ---;
     diff_print                             :: proc(diff: ^Diff, format: Diff_Format, print_cb: Diff_Line_Cb, payload: rawptr) -> Error_Code ---; // Sometimes returns an error code?: "0 on success, non-zero callback return value, or error code"
     // diff_print_callback__to_buf            :: proc() ---;
@@ -158,6 +158,9 @@ foreign libgit {
     // Patch
     patch_free                  :: proc(patch : ^Patch) ---;
     patch_from_diff             :: proc(out : ^^Patch, diff : ^Diff, idx : uint) -> i32 ---;
+    patch_num_hunks             :: proc(patch : ^Patch) -> uint ---;
+    patch_get_hunk              :: proc(out : ^^Diff_Hunk, lines_in_hunk : ^uint, patch : ^Patch, hunk_idx : uint) -> i32 ---;
+    patch_get_line_in_hunk      :: proc(out : ^^Diff_Line, patch : ^Patch, hunk_idx : uint, line_idx : uint) -> i32 ---;
 
     // Tree
     tree_lookup                 :: proc(out : ^^Tree, repo : ^Repository, id : ^Oid) -> i32 ---;
@@ -198,9 +201,9 @@ foreign libgit {
     stash_apply_init_options    :: proc(opts : ^Stash_Apply_Options, version : u32) -> i32 ---;
     status_init_options         :: proc(opts : ^Status_Options,      version : u32) -> i32 ---;
     checkout_init_options       :: proc(opts : ^Checkout_Options,    version : u32) -> i32 ---;
-
     push_init_options           :: proc(opts : ^Push_Options,        version : u32) -> i32 ---;
     proxy_init_options          :: proc(opts : ^Proxy_Options,       version : u32) -> i32 ---;
+    diff_init_options           :: proc(opts : ^Diff_Options,        version : u32) -> i32 ---;
 
     //Graph
     graph_ahead_behind          :: proc(ahead : ^uint, behind : ^uint, repo : ^Repository, local : ^Oid, upstream : ^Oid) -> Error_Code ---;
