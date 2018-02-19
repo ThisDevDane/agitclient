@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 16-02-2018 07:20:59 UTC+1
+ *  @Last Time: 19-02-2018 15:26:21 UTC+1
  *
  *  @Description:
  *
@@ -224,6 +224,11 @@ diff_init_options           :: inline proc(version : u32 = DIFF_OPTIONS_VERSION)
 //// git_graph_*
 ////
 graph_ahead_behind          :: inline proc(repo : ^Repository, local : Oid, upstream : Oid) -> (ahead : uint, behind : uint, err : Error_Code)                                                 { return _graph_ahead_behind(repo, local, upstream); }
+
+////////////////////////////////////////////
+////
+////
+oid_equal                   :: proc(a, b : ^Oid) -> bool                                                                                                                                       { return bool(git.oid_equal(a, b)); }
 
 ////////////////////////////////////////////
 //// git_err

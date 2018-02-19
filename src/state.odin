@@ -8,6 +8,7 @@ import       "shared:libbrew/time_util.odin";
 
 import git "libgit2.odin";
 import     "log.odin";
+import     "diff_view.odin";
 import brnch "branch.odin";
 import git_status "status.odin";
 
@@ -80,4 +81,6 @@ State :: struct {
 
     summary_buf : [512+1]byte,
     message_buf : [4096+1]byte,
+
+    diff_ctx : ^diff_view.Context,
 }

@@ -6,13 +6,14 @@
  *  @Creation: 29-12-2017 16:05:30 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 16-02-2018 06:33:15 UTC+1
+ *  @Last Time: 19-02-2018 15:23:45 UTC+1
  *
  *  @Description:
  *  
  */
 
 GIT_OID_RAWSZ :: 20;
+GIT_OID_HEXSZ :: GIT_OID_RAWSZ * 2;
 
 //Opaque Structs
 Repository       :: struct {};

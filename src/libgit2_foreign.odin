@@ -6,7 +6,7 @@
  *  @Creation: 13-12-2017 23:52:55 UTC-5
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 16-02-2018 07:19:40 UTC+1
+ *  @Last Time: 19-02-2018 15:25:07 UTC+1
  *  
  *  @Description:
  *  
@@ -69,6 +69,7 @@ foreign libgit {
 
     // Oid
     oid_from_str                :: proc(out: ^Oid, str: ^u8) -> Error_Code ---;
+    oid_equal                   :: proc(a, b : ^Oid) -> b32 ---;
 
     // Remote
     remote_lookup               :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> Error_Code ---;
