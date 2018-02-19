@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 17-02-2018 14:56:04 UTC+1
+ *  @Last Time: 19-02-2018 15:07:19 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -511,6 +511,7 @@ main_menu :: proc(using state : ^State) {
 }
 
 do_async_fetch :: proc(repo : ^git.Repository) {
+    console.log("Starting Fetch...");
     _payload :: struct {
         repo : ^git.Repository,
     }
@@ -524,7 +525,7 @@ do_async_fetch :: proc(repo : ^git.Repository) {
         remote_cb.credentials = credentials_callback;
         ok = git.remote_connect(remote, git.Direction.Fetch, &remote_cb, nil, nil);
         if !log_if_err(ok) {
-            console.logf("Origin Connected: %t", git.remote_connected(remote));
+            console.logf("Connected to %s", git.remote_name(remote));
             fetch_opt, _ := git.fetch_init_options();
             fetch_opt.callbacks = remote_cb;
 
@@ -544,6 +545,7 @@ do_async_fetch :: proc(repo : ^git.Repository) {
 }
 
 do_async_push :: proc(repo : ^git.Repository, branches_to_push : []brnch.Branch) {
+    console.log("Starting Push...");
     _payload :: struct {
         repo : ^git.Repository,
         branches : []brnch.Branch,
@@ -559,6 +561,7 @@ do_async_push :: proc(repo : ^git.Repository, branches_to_push : []brnch.Branch)
         remote_cb.credentials = credentials_callback;
         ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
         if !log_if_err(ok) {
+            console.logf("Connected to %s", git.remote_name(remote));
             refspec : [dynamic]string; defer free(refspec);
             for b in branches {
                 refname := git.reference_name(b.ref);
@@ -574,7 +577,9 @@ do_async_push :: proc(repo : ^git.Repository, branches_to_push : []brnch.Branch)
 
 
             err := git.remote_push(remote, refspec[..], &opts);
-            log_if_err(err);
+            if !log_if_err(err) {
+                console.log("Push Complete...");
+            }
             git.free(remote);
             tpayload.done = true;
             free(p);
