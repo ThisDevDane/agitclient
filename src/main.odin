@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-02-2018 14:27:21 UTC+1
+ *  @Last Time: 22-02-2018 14:42:09 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -720,7 +720,7 @@ commit_window :: proc(using state : ^State) {
 
         if imgui.button("Commit") {
             // @note(bpunsky): do the commit!
-            commit_msg := fmt.aprintf("%s\r\n\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
+            commit_msg := fmt.aprintf("%s\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
             defer _global.free(commit_msg);
 
             committer, _ := git.signature_now(settings.instance.name, settings.instance.email);

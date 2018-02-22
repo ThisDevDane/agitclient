@@ -67,7 +67,7 @@ update_mutex : sync.Mutex;
 do_update := false;
 
 update :: proc(repo : ^git.Repository, status : ^Status) {
-    console.log("Updating status...");
+    console.log("(Status) Updating...");
 
     clear(&status.staged);
     clear(&status.unstaged);
@@ -176,9 +176,8 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
                 if ok {
                     c := cast(^win32.File_Notify_Information)buf;
                     for c != nil {
-                        name := misc.wchar_to_odin_string(&c.file_name[0], i32(c.file_name_length / size_of(u16)));
-                        test, _ := string_util.get_upto_first_from_file(name, '\\');
-                        
+                        dos_name := misc.wchar_to_odin_string(&c.file_name[0], i32(c.file_name_length / size_of(u16))); defer _global.free(dos_name);
+                        name := string_util.replace(dos_name, '\\', '/'); defer _global.free(name);
                         if ignored, _ := git.ignore_path_is_ignored(repo, name); ignored {
                             c = next_entry(c);
                             continue;
