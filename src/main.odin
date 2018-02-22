@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-02-2018 16:51:54 UTC+1
+ *  @Last Time: 22-02-2018 14:27:21 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -252,7 +252,11 @@ open_repo :: proc(new_repo: ^git.Repository, using state : ^State) {
     log_if_err(err);
 
     log.update(&git_log, repo, current_branch.ref);
+    git_status.free(&status);
     git_status.update(repo, &status);
+
+    //NOTE(Hoej): libgit2 only ignores .git not the files inside it... *sigh*
+    git.ignore_add_rule(repo, ".git\\*");
 }
 
 init :: proc(using state : ^State) {
@@ -273,7 +277,7 @@ init :: proc(using state : ^State) {
     lib_ver_string = fmt.aprintf("libgit2 v%d.%d.%d",
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
 
-    git_status.status_refresh_timer = time_util.create_timer(2.5, true);
+    //git_status.status_refresh_timer = time_util.create_timer(2.5, true);
 }
 
 begin_frame :: proc(using state : ^State) {

@@ -6,7 +6,7 @@
  *  @Creation: 13-12-2017 23:52:55 UTC-5
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-02-2018 15:25:07 UTC+1
+ *  @Last Time: 22-02-2018 14:19:36 UTC+1
  *  
  *  @Description:
  *  
@@ -34,6 +34,7 @@ foreign libgit {
     repository_head             :: proc(out : ^^Reference, repo : ^Repository) -> Error_Code ---;
     repository_set_head         :: proc(repo : ^Repository, refname : ^byte) -> Error_Code ---;
     repository_path             :: proc(repo : ^Repository) -> ^u8 ---;
+    repository_workdir          :: proc(repo : ^Repository) -> ^u8 ---;
     repository_index            :: proc(out : ^^Index, repo : ^Repository) -> Error_Code ---;
     repository_set_index        :: proc(repo : ^Repository, index : ^Index) ---;
 
@@ -208,4 +209,8 @@ foreign libgit {
 
     //Graph
     graph_ahead_behind          :: proc(ahead : ^uint, behind : ^uint, repo : ^Repository, local : ^Oid, upstream : ^Oid) -> Error_Code ---;
+
+    //Ignore
+    ignore_path_is_ignored      :: proc(ignored : ^i32, repo : ^Repository, path : ^u8) -> Error_Code ---;
+    ignore_add_rule             :: proc(repo : ^Repository, rules : ^u8) -> Error_Code ---;
 }

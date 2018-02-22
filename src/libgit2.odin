@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-02-2018 15:26:21 UTC+1
+ *  @Last Time: 22-02-2018 14:21:23 UTC+1
  *
  *  @Description:
  *
@@ -56,6 +56,7 @@ repository_open             :: inline proc(path : string, flags := Repository_Op
 repository_head             :: inline proc(repo : ^Repository) -> (^Reference, Error_Code)                                                                                                     { return _repository_head(repo); }
 repository_set_head         :: inline proc(repo : ^Repository, refname : string) -> Error_Code                                                                                                 { return _repository_set_head(repo, refname); }
 repository_path             :: inline proc(repo : ^Repository) -> string                                                                                                                       { return _repository_path(repo); }
+repository_workdir          :: inline proc(repo : ^Repository) -> string                                                                                                                       { return _repository_workdir(repo); }
 repository_index            :: inline proc(repo : ^Repository) -> (^Index, Error_Code)                                                                                                         { return _repository_index(repo); }
 repository_set_index        :: inline proc(repo : ^Repository, index : ^Index)                                                                                                                 { git.repository_set_index(repo, index); }
 is_repository               :: inline proc(path : string) -> bool                                                                                                                              { return _is_repository(path); } 
@@ -226,9 +227,15 @@ diff_init_options           :: inline proc(version : u32 = DIFF_OPTIONS_VERSION)
 graph_ahead_behind          :: inline proc(repo : ^Repository, local : Oid, upstream : Oid) -> (ahead : uint, behind : uint, err : Error_Code)                                                 { return _graph_ahead_behind(repo, local, upstream); }
 
 ////////////////////////////////////////////
-////
+//// git_oid_*
 ////
 oid_equal                   :: proc(a, b : ^Oid) -> bool                                                                                                                                       { return bool(git.oid_equal(a, b)); }
+
+////////////////////////////////////////////
+/// git_ignore_*
+///
+ignore_path_is_ignored      :: proc(repo : ^Repository, path : string) -> (ignore : bool, err : Error_Code)                                                                                    { return _ignore_path_is_ignored(repo, path); }
+ignore_add_rule             :: proc(repo : ^Repository, rules : string) -> Error_Code                                                                                                          { return _ignore_add_rule(repo, rules); }
 
 ////////////////////////////////////////////
 //// git_err
@@ -324,6 +331,14 @@ _repository_set_head :: proc(repo : ^Repository, refname : string) -> Error_Code
 
 _repository_path :: proc(repo : ^Repository) -> string {
     if path := git.repository_path(repo); path != nil {
+        return strings.to_odin_string(path);
+    }
+
+    return "";
+}
+
+_repository_workdir :: proc(repo : ^Repository) -> string {
+    if path := git.repository_workdir(repo); path != nil {
         return strings.to_odin_string(path);
     }
 
@@ -715,4 +730,15 @@ _patch_get_line_in_hunk :: proc(patch : ^Patch, hunk_idx : uint, line_idx : uint
     out : ^Diff_Line;
     err := git.patch_get_line_in_hunk(&out, patch, hunk_idx, line_idx);
     return out, err;
+}
+
+_ignore_path_is_ignored :: proc(repo : ^Repository, path : string ) -> (ignore : bool, err : Error_Code) {
+    out : i32;
+    err = git.ignore_path_is_ignored(&out, repo, _make_misc_string(Misc_Buf.One, path));
+    ignore = bool(out);
+    return;
+}
+
+_ignore_add_rule :: proc(repo : ^Repository, rules : string) -> Error_Code {
+    return git.ignore_add_rule(repo, _make_misc_string(Misc_Buf.One, rules));
 }
