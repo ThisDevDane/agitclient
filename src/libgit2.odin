@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 01:50:33
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-02-2018 14:21:23 UTC+1
+ *  @Last Time: 05-03-2018 10:51:34 UTC+1
  *
  *  @Description:
  *
@@ -245,7 +245,7 @@ err_last :: proc() -> Error {
     if err == nil {
         return Error{"N/A", ErrorType.Unknown};
     }
-    str := strings.to_odin_string(err.message);
+    str := string(err.message);
     return Error{str, err.klass};
 }
 
@@ -268,26 +268,26 @@ Misc_Buf :: enum {
 _MISC_BUF_SIZE :: 4096;
 @(thread_local) misc_bufs : [4][_MISC_BUF_SIZE]u8;
 
-_make_misc_string :: proc(chosen_buf : Misc_Buf, fmt_: string, args: ...any) -> ^byte {
+_make_misc_string :: proc(chosen_buf : Misc_Buf, fmt_: string, args: ...any) -> cstring {
     buf := misc_bufs[chosen_buf][..];
     s := fmt.bprintf(buf, fmt_, ...args);
     buf[len(s)] = 0;
-    return cast(^byte)&buf[0];
+    return cstring(&buf[0]);
 }
 
 _str_array_to_slice :: proc(stra : ^Str_Array) -> []string {
     raw_strings := mem.slice_ptr(stra.strings, int(stra.count));
     res := make([]string, int(stra.count));
     for _, i in res {
-        res[i] = strings.to_odin_string(raw_strings[i]);
+        res[i] = string(cstring(raw_strings[i]));
     }
     return res;
 }
 
 _slice_to_str_array :: proc(slice : []string) -> Str_Array {
-      cslice := make([]^u8, len(slice));
+      cslice := make([]cstring, len(slice));
       for _, i in slice {
-            cslice[i] = &(slice[i])[0];
+            cslice[i] = cstring(&(slice[i])[0]);
       }
       return Str_Array{&cslice[0], uint(len(cslice))};
 }
@@ -331,7 +331,7 @@ _repository_set_head :: proc(repo : ^Repository, refname : string) -> Error_Code
 
 _repository_path :: proc(repo : ^Repository) -> string {
     if path := git.repository_path(repo); path != nil {
-        return strings.to_odin_string(path);
+        return string(path);
     }
 
     return "";
@@ -339,7 +339,7 @@ _repository_path :: proc(repo : ^Repository) -> string {
 
 _repository_workdir :: proc(repo : ^Repository) -> string {
     if path := git.repository_workdir(repo); path != nil {
-        return strings.to_odin_string(path);
+        return string(path);
     }
 
     return "";
@@ -424,7 +424,7 @@ _remote_update_tips :: proc(remote : ^Remote,
 
 _remote_name :: proc(remote : ^Remote) -> string {
     c_str := git.remote_name(remote);
-    return strings.to_odin_string(c_str);
+    return string(c_str);
 }
 
 _index_new :: proc() -> (^Index, Error_Code) {
@@ -475,12 +475,12 @@ _reference_name_to_id :: proc(repo : ^Repository, name : string) -> (Oid, Error_
 
 _reference_symbolic_target :: proc(ref : ^Reference) -> string {
     c_str := git.reference_symbolic_target(ref);
-    return strings.to_odin_string(c_str);
+    return string(c_str);
 }
 
 _reference_name :: proc(ref : ^Reference) -> string {
     c_str := git.reference_name(ref);
-    return strings.to_odin_string(c_str);
+    return string(c_str);
 }
 
 _reference_peel :: proc(ref : ^Reference, kind : Obj_Type) -> (^Object, Error_Code) {
@@ -492,7 +492,7 @@ _reference_peel :: proc(ref : ^Reference, kind : Obj_Type) -> (^Object, Error_Co
 _commit_create :: proc(repo : ^Repository, update_ref : string, author, committer : ^Signature, message : string, tree : ^Tree, parents : ...^Commit) -> (Oid, Error_Code) {
     id : Oid;
     encoding := "UTF-8\x00";
-    err := git.commit_create(&id, repo, _make_misc_string(Misc_Buf.One, update_ref), author._git_orig, committer._git_orig, &encoding[0], _make_misc_string(Misc_Buf.Two, message), tree, uint(len(parents)), &parents[0]);
+    err := git.commit_create(&id, repo, _make_misc_string(Misc_Buf.One, update_ref), author._git_orig, committer._git_orig, cstring(&encoding[0]), _make_misc_string(Misc_Buf.Two, message), tree, uint(len(parents)), &parents[0]);
     return id, err;
 }
 
@@ -507,8 +507,8 @@ _commit_committer :: proc(commit : ^Commit) -> Signature {
     //NOTE(Hoej): YUCK!
     sig := Signature {
         gsig,
-        strings.new_string(strings.to_odin_string(gsig.name)),
-        strings.new_string(strings.to_odin_string(gsig.email)),
+        strings.new_string(string(gsig.name)),
+        strings.new_string(string(gsig.email)),
         gsig.time_when
     };
 
@@ -520,8 +520,8 @@ _commit_author :: proc(commit : ^Commit) -> Signature {
     //NOTE(Hoej): YUCK!
     sig := Signature {
         gsig,
-        strings.new_string(strings.to_odin_string(gsig.name)),
-        strings.new_string(strings.to_odin_string(gsig.email)),
+        strings.new_string(string(gsig.name)),
+        strings.new_string(string(gsig.email)),
         gsig.time_when
     };
 
@@ -530,17 +530,17 @@ _commit_author :: proc(commit : ^Commit) -> Signature {
 
 _commit_message :: proc(commit : ^Commit) -> string {
     c_str := git.commit_message(commit);
-    return strings.to_odin_string(c_str);
+    return string(c_str);
 }
 
 _commit_summary :: proc(commit : ^Commit) -> string {
     c_str := git.commit_summary(commit);
-    return strings.to_odin_string(c_str);
+    return string(c_str);
 }
 
 _commit_raw_header :: proc(commit : ^Commit) -> string {
     ptr := git.commit_raw_header(commit);
-    return strings.to_odin_string(ptr);
+    return string(ptr);
 }
 
 _branch_iterator_new :: proc(repo : ^Repository, list_flags : Branch_Type) -> (^Branch_Iterator, Error_Code) {
@@ -557,9 +557,9 @@ _branch_next :: proc(iter : ^Branch_Iterator) -> (^Reference, Branch_Type, Error
 }
 
 _branch_name :: proc(ref : ^Reference) -> (string, Error_Code) {
-    c_str : ^byte;
+    c_str : cstring;
     err := git.branch_name(&c_str, ref);
-    return strings.to_odin_string(c_str), err;
+    return string(c_str), err;
 }
 
 _branch_create :: proc(repo : ^Repository, branch_name : string, target : ^Commit, force : bool = false) -> (^Reference, Error_Code) {
@@ -595,8 +595,8 @@ _signature_now :: proc(name, email : string) -> (Signature, Error_Code) {
     err := git.signature_now(&out, _make_misc_string(Misc_Buf.One, name), _make_misc_string(Misc_Buf.Two, email));
     return Signature {
         _git_orig = out,
-        name      = strings.new_string(strings.to_odin_string(out.name)),
-        email     = strings.new_string(strings.to_odin_string(out.email)),
+        name      = strings.new_string(string(out.name)),
+        email     = strings.new_string(string(out.email)),
         time_when = out.time_when,
     }, err;
 }

@@ -6,7 +6,7 @@
  *  @Creation: 13-12-2017 23:52:55 UTC-5
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-02-2018 14:19:36 UTC+1
+ *  @Last Time: 05-03-2018 10:52:19 UTC+1
  *  
  *  @Description:
  *  
@@ -27,19 +27,19 @@ foreign libgit {
     libgit2_version             :: proc(major : ^i32, minor : ^i32, rev : ^i32) ---;
 
     // Repository
-    repository_init             :: proc(out : ^^Repository, path : ^byte, is_bare : u32) -> Error_Code ---;
-    repository_init_ext         :: proc(out : ^^Repository, path : ^byte, pots : ^Repository_Init_Options) -> Error_Code ---;
+    repository_init             :: proc(out : ^^Repository, path : cstring, is_bare : u32) -> Error_Code ---;
+    repository_init_ext         :: proc(out : ^^Repository, path : cstring, pots : ^Repository_Init_Options) -> Error_Code ---;
     repository_free             :: proc(repo : ^Repository) ---;
-    repository_open_ext         :: proc(out : ^^Repository, path : ^byte, flags : Repository_Open_Flags, ceiling_dirs : ^byte) -> Error_Code ---;
+    repository_open_ext         :: proc(out : ^^Repository, path : cstring, flags : Repository_Open_Flags, ceiling_dirs : cstring) -> Error_Code ---;
     repository_head             :: proc(out : ^^Reference, repo : ^Repository) -> Error_Code ---;
-    repository_set_head         :: proc(repo : ^Repository, refname : ^byte) -> Error_Code ---;
-    repository_path             :: proc(repo : ^Repository) -> ^u8 ---;
-    repository_workdir          :: proc(repo : ^Repository) -> ^u8 ---;
+    repository_set_head         :: proc(repo : ^Repository, refname : cstring) -> Error_Code ---;
+    repository_path             :: proc(repo : ^Repository) -> cstring ---;
+    repository_workdir          :: proc(repo : ^Repository) -> cstring ---;
     repository_index            :: proc(out : ^^Index, repo : ^Repository) -> Error_Code ---;
     repository_set_index        :: proc(repo : ^Repository, index : ^Index) ---;
 
     // Clone
-    clone                       :: proc(out : ^^Repository, url : ^byte, local_path : ^byte, options : ^Clone_Options) -> Error_Code ---;
+    clone                       :: proc(out : ^^Repository, url : cstring, local_path : cstring, options : ^Clone_Options) -> Error_Code ---;
     clone_init_options          :: proc(options : ^Clone_Options, version: u32) -> Error_Code ---;
 
     // Status
@@ -51,65 +51,65 @@ foreign libgit {
     status_byindex              :: proc(statuslist : ^Status_List, idx : uint) -> ^Status_Entry ---;
 
     // Commits
-    commit_create               :: proc(id : ^Oid, repo : ^Repository, update_ref : ^u8, author : ^Git_Signature, committer : ^Git_Signature, message_encoding : ^u8, message : ^u8, tree : ^Tree, parent_count : uint, parents : ^^Commit) -> Error_Code ---;
+    commit_create               :: proc(id : ^Oid, repo : ^Repository, update_ref : cstring, author : ^Git_Signature, committer : ^Git_Signature, message_encoding : cstring, message : cstring, tree : ^Tree, parent_count : uint, parents : ^^Commit) -> Error_Code ---;
     commit_free                 :: proc(out : ^Commit) ---;
     commit_lookup               :: proc(out : ^^Commit, repo : ^Repository, id : ^Oid) -> Error_Code ---;
     commit_parent               :: proc(out : ^^Commit, commit : ^Commit, n : u32) -> i32 ---;
     commit_parentcount          :: proc(commit : ^Commit) -> Error_Code ---;
     commit_parent_id            :: proc(commit : ^Commit, n : u32) -> ^Oid ---;
-    commit_message              :: proc(commit : ^Commit) -> ^u8 ---;
+    commit_message              :: proc(commit : ^Commit) -> cstring ---;
     commit_committer            :: proc(commit : ^Commit) -> ^Git_Signature ---;
     commit_author               :: proc(commit : ^Commit) -> ^Git_Signature ---;
-    commit_summary              :: proc(commit : ^Commit) -> ^byte ---;
-    commit_raw_header           :: proc(commit : ^Commit) -> ^byte ---;
+    commit_summary              :: proc(commit : ^Commit) -> cstring ---;
+    commit_raw_header           :: proc(commit : ^Commit) -> cstring ---;
     commit_tree                 :: proc(tree_out : ^^Tree, commit : ^Commit) -> i32 ---;
 
     // Signature
-    signature_now               :: proc(out : ^^Git_Signature, name, email : ^byte) -> Error_Code ---;
+    signature_now               :: proc(out : ^^Git_Signature, name, email : cstring) -> Error_Code ---;
     signature_free              :: proc(sig : ^Git_Signature) ---;
 
     // Oid
-    oid_from_str                :: proc(out: ^Oid, str: ^u8) -> Error_Code ---;
+    oid_from_str                :: proc(out: ^Oid, str: cstring) -> Error_Code ---;
     oid_equal                   :: proc(a, b : ^Oid) -> b32 ---;
 
     // Remote
-    remote_lookup               :: proc(out : ^^Remote, repo : ^Repository, name : ^byte) -> Error_Code ---;
+    remote_lookup               :: proc(out : ^^Remote, repo : ^Repository, name : cstring) -> Error_Code ---;
     remote_list                 :: proc(out : ^Str_Array, repo : ^Repository) -> Error_Code ---;
     remote_default_branch       :: proc(out : ^Buf, remote : ^Remote) -> Error_Code ---;
     remote_connect              :: proc(remote : ^Remote, Direction : Direction, callbacks : ^Remote_Callbacks, proxy_opts : ^Proxy_Options, custom_headers : ^Str_Array) -> Error_Code ---;
     remote_disconnect           :: proc(remote : ^Remote) ---;
     remote_init_callbacks       :: proc(opts : ^Remote_Callbacks, version : u32 = REMOTE_CALLBACKS_VERSION) -> Error_Code ---;
     remote_connected            :: proc(remote : ^Remote) -> b32 ---;
-    remote_fetch                :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : ^byte) -> Error_Code ---;
+    remote_fetch                :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Fetch_Options, reflog_message : cstring) -> Error_Code ---;
     remote_free                 :: proc(remote : ^Remote) ---;
     remote_push                 :: proc(remote : ^Remote, refspecs : ^Str_Array, opts : ^Push_Options) -> Error_Code ---;
-    remote_update_tips          :: proc(remote : ^Remote, callbacks : ^Remote_Callbacks, update_fetchhead : b32, download_tags : Remote_Autotag_Option_Flags, reflog_message : ^byte) -> Error_Code ---;
-    remote_name                 :: proc(remote : ^Remote) -> ^byte ---;
+    remote_update_tips          :: proc(remote : ^Remote, callbacks : ^Remote_Callbacks, update_fetchhead : b32, download_tags : Remote_Autotag_Option_Flags, reflog_message : cstring) -> Error_Code ---;
+    remote_name                 :: proc(remote : ^Remote) -> cstring ---;
 
     // Index
     index_new                   :: proc(out : ^^Index) -> Error_Code ---;
     index_free                  :: proc(index : ^Index) -> Error_Code ---;
     index_add                   :: proc(index : ^Index, entry : ^Index_Entry) -> Error_Code ---;
-    index_add_bypath            :: proc(index : ^Index, path : ^byte) -> Error_Code ---;
+    index_add_bypath            :: proc(index : ^Index, path : cstring) -> Error_Code ---;
     index_remove                :: proc(index : ^Index, entry : ^Index_Entry) -> Error_Code ---;
-    index_remove_bypath         :: proc(index : ^Index, path : ^byte) -> Error_Code ---;
+    index_remove_bypath         :: proc(index : ^Index, path : cstring) -> Error_Code ---;
     index_entrycount            :: proc(index : ^Index) -> uint ---;
     index_get_byindex           :: proc(index : ^Index, n : uint) -> ^Index_Entry ---;
     index_write                 :: proc(index : ^Index) -> Error_Code ---;
     index_write_tree            :: proc(id : ^Oid, index : ^Index) -> Error_Code ---;
 
     // Cred
-    cred_userpass_plaintext_new :: proc(out : ^^Cred, username : ^byte, password : ^byte) -> Error_Code ---;
+    cred_userpass_plaintext_new :: proc(out : ^^Cred, username : cstring, password : cstring) -> Error_Code ---;
     cred_has_username           :: proc(cred : ^Cred) -> b32 ---;
-    cred_ssh_key_from_agent     :: proc(out : ^^Cred, username : ^byte) -> Error_Code ---;
+    cred_ssh_key_from_agent     :: proc(out : ^^Cred, username : cstring) -> Error_Code ---;
 
     // Reset
     reset_default               :: proc(repo : ^Repository, target : ^Object, pathspecs : ^Str_Array) -> Error_Code ---;
 
     // Reference
-    reference_name_to_id        :: proc(out : ^Oid, repo : ^Repository, name : ^byte) -> Error_Code ---;
-    reference_symbolic_target   :: proc(ref : ^Reference) -> ^byte ---;
-    reference_name              :: proc(ref : ^Reference) -> ^byte ---;
+    reference_name_to_id        :: proc(out : ^Oid, repo : ^Repository, name : cstring) -> Error_Code ---;
+    reference_symbolic_target   :: proc(ref : ^Reference) -> cstring ---;
+    reference_name              :: proc(ref : ^Reference) -> cstring ---;
     reference_peel              :: proc(out : ^^Object, ref : ^Reference, kind : Obj_Type) -> Error_Code ---;
     reference_free              :: proc(ref : ^Reference) ---;
     reference_is_branch         :: proc(ref : ^Reference) -> b32 ---;
@@ -168,24 +168,24 @@ foreign libgit {
     tree_lookup                 :: proc(out : ^^Tree, repo : ^Repository, id : ^Oid) -> i32 ---;
 
     // Branch
-    branch_create               :: proc(out : ^^Reference, repo : ^Repository, branch_name : ^byte, target : ^Commit, force : i32) -> Error_Code ---;
-    branch_name                 :: proc(out : ^^byte, ref : ^Reference) -> Error_Code ---;
+    branch_create               :: proc(out : ^^Reference, repo : ^Repository, branch_name : cstring, target : ^Commit, force : i32) -> Error_Code ---;
+    branch_name                 :: proc(out : ^cstring, ref : ^Reference) -> Error_Code ---;
     branch_iterator_new         :: proc(out : ^^Branch_Iterator, repo : ^Repository, list_flags : Branch_Type) -> Error_Code ---;
     branch_iterator_free        :: proc(iter : ^Branch_Iterator) ---;
     branch_next                 :: proc(out : ^^Reference, out_type : ^Branch_Type, iter : ^Branch_Iterator) -> Error_Code ---;
     branch_delete               :: proc(branch : ^Reference) -> Error_Code ---;
     branch_is_checked_out       :: proc(branch : ^Reference) -> b32 ---;
     branch_upstream             :: proc(out : ^^Reference, branch : ^Reference) -> Error_Code ---;
-    branch_set_upstream         :: proc(branch : ^Reference, upstream_name : ^byte) -> Error_Code ---;
+    branch_set_upstream         :: proc(branch : ^Reference, upstream_name : cstring) -> Error_Code ---;
 
     // Revparse
-    revparse_single             :: proc(out : ^^Object, repo : ^Repository, spec : ^byte) -> Error_Code ---;
+    revparse_single             :: proc(out : ^^Object, repo : ^Repository, spec : cstring) -> Error_Code ---;
 
     // Checkout
     checkout_tree               :: proc(repo : ^Repository, treeish : ^Object, opts : ^Checkout_Options) -> Error_Code ---;
 
     // Stash
-    stash_save                  :: proc(out : ^Oid, repo : ^Repository, stasher : ^Git_Signature, message : ^byte, flags : Stash_Flags) -> Error_Code ---;
+    stash_save                  :: proc(out : ^Oid, repo : ^Repository, stasher : ^Git_Signature, message : cstring, flags : Stash_Flags) -> Error_Code ---;
     stash_apply                 :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code ---;
     stash_pop                   :: proc(repo : ^Repository, index : uint, options : ^Stash_Apply_Options) -> Error_Code ---;
     stash_drop                  :: proc(repo : ^Repository, index : uint) -> Error_Code ---;
@@ -194,8 +194,8 @@ foreign libgit {
     // Revwalk
     revwalk_new                 :: proc(out : ^^Revwalk, repo : ^Repository) -> Error_Code ---;
     revwalk_next                :: proc(out : ^Oid, walk : ^Revwalk) -> Error_Code ---;
-    revwalk_push_range          :: proc(walk : ^Revwalk, range : ^byte) -> Error_Code ---;
-    revwalk_push_ref            :: proc(walk : ^Revwalk, refname : ^byte) -> Error_Code ---;
+    revwalk_push_range          :: proc(walk : ^Revwalk, range : cstring) -> Error_Code ---;
+    revwalk_push_ref            :: proc(walk : ^Revwalk, refname : cstring) -> Error_Code ---;
     revwalk_free                :: proc(walk : ^Revwalk) ---;
 
     // init_options
@@ -211,6 +211,6 @@ foreign libgit {
     graph_ahead_behind          :: proc(ahead : ^uint, behind : ^uint, repo : ^Repository, local : ^Oid, upstream : ^Oid) -> Error_Code ---;
 
     //Ignore
-    ignore_path_is_ignored      :: proc(ignored : ^i32, repo : ^Repository, path : ^u8) -> Error_Code ---;
-    ignore_add_rule             :: proc(repo : ^Repository, rules : ^u8) -> Error_Code ---;
+    ignore_path_is_ignored      :: proc(ignored : ^i32, repo : ^Repository, path : cstring) -> Error_Code ---;
+    ignore_add_rule             :: proc(repo : ^Repository, rules : cstring) -> Error_Code ---;
 }

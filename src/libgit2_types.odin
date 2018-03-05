@@ -6,7 +6,7 @@
  *  @Creation: 29-12-2017 16:05:30 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 19-02-2018 15:23:45 UTC+1
+ *  @Last Time: 05-03-2018 10:48:01 UTC+1
  *
  *  @Description:
  *  
@@ -35,8 +35,8 @@ Oid :: struct {
 }
 
 Git_Signature :: struct {
-    name      : ^byte, //Full name of the author
-    email     : ^byte, //Email of the author
+    name      : cstring, //Full name of the author
+    email     : cstring, //Email of the author
     time_when : Time,  //Time when the action happened
 }
 
@@ -51,15 +51,15 @@ Repository_Init_Options :: struct {
     version       : u32,
     flags         : u32,
     mode          : Repository_Init_Mode,
-    workdir_path  : ^byte,
-    description   : ^byte,
-    template_path : ^byte,
-    initial_head  : ^byte,
-    origin_url    : ^byte,
+    workdir_path  : cstring,
+    description   : cstring,
+    template_path : cstring,
+    initial_head  : cstring,
+    origin_url    : cstring,
 }
 
 Git_Error :: struct {
-    message : ^byte,
+    message : cstring,
     klass   : ErrorType,
 }
 
@@ -69,12 +69,12 @@ Error :: struct {
 }
 
 Str_Array :: struct {
-    strings : ^^byte,
+    strings : ^cstring,
     count   : uint,
 }
 
 Buf :: struct {
-    ptr   : ^byte,
+    ptr   : cstring,
     asize : uint,
     size  : uint,
 }
@@ -106,26 +106,26 @@ Index_Time :: struct {
 }
 
 Index_Entry :: struct {
-    ctime : Index_Time,
-    mtime : Index_Time,
-    dev       : u32,
-    ino       : u32,
-    mode      : u32,
-    uid       : u32,
-    gid       : u32,
-    file_size : u32,
-    id : Oid,
+    ctime          : Index_Time,
+    mtime          : Index_Time,
+    dev            : u32,
+    ino            : u32,
+    mode           : u32,
+    uid            : u32,
+    gid            : u32,
+    file_size      : u32,
+    id             : Oid,
     flags          : Index_Entry_Flag,
     flags_extended : Index_Entry_Extended_Flag,
-    path : ^byte,
+    path           : string,
 }
 
 Stash_Apply_Options :: struct {
-    version: u32,
-    flags: Stash_Apply_Flags,
-    checkout_options: Checkout_Options, // Options to use when writing files to the working directory.
-    progress_cb: Stash_Apply_Progress_Cb, // Optional callback to notify the consumer of application progress.
-    progress_payload: rawptr,
+    version          : u32,
+    flags            : Stash_Apply_Flags,
+    checkout_options : Checkout_Options, // Options to use when writing files to the working directory.
+    progress_cb      : Stash_Apply_Progress_Cb, // Optional callback to notify the consumer of application progress.
+    progress_payload : rawptr,
 }
 
 Clone_Options :: struct {
@@ -492,7 +492,7 @@ Filemode :: enum u32 {
 
 Diff_File :: struct {
     id        : Oid,
-    path      : ^byte,
+    path      : cstring,
     size      : i64, //NOTE(Hoej): Changes with platform, i64 on Windows
     flags     : Diff_Flags,
     mode      : u16,

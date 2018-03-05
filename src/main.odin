@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-02-2018 14:42:09 UTC+1
+ *  @Last Time: 05-03-2018 10:41:08 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -120,7 +120,7 @@ credentials_callback :: proc "stdcall" (cred : ^^git.Cred,  url : ^byte, usernam
         cred^ = new_cred;
     } else if test_val(git.Cred_Type.Ssh_Key, allowed_types) {
         if settings.instance.use_ssh_agent {
-            new_cred, err := git.cred_ssh_key_from_agent(strings.to_odin_string(username_from_url));
+            new_cred, err := git.cred_ssh_key_from_agent(string(cstring(username_from_url)));
             if err != git.Error_Code.Ok {
                 return FAILED;
             }
@@ -471,9 +471,9 @@ main_menu :: proc(using state : ^State) {
         imgui.separator();
         if imgui.button("Save", imgui.Vec2{135, 30}) {
             { // Save settings
-                name := strings.to_odin_string(&name_buf[0]);
+                name := string(cstring(&name_buf[0]));
                 settings.instance.name = strings.new_string(name);
-                email := strings.to_odin_string(&email_buf[0]);
+                email := string(cstring(&email_buf[0]));
                 settings.instance.email = strings.new_string(email);
                 settings.save();
             }
@@ -496,9 +496,9 @@ main_menu :: proc(using state : ^State) {
         imgui.separator();
         if imgui.button("Save", imgui.Vec2{135, 30}) {
             { // Save settings
-                username := strings.to_odin_string(&username_buf[0]);
+                username := string(cstring(&username_buf[0]));
                 settings.instance.username = strings.new_string(username);
-                password := strings.to_odin_string(&password_buf[0]);
+                password := string(cstring(&password_buf[0]));
                 settings.instance.password = strings.new_string(password);
                 settings.save();
             }
@@ -613,7 +613,7 @@ repo_window :: proc(using state : ^State) {
         if repo == nil {
             ok := imgui.input_text("Repo Path;", path_buf[..], imgui.Input_Text_Flags.EnterReturnsTrue);
             if imgui.button("Open") || ok || open_recent {
-                path := strings.to_odin_string(&path_buf[0]);
+                path := string(cstring(&path_buf[0]));
 
                 if open_recent {
                     path = recent_repo;
@@ -720,7 +720,7 @@ commit_window :: proc(using state : ^State) {
 
         if imgui.button("Commit") {
             // @note(bpunsky): do the commit!
-            commit_msg := fmt.aprintf("%s\r\n%s", strings.to_odin_string(&summary_buf[0]), strings.to_odin_string(&message_buf[0]));
+            commit_msg := fmt.aprintf("%s\r\n%s", string(cstring(&summary_buf[0])), string(cstring(&message_buf[0])));
             defer _global.free(commit_msg);
 
             committer, _ := git.signature_now(settings.instance.name, settings.instance.email);
@@ -801,23 +801,16 @@ MAKEINTRESOURCEA :: inline proc(i : u16) -> ^u8 {
     return (^u8)(rawptr(uintptr(int(u16(i)))));
 }
 
-IDC_ARROW    := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32512));
-IDC_IBEAM    := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32513));
-IDC_SIZENESW := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32643));
-IDC_SIZENS   := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32645));
-IDC_SIZENWSE := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32642));
-IDC_SIZEWE   := win32.load_cursor_a(nil, MAKEINTRESOURCEA(32644));
-
 set_cursor :: proc() {
     cur := imgui.get_mouse_cursor();
     using imgui;
     switch cur {
-        case Mouse_Cursor.Arrow      : win32.set_cursor(IDC_ARROW);
-        case Mouse_Cursor.TextInput  : win32.set_cursor(IDC_IBEAM);
-        case Mouse_Cursor.ResizeNS   : win32.set_cursor(IDC_SIZENS);
-        case Mouse_Cursor.ResizeEW   : win32.set_cursor(IDC_SIZEWE);
-        case Mouse_Cursor.ResizeNESW : win32.set_cursor(IDC_SIZENESW);
-        case Mouse_Cursor.ResizeNWSE : win32.set_cursor(IDC_SIZENWSE);
+        case Mouse_Cursor.Arrow      : win32.set_cursor(window.IDC_ARROW);
+        case Mouse_Cursor.TextInput  : win32.set_cursor(window.IDC_IBEAM);
+        case Mouse_Cursor.ResizeNS   : win32.set_cursor(window.IDC_SIZENS);
+        case Mouse_Cursor.ResizeEW   : win32.set_cursor(window.IDC_SIZEWE);
+        case Mouse_Cursor.ResizeNESW : win32.set_cursor(window.IDC_SIZENESW);
+        case Mouse_Cursor.ResizeNWSE : win32.set_cursor(window.IDC_SIZENWSE);
     }
 }
 ///////

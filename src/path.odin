@@ -7,9 +7,9 @@ when ODIN_OS == "windows" {
     import win32 "core:sys/windows.odin"
 
     long :: proc(path: string) -> string {
-        foreign kernel32 GetLongPathNameA :: proc "std" (short, long: ^u8, len: u32) -> u32 ---;
+        foreign kernel32 GetLongPathNameA :: proc "std" (short, long: cstring, len: u32) -> u32 ---;
 
-        c_path := strings.new_c_string(path);
+        c_path := strings.new_cstring(path);
         defer free(c_path);
 
         length := GetLongPathNameA(c_path, nil, 0);
@@ -17,7 +17,7 @@ when ODIN_OS == "windows" {
         if length > 0 {
             buf := make([]u8, length-1);
 
-            GetLongPathNameA(c_path, &buf[0], length);
+            GetLongPathNameA(c_path, cstring(&buf[0]), length);
 
             return cast(string) buf[..length-1];
         }
@@ -26,9 +26,9 @@ when ODIN_OS == "windows" {
     }
 
     short :: proc(path: string) -> string {
-        foreign kernel32 GetShortPathNameA :: proc "std" (long, short: ^u8, len: u32) -> u32 ---;
+        foreign kernel32 GetShortPathNameA :: proc "std" (long, short: cstring, len: u32) -> u32 ---;
 
-        c_path := strings.new_c_string(path);
+        c_path := strings.new_cstring(path);
         defer free(c_path);
 
         length := GetShortPathNameA(c_path, nil, 0);
@@ -36,7 +36,7 @@ when ODIN_OS == "windows" {
         if length > 0 {
             buf := make([]u8, length-1);
 
-            GetShortPathNameA(c_path, &buf[0], length);
+            GetShortPathNameA(c_path, cstring(&buf[0]), length);
 
             return cast(string) buf[..length-1];
         }
@@ -45,9 +45,9 @@ when ODIN_OS == "windows" {
     }
 
     full :: proc(path: string) -> string {
-        foreign kernel32 GetFullPathNameA :: proc "std" (filename: ^u8, buffer_length: u32, buffer: ^u8, file_part: ^^u8) -> u32 ---;
+        foreign kernel32 GetFullPathNameA :: proc "std" (filename: cstring, buffer_length: u32, buffer: cstring, file_part: ^cstring) -> u32 ---;
 
-        c_path := strings.new_c_string(path);
+        c_path := strings.new_cstring(path);
         defer free(c_path);
 
         length := GetFullPathNameA(c_path, 0, nil, nil);
@@ -55,7 +55,7 @@ when ODIN_OS == "windows" {
         if length > 0 {
             buf := make([]u8, length);
 
-            GetFullPathNameA(c_path, length, &buf[0], nil);
+            GetFullPathNameA(c_path, length, cstring(&buf[0]), nil);
 
             return cast(string) buf[..length-1];
         }
@@ -119,7 +119,7 @@ name :: proc(path: string, new := false) -> string {
 }
 
 is_dir :: proc(path: string) -> bool {
-    c_path := strings.new_c_string(path);
+    c_path := strings.new_cstring(path);
     defer free(c_path);
 
     return 0 < (win32.get_file_attributes_a(c_path) & win32.FILE_ATTRIBUTE_DIRECTORY);

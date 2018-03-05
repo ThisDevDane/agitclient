@@ -6,7 +6,7 @@
  *  @Creation: 13-02-2018 14:26:12 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-02-2018 14:22:37 UTC+1
+ *  @Last Time: 05-03-2018 10:53:26 UTC+1
  *  
  *  @Description:
  *  
@@ -86,7 +86,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
         if entry := git.status_byindex(status_list, i); entry != nil {
             if entry.head_to_index != nil {
                 append(&status.staged, Status_Entry{
-                    strings.to_odin_string(entry.head_to_index.new_file.path), 
+                    string(entry.head_to_index.new_file.path), 
                     Status_Delta(entry.head_to_index.status),
                     entry});
             }
@@ -94,7 +94,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
             if entry.index_to_workdir != nil {
                 if entry.index_to_workdir.status == git.Delta.Untracked {
                     append(&status.untracked, Status_Entry{
-                        strings.to_odin_string(entry.index_to_workdir.new_file.path), 
+                        string(entry.index_to_workdir.new_file.path), 
                         Status_Delta(entry.index_to_workdir.status),
                         entry});
 
@@ -111,7 +111,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
                         }*/
                 } else {
                     append(&status.unstaged, Status_Entry{
-                        strings.to_odin_string(entry.index_to_workdir.new_file.path), 
+                        string(entry.index_to_workdir.new_file.path), 
                         Status_Delta(entry.index_to_workdir.status),
                         entry});
                 }
@@ -176,7 +176,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
                 if ok {
                     c := cast(^win32.File_Notify_Information)buf;
                     for c != nil {
-                        dos_name := misc.wchar_to_odin_string(&c.file_name[0], i32(c.file_name_length / size_of(u16))); defer _global.free(dos_name);
+                        dos_name := misc.wchar_to_odin_string(win32.Wstring(&c.file_name[0]), i32(c.file_name_length / size_of(u16))); defer _global.free(dos_name);
                         name := string_util.replace(dos_name, '\\', '/'); defer _global.free(name);
                         if ignored, _ := git.ignore_path_is_ignored(repo, name); ignored {
                             c = next_entry(c);
@@ -383,7 +383,7 @@ open_diff :: proc(repo : ^git.Repository, diff : ^git.Diff, entry : ^git.Status_
     patch := find_patch(repo, diff, entry);
     ctx := diff_ctx^;
     if ctx != nil do diff_view.free(ctx);
-    ctx = diff_view.create_context(strings.to_odin_string(entry.index_to_workdir.new_file.path), patch);
+    ctx = diff_view.create_context(string(entry.index_to_workdir.new_file.path), patch);
     diff_ctx^ = ctx;
 }
 
