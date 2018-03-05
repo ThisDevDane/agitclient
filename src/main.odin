@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 05-03-2018 10:41:08 UTC+1
+ *  @Last Time: 05-03-2018 11:00:02 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -706,6 +706,7 @@ repo_window :: proc(using state : ^State) {
     }
 
     if close_repo {
+        git_status.free(&status);
         git.free(repo);
         repo = nil;
         close_repo = false;

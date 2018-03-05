@@ -6,7 +6,7 @@
  *  @Creation: 13-02-2018 14:26:12 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 05-03-2018 10:53:26 UTC+1
+ *  @Last Time: 05-03-2018 10:58:41 UTC+1
  *  
  *  @Description:
  *  
@@ -65,6 +65,14 @@ Status_Entry :: struct {
 mutex_setup := false;
 update_mutex : sync.Mutex;
 do_update := false;
+
+Notify_Payload :: struct {
+    dir_handle : win32.Handle,
+    buf        : rawptr,
+    buf_len    : u32,
+    mtx        : ^sync.Mutex,
+    repo       : ^git.Repository,
+}
 
 update :: proc(repo : ^git.Repository, status : ^Status) {
     console.log("(Status) Updating...");
@@ -139,15 +147,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
             return;
         }
     
-        _payload :: struct {
-            dir_handle : win32.Handle,
-            buf        : rawptr,
-            buf_len    : u32,
-            mtx        : ^sync.Mutex,
-            repo       : ^git.Repository,
-        }
-    
-        p := new(_payload);
+        p := new(Notify_Payload);
         p.dir_handle = dirh;
         p.buf_len = size_of(win32.File_Notify_Information) * 32;
         p.buf = alloc(int(p.buf_len));
@@ -163,7 +163,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
                 }
             }
 
-            using p := cast(^_payload)thread.data;
+            using p := cast(^Notify_Payload)thread.data;
             for {
                 out : u32; //NOTE(Hoej): read_directory_changes_w crashes without this. Even though the param is optional.
                 ok := win32.read_directory_changes_w(dir_handle, buf, buf_len, true,
@@ -245,8 +245,11 @@ free :: proc(status : ^Status) {
 
     if mutex_setup do sync.mutex_lock(&update_mutex);
     if status._notify_thread != nil {
-        thread.terminate(status._notify_thread, 0);
-        thread.destroy(status._notify_thread);
+        t := status._notify_thread;
+        p := cast(^Notify_Payload)t.data;
+        console.logf("(Thread %d) Stopping watching repo at %s", t.win32_thread_id, git.repository_workdir(p.repo));
+        thread.terminate(t, 0);
+        thread.destroy(t);
         status._notify_thread = nil;
     }
     if mutex_setup do sync.mutex_unlock(&update_mutex);
