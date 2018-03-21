@@ -1,5 +1,7 @@
 main_file = "src/main.odin"
 app_name = "agc"
+use_resource = true
+resource_path = "src/resource.rc"
 files_to_move = ["external/git2.dll", "external/libssh2.dll"]
 files_to_delete = []
 collection_names = []

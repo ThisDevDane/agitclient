@@ -1,0 +1,2 @@
+#define WINDOW_ICON 6123
+WINDOW_ICON ICON logo.ico
