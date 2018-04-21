@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 05-03-2018 11:00:02 UTC+1
+ *  @Last Time: 22-04-2018 00:22:16 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -662,7 +662,7 @@ repo_window :: proc(using state : ^State) {
 
                 imgui.separator();
 
-                git_status.window(dt, &status, repo, &state.diff_ctx);
+                git_status.window(&status, repo, &state.diff_ctx);
 
                 imgui.separator();
                 commit_window(state);
@@ -801,7 +801,7 @@ push_transfer_progress :: proc "stdcall"(current : u32, total : u32, bytes : uin
 MAKEINTRESOURCEA :: inline proc(i : u16) -> ^u8 {
     return (^u8)(rawptr(uintptr(int(u16(i)))));
 }
-
+//////FIXME: SO BAD, FIX PL0X
 set_cursor :: proc() {
     cur := imgui.get_mouse_cursor();
     using imgui;
@@ -841,11 +841,11 @@ main :: proc() {
     console.log("LibGit2 build config;");
     console.logf("\tLibGit2 is %s",
                  feature_set(git.Lib_Features.Threads, lib_features) ? "thread-safe." : "not thread-safe");
-    console.logf("\tHttps is %s",
+    console.logf("\tHttps   is %s",
              feature_set(git.Lib_Features.Https, lib_features)       ? "supported."   : "not supported");
-    console.logf("\tSSH is %s",
+    console.logf("\tSSH     is %s",
              feature_set(git.Lib_Features.Ssh, lib_features)         ? "supported."   : "not supported");
-    console.logf("\tNsec is %s",
+    console.logf("\tNsec    is %s",
              feature_set(git.Lib_Features.Nsec, lib_features)        ? "supported."   : "not supported");
 
     _settings := debug_get_settings();

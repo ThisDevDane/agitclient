@@ -6,7 +6,7 @@
  *  @Creation: 13-02-2018 14:26:12 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 05-03-2018 10:58:41 UTC+1
+ *  @Last Time: 22-04-2018 00:19:25 UTC+1
  *  
  *  @Description:
  *  
@@ -101,10 +101,12 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
 
             if entry.index_to_workdir != nil {
                 if entry.index_to_workdir.status == git.Delta.Untracked {
-                    append(&status.untracked, Status_Entry{
-                        string(entry.index_to_workdir.new_file.path), 
-                        Status_Delta(entry.index_to_workdir.status),
-                        entry});
+                    append(&status.untracked, 
+                           Status_Entry{
+                                string(entry.index_to_workdir.new_file.path), 
+                                Status_Delta(entry.index_to_workdir.status),
+                                entry
+                            });
 
                     //NOTE(Hoej): What was all this for???
                         /*repo_path := git.repository_path(repo);
@@ -118,10 +120,12 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
                             append(&status.untracked, entry);
                         }*/
                 } else {
-                    append(&status.unstaged, Status_Entry{
-                        string(entry.index_to_workdir.new_file.path), 
-                        Status_Delta(entry.index_to_workdir.status),
-                        entry});
+                    append(&status.unstaged, 
+                           Status_Entry{
+                                string(entry.index_to_workdir.new_file.path), 
+                                Status_Delta(entry.index_to_workdir.status),
+                                entry
+                            });
                 }
             }
         }
@@ -259,7 +263,7 @@ to_stage             :  [dynamic]Status_Entry;
 to_unstage           :  [dynamic]Status_Entry;
 show_status_window   := true;
 
-window :: proc(dt : f64, status : ^Status, repo : ^git.Repository, diff_ctx : ^^diff_view.Context) {
+window :: proc(status : ^Status, repo : ^git.Repository, diff_ctx : ^^diff_view.Context) {
     if imgui.button("Status") {
         if show_status_window {
             show_status_window = false;
