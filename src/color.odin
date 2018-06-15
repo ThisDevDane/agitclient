@@ -6,13 +6,15 @@
  *  @Creation: 18-01-2018 19:53:01 UTC-5
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 20-01-2018 00:52:50 UTC+1
+ *  @Last Time: 15-06-2018 16:46:49 UTC+1
  *  
  *  @Description:
  *  
  */
 
-import imgui "shared:libbrew/brew_imgui.odin"
+package main;
+
+import imgui "shared:odin-imgui"
 
 
 _unit : f32 : 1.0/255;

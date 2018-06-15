@@ -1,16 +1,12 @@
-import imgui "shared:libbrew/brew_imgui.odin";
+package main;
 
-import misc  "shared:libbrew/sys/misc.odin";
-
-//import   "commit.odin";
-import git "libgit2.odin";
-import     "color.odin";
-import com "commit.odin";
-using import _ "debug.odin";
+import     "shared:odin-imgui";
+import sys "shared:libbrew/sys";
+import git "shared:odin-libgit2";
 
 Item :: struct {
-    commit : com.Commit,
-    time   : misc.Datetime,
+    commit : Commit,
+    time   : sys.Datetime,
 }
 
 Log :: struct {
@@ -18,7 +14,7 @@ Log :: struct {
     count : int,
 }
 
-window :: proc(log : ^Log, repo : ^git.Repository, bref : ^git.Reference) {
+log_window :: proc(log : ^Log, repo : ^git.Repository, bref : ^git.Reference) {
     commit_count := 0;
     if imgui.begin("Log", nil, imgui.Window_Flags.NoCollapse) {
         defer imgui.end();
@@ -33,7 +29,7 @@ window :: proc(log : ^Log, repo : ^git.Repository, bref : ^git.Reference) {
                     if imgui.is_item_hovered() {
                         imgui.set_next_window_size(imgui.Vec2{350, 0});
                         imgui.begin_tooltip();
-                        imgui.text_colored(color.lightgray, 
+                        imgui.text_colored(lightgray, 
                                            "Time: %d/%d/%d %d:%d:%d UTC%s%d",
                                            item.time.day,
                                            item.time.month,
@@ -47,21 +43,21 @@ window :: proc(log : ^Log, repo : ^git.Repository, bref : ^git.Reference) {
                         imgui.end_tooltip();
                     }
                     imgui.same_line();
-                    imgui.text_colored(color.lightgray, "%s <%s>", item.commit.author.name, 
+                    imgui.text_colored(lightgray, "%s <%s>", item.commit.author.name, 
                                                                    item.commit.author.email);
                 }
             }
         }
 
         imgui.separator();
-        imgui.text_colored(color.alpha(color.white, 0.2), "Commits: %d", log.count); imgui.same_line();
+        imgui.text_colored(alpha(white, 0.2), "Commits: %d", log.count); imgui.same_line();
         if imgui.button("Update") {
-            update(log, repo, bref);
+            log_update(log, repo, bref);
         }
     }
 }
 
-update :: proc(log : ^Log, repo : ^git.Repository, bref : ^git.Reference) {
+log_update :: proc(log : ^Log, repo : ^git.Repository, bref : ^git.Reference) {
     clear(&log.items);
     log.count = 0;
     GIT_ITEROVER :: -31;
@@ -77,8 +73,8 @@ update :: proc(log : ^Log, repo : ^git.Repository, bref : ^git.Reference) {
             break;
         }
         //commit_count += 1;
-        commit := com.from_oid(repo, id);
-        time := misc.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
+        commit := from_oid(repo, id);
+        time := sys.unix_to_datetime(int(commit.author.time_when.time + i64(commit.author.time_when.offset) * 60));
 
         item := Item{
             commit,

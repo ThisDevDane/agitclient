@@ -6,30 +6,28 @@
  *  @Creation: 13-02-2018 14:26:12 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 22-04-2018 00:19:25 UTC+1
+ *  @Last Time: 15-06-2018 17:21:38 UTC+1
  *  
  *  @Description:
  *  
  */
 
-using import _ "debug.odin";
+package main;
 
-import "core:thread.odin";
-import "core:sync.odin";
-import "core:strings.odin";
-import "core:fmt.odin";
-import win32 "core:sys/windows.odin";
 
-import         "shared:libbrew/sys/misc.odin";
-import         "shared:libbrew/time_util.odin";
-import         "shared:libbrew/string_util.odin";
-import imgui   "shared:libbrew/brew_imgui.odin";
-import console "shared:libbrew/imgui_console.odin";
+import "core:thread";
+import "core:mem";
+import "core:sync";
+import "core:strings";
+import "core:fmt";
+import "core:sys/win32";
 
-import git "libgit2.odin";
-import pat "path.odin";
-import     "color.odin";
-import     "diff_view.odin";
+import sys     "shared:libbrew/sys";
+import util    "shared:libbrew/util";
+import         "shared:odin-imgui";
+import console "shared:libbrew/console";
+import git     "shared:odin-libgit2";
+
 
 Status :: struct {
     staged    : [dynamic]Status_Entry,
@@ -74,7 +72,7 @@ Notify_Payload :: struct {
     repo       : ^git.Repository,
 }
 
-update :: proc(repo : ^git.Repository, status : ^Status) {
+status_update :: proc(repo : ^git.Repository, status : ^Status) {
     console.log("(Status) Updating...");
 
     clear(&status.staged);
@@ -144,7 +142,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
     }
 
     if status._notify_thread == nil {
-        c_str := misc.odin_to_wchar_string(git.repository_workdir(repo));
+        c_str := sys.odin_to_wchar_string(git.repository_workdir(repo));
         dirh := win32.create_file_w(c_str, win32.FILE_GENERIC_READ, win32.FILE_SHARE_READ | win32.FILE_SHARE_DELETE | win32.FILE_SHARE_WRITE, nil, 
                                     win32.OPEN_EXISTING, win32.FILE_FLAG_BACKUP_SEMANTICS, nil);
         if dirh == win32.INVALID_HANDLE {
@@ -154,7 +152,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
         p := new(Notify_Payload);
         p.dir_handle = dirh;
         p.buf_len = size_of(win32.File_Notify_Information) * 32;
-        p.buf = alloc(int(p.buf_len));
+        p.buf = mem.alloc(int(p.buf_len));
         p.mtx = &update_mutex;
         p.repo = repo;
     
@@ -163,7 +161,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
                 if c.next_entry_offset == 0 {
                     return nil;
                 } else {
-                    return cast(^win32.File_Notify_Information)(cast(^byte)c + c.next_entry_offset);
+                    return cast(^win32.File_Notify_Information)mem.ptr_offset(cast(^byte)c, uintptr(c.next_entry_offset));
                 }
             }
 
@@ -180,8 +178,8 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
                 if ok {
                     c := cast(^win32.File_Notify_Information)buf;
                     for c != nil {
-                        dos_name := misc.wchar_to_odin_string(win32.Wstring(&c.file_name[0]), i32(c.file_name_length / size_of(u16))); defer _global.free(dos_name);
-                        name := string_util.replace(dos_name, '\\', '/'); defer _global.free(name);
+                        dos_name := sys.wchar_to_odin_string(win32.Wstring(&c.file_name[0]), i32(c.file_name_length / size_of(u16))); defer free(dos_name);
+                        name := util.replace(dos_name, '\\', '/'); defer free(name);
                         if ignored, _ := git.ignore_path_is_ignored(repo, name); ignored {
                             c = next_entry(c);
                             continue;
@@ -239,7 +237,7 @@ update :: proc(repo : ^git.Repository, status : ^Status) {
     }
 }
 
-free :: proc(status : ^Status) {
+status_free :: proc(status : ^Status) {
     clear(&status.staged);
     clear(&status.unstaged);
     clear(&status.untracked);
@@ -263,20 +261,20 @@ to_stage             :  [dynamic]Status_Entry;
 to_unstage           :  [dynamic]Status_Entry;
 show_status_window   := true;
 
-window :: proc(status : ^Status, repo : ^git.Repository, diff_ctx : ^^diff_view.Context) {
+status_window :: proc(status : ^Status, repo : ^git.Repository, diff_ctx : ^^DiffCtx) {
     if imgui.button("Status") {
         if show_status_window {
             show_status_window = false;
             free(status);
         } else {
             show_status_window = true;
-            update(repo, status);
+            status_update(repo, status);
         }
     }
 
     if sync.mutex_try_lock(&update_mutex) {
         if do_update {
-            update(repo, status);
+            status_update(repo, status);
             do_update = false;
         }
         sync.mutex_unlock(&update_mutex);
@@ -285,7 +283,7 @@ window :: proc(status : ^Status, repo : ^git.Repository, diff_ctx : ^^diff_view.
     imgui.text("Staged files:");
     if imgui.begin_child("Staged", imgui.Vec2{0, 150}) {
         imgui.columns(count = 3, border = false);
-        imgui.push_style_color(imgui.Color.Text, color.light_greenA400);
+        imgui.push_style_color(imgui.Color.Text, light_greenA400);
 
         for entry, i in status.staged {
             imgui.set_column_width(-1, 60);
@@ -307,7 +305,7 @@ window :: proc(status : ^Status, repo : ^git.Repository, diff_ctx : ^^diff_view.
     imgui.text("Unstaged files:");
     if imgui.begin_child("Unstaged", imgui.Vec2{0, 150}) {
         imgui.columns(count = 3, border = false);
-        imgui.push_style_color(imgui.Color.Text, color.deep_orange600);
+        imgui.push_style_color(imgui.Color.Text, deep_orange600);
 
         for entry, i in status.unstaged {
             imgui.set_column_width(width = 80);
@@ -332,7 +330,7 @@ window :: proc(status : ^Status, repo : ^git.Repository, diff_ctx : ^^diff_view.
     imgui.text("Untracked files:");
     if imgui.begin_child("Untracked", imgui.Vec2{0, 150}) {
         imgui.columns(count = 3, border = false);
-        imgui.push_style_color(imgui.Color.Text, color.alizarin);
+        imgui.push_style_color(imgui.Color.Text, alizarin);
 
         for entry, i in status.untracked {
             imgui.set_column_width(-1, 60);
@@ -379,18 +377,18 @@ window :: proc(status : ^Status, repo : ^git.Repository, diff_ctx : ^^diff_view.
             log_if_err(err);
         }
 
-        update(repo, status);
+        status_update(repo, status);
     }
 
     clear(&to_stage);
     clear(&to_unstage);
 }
 
-open_diff :: proc(repo : ^git.Repository, diff : ^git.Diff, entry : ^git.Status_Entry, diff_ctx : ^^diff_view.Context) {
+open_diff :: proc(repo : ^git.Repository, diff : ^git.Diff, entry : ^git.Status_Entry, diff_ctx : ^^DiffCtx) {
     patch := find_patch(repo, diff, entry);
     ctx := diff_ctx^;
-    if ctx != nil do diff_view.free(ctx);
-    ctx = diff_view.create_context(string(entry.index_to_workdir.new_file.path), patch);
+    if ctx != nil do DiffCtx_free(ctx);
+    ctx = DiffCtx_ctor(string(entry.index_to_workdir.new_file.path), patch);
     diff_ctx^ = ctx;
 }
 

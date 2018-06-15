@@ -1,3 +1,4 @@
+package main;
 
 MIN_FA :: 0xf000;
 MAX_FA :: 0xf2e0;

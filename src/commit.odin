@@ -1,11 +1,10 @@
-using import _ "debug.odin";
-import "core:fmt.odin";
-import "core:strings.odin";
+package main;
 
-import imgui "shared:libbrew/brew_imgui.odin";
+import "core:fmt";
+import "core:strings";
 
-import git "libgit2.odin";
-import "settings.odin";
+import     "shared:odin-imgui";
+import git "shared:odin-libgit2";
 
 Commit :: struct {
     git_commit : ^git.Commit,
@@ -29,7 +28,7 @@ from_oid :: proc(repo : ^git.Repository, oid : git.Oid) -> Commit {
     return result;
 }
 
-free :: proc(commit : ^Commit) {
+commit_free :: proc(commit : ^Commit) {
     if commit.git_commit == nil do return;
     git.free(commit.git_commit);
     commit.git_commit = nil;

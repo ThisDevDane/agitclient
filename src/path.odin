@@ -1,83 +1,89 @@
-import "core:mem.odin"
-import "core:strings.odin"
-import "core:utf8.odin"
+package main;
 
-when ODIN_OS == "windows" {
-    foreign import "system:kernel32.lib"
-    import win32 "core:sys/windows.odin"
+import "core:mem"
+import "core:strings"
+import "core:unicode/utf8"
+import win32 "core:sys/win32"
 
-    long :: proc(path: string) -> string {
-        foreign kernel32 GetLongPathNameA :: proc "std" (short, long: cstring, len: u32) -> u32 ---;
+foreign import "system:kernel32.lib"
+foreign kernel32 {
+    GetLongPathNameA :: proc "std" (short, long: cstring, len: u32) -> u32 ---;
+    GetShortPathNameA :: proc "std" (long, short: cstring, len: u32) -> u32 ---;
+    GetFullPathNameA :: proc "std" (filename: cstring, buffer_length: u32, buffer: cstring, file_part: ^cstring) -> u32 ---;
+    GetCurrentDirectoryA :: proc "std" (buffer_length: u32, buffer: ^u8) -> u32 ---;
+}
 
-        c_path := strings.new_cstring(path);
-        defer free(c_path);
+long :: proc(path: string) -> string {
+    
 
-        length := GetLongPathNameA(c_path, nil, 0);
+    c_path := strings.new_cstring(path);
+    defer free(c_path);
 
-        if length > 0 {
-            buf := make([]u8, length-1);
+    length := GetLongPathNameA(c_path, nil, 0);
 
-            GetLongPathNameA(c_path, cstring(&buf[0]), length);
+    if length > 0 {
+        buf := make([]u8, length-1);
 
-            return cast(string) buf[..length-1];
-        }
+        GetLongPathNameA(c_path, cstring(&buf[0]), length);
 
-        return "";
+        return cast(string) buf[..length-1];
     }
 
-    short :: proc(path: string) -> string {
-        foreign kernel32 GetShortPathNameA :: proc "std" (long, short: cstring, len: u32) -> u32 ---;
+    return "";
+}
 
-        c_path := strings.new_cstring(path);
-        defer free(c_path);
+short :: proc(path: string) -> string {
+    
 
-        length := GetShortPathNameA(c_path, nil, 0);
+    c_path := strings.new_cstring(path);
+    defer free(c_path);
 
-        if length > 0 {
-            buf := make([]u8, length-1);
+    length := GetShortPathNameA(c_path, nil, 0);
 
-            GetShortPathNameA(c_path, cstring(&buf[0]), length);
+    if length > 0 {
+        buf := make([]u8, length-1);
 
-            return cast(string) buf[..length-1];
-        }
+        GetShortPathNameA(c_path, cstring(&buf[0]), length);
 
-        return "";
+        return cast(string) buf[..length-1];
     }
 
-    full :: proc(path: string) -> string {
-        foreign kernel32 GetFullPathNameA :: proc "std" (filename: cstring, buffer_length: u32, buffer: cstring, file_part: ^cstring) -> u32 ---;
+    return "";
+}
 
-        c_path := strings.new_cstring(path);
-        defer free(c_path);
+full :: proc(path: string) -> string {
+    
 
-        length := GetFullPathNameA(c_path, 0, nil, nil);
+    c_path := strings.new_cstring(path);
+    defer free(c_path);
 
-        if length > 0 {
-            buf := make([]u8, length);
+    length := GetFullPathNameA(c_path, 0, nil, nil);
 
-            GetFullPathNameA(c_path, length, cstring(&buf[0]), nil);
+    if length > 0 {
+        buf := make([]u8, length);
 
-            return cast(string) buf[..length-1];
-        }
+        GetFullPathNameA(c_path, length, cstring(&buf[0]), nil);
 
-        return "";
+        return cast(string) buf[..length-1];
     }
 
-    current :: proc() -> string {
-        foreign kernel32 GetCurrentDirectoryA :: proc "std" (buffer_length: u32, buffer: ^u8) -> u32 ---;
+    return "";
+}
 
-        length := GetCurrentDirectoryA(0, nil);
+current :: proc() -> string {
+    
 
-        if length > 0 {
-            buf := make([]u8, length);
+    length := GetCurrentDirectoryA(0, nil);
 
-            GetCurrentDirectoryA(length, &buf[0]);
+    if length > 0 {
+        buf := make([]u8, length);
 
-            return cast(string) buf[..length-1];
-        }
+        GetCurrentDirectoryA(length, &buf[0]);
 
-        return "";
+        return cast(string) buf[..length-1];
     }
+
+    return "";
 }
 
 // @todo: should I allocate?

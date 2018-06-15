@@ -1,17 +1,17 @@
-import "core:fmt.odin"
+package main;
 
-import "shared:libbrew/string_util.odin";
+import "core:fmt"
 
-import git     "libgit2.odin"
-import console "shared:libbrew/imgui_console.odin"
-
+import util    "shared:libbrew/util";
+import git     "shared:odin-libgit2"
+import console "shared:libbrew/console"
 
 /////////////////Debuggification/////////////////////
 
 Debug_Settings :: struct {
-    print_location  := false,
-    print_iteration := true,
-    print_procedure := true,
+    print_location  : bool,
+    print_iteration : bool,
+    print_procedure : bool,
 }
 
 Debug_State :: struct {
@@ -68,7 +68,7 @@ debug_format :: proc(format : string, args : ...any, loc := #caller_location) {
 
     if _state.settings.print_location {
         if space do fmt.sbprint(&buf, " ");
-        fmt.sbprintf(&buf, "%s:(%d,%d)", string_util.remove_path_from_file(loc.file_path), loc.line, loc.column);
+        fmt.sbprintf(&buf, "%s:(%d,%d)", util.remove_path_from_file(loc.file_path), loc.line, loc.column);
         space = true;
     }
 
@@ -99,11 +99,11 @@ log_if_err :: proc(err : git.Error_Code, loc := #caller_location) -> bool {
             console.logf_error("LibGit2 Error: %v | %v | %s (%s:%d)", err, 
                                                                       gerr.klass, 
                                                                       gerr.message, 
-                                                                      string_util.remove_path_from_file(loc.file_path), 
+                                                                      util.remove_path_from_file(loc.file_path), 
                                                                       loc.line);
         } else {
             console.logf_error("LibGit2 Error: %v | (%s:%d)", err,
-                                                              string_util.remove_path_from_file(loc.file_path), 
+                                                              util.remove_path_from_file(loc.file_path), 
                                                               loc.line);
         }
         

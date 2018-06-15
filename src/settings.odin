@@ -1,7 +1,10 @@
-import "core:strings.odin";
+package main;
 
-import         "shared:libbrew/cel.odin";
-import console "shared:libbrew/imgui_console.odin";
+import "core:strings";
+import "core:runtime";
+
+import cel "shared:odin-cel";
+import console "shared:libbrew/console";
 
 SETTINGS_FILE :: "settings.cel";
 
@@ -20,7 +23,7 @@ Settings :: struct {
     auto_setup_remote_branch : bool,
 }
 
-instance := init_settings();
+settings_instance := init_settings();
 
 init_settings :: proc(username := "username", password := "password", name := "Jane Doe", email := "j.doe@example.com") -> Settings {
     return Settings {
@@ -31,15 +34,15 @@ init_settings :: proc(username := "username", password := "password", name := "J
     };
 }
 
-free :: proc(settings : ^Settings) {
-    _global.free(settings.username);
-    _global.free(settings.password);
-    _global.free(settings.name);
-    _global.free(settings.email);
+settings_free :: proc(settings : ^Settings) {
+    runtime.free(settings.username);
+    runtime.free(settings.password);
+    runtime.free(settings.name);
+    runtime.free(settings.email);
 }
 
 save :: proc() {
-    if cel.marshal_file(SETTINGS_FILE, instance) {
+    if cel.marshal_file(SETTINGS_FILE, settings_instance) {
         console.log("settings saved.");
     } else {
         console.log_error("save_settings failed");
@@ -47,12 +50,12 @@ save :: proc() {
 }
 
 load :: proc() {
-    tmp := instance;
-    if cel.unmarshal_file(SETTINGS_FILE, instance) {
-        free(&tmp);
+    tmp := settings_instance;
+    if cel.unmarshal_file(SETTINGS_FILE, settings_instance) {
+        runtime.free(&tmp);
         console.log("settings loaded.");
     } else {
-        instance = tmp;
+        settings_instance = tmp;
         console.log_error("load_settings failed");
     }
 }

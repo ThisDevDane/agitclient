@@ -1,15 +1,12 @@
-using import _ "debug.odin";
-import "core:fmt.odin";
-import "core:mem.odin";
+package main;
 
-import       "shared:libbrew/string_util.odin";
-import imgui "shared:libbrew/brew_imgui.odin";
+import "core:fmt";
+import "core:mem";
 
-import git  "libgit2.odin";
-import com  "commit.odin";
-import      "settings.odin";
-import      "color.odin";
-import icon "icon-fa.odin";
+import util  "shared:libbrew/util";
+import "shared:odin-imgui";
+
+import git "shared:odin-libgit2";
 
 Branch :: struct {
     ref           : ^git.Reference,
@@ -17,7 +14,7 @@ Branch :: struct {
 
     name          : string,
     btype         : git.Branch_Type,
-    current_commit : com.Commit,
+    current_commit : Commit,
 
     ahead : uint,
     behind : uint,
@@ -40,7 +37,7 @@ all_branches_from_repo :: proc(repo : ^git.Repository, btype : git.Branch_Type) 
             name, suc := git.branch_name(ref);
             refname := git.reference_name(ref);
             oid, ok := git.reference_name_to_id(repo, refname);
-            commit := com.from_oid(repo, oid);
+            commit := from_oid(repo, oid);
 
             upstream_ref, _ := git.branch_upstream(ref);
             ahead, behind : uint;
@@ -52,7 +49,7 @@ all_branches_from_repo :: proc(repo : ^git.Repository, btype : git.Branch_Type) 
                 behind = 0;
             }
 
-            col_name, found := string_util.get_upto_first_from_file(name, '/');
+            col_name, found := util.get_upto_first_from_file(name, '/');
             if !found {
                 col_name = "";
             }
@@ -120,7 +117,7 @@ create_branch :: proc[create_from_name, create_from_branch];
 
 create_from_branch :: proc(repo : ^git.Repository, b : Branch, force := false) -> Branch {
     if b.btype == git.Branch_Type.Remote {
-        b.name = string_util.remove_first_from_file(b.name, '/');
+        b.name = util.remove_first_from_file(b.name, '/');
     }
 
     ref, err := git.branch_create(repo, b.name, b.current_commit.git_commit, force);
@@ -128,7 +125,7 @@ create_from_branch :: proc(repo : ^git.Repository, b : Branch, force := false) -
         name, suc := git.branch_name(ref);
         refname := git.reference_name(ref);
         oid, ok := git.reference_name_to_id(repo, refname);
-        commit := com.from_oid(repo, oid);
+        commit := from_oid(repo, oid);
         b := Branch {
             ref,
             nil,
@@ -145,13 +142,13 @@ create_from_branch :: proc(repo : ^git.Repository, b : Branch, force := false) -
     return Branch{};
 }
 
-create_from_name :: proc(repo : ^git.Repository, name : string, target : com.Commit, force := false) -> Branch {
+create_from_name :: proc(repo : ^git.Repository, name : string, target : Commit, force := false) -> Branch {
     ref, err := git.branch_create(repo, name, target.git_commit, force);
     if !log_if_err(err) {
         name, suc := git.branch_name(ref);
         refname := git.reference_name(ref);
         oid, ok := git.reference_name_to_id(repo, refname);
-        commit := com.from_oid(repo, oid);
+        commit := from_oid(repo, oid);
         b := Branch {
             ref,
             nil,
@@ -168,7 +165,7 @@ create_from_name :: proc(repo : ^git.Repository, name : string, target : com.Com
     return Branch{};
 }
 
-window :: proc(settings : ^settings.Settings, wnd_height : int, 
+branch_window :: proc(settings : ^Settings, wnd_height : int, 
                repo : ^git.Repository, create_branch_name : []byte, 
                current_branch : ^Branch, credentials_cb : git.Cred_Acquire_Cb,
                local_branches : ^[]Branch_Collection, remote_branches : ^[]Branch_Collection) {
@@ -179,7 +176,7 @@ window :: proc(settings : ^settings.Settings, wnd_height : int,
     imgui.set_next_window_pos(imgui.Vec2{0, 18});
     imgui.set_next_window_size(imgui.Vec2{widget_width, f32(half_height)});
     buf : [1024]byte;
-    label := fmt.bprintf(buf[..], "%r %s", icon.BARS, "Local Branches");
+    label := fmt.bprintf(buf[..], "%r %s", BARS, "Local Branches");
     if imgui.begin(label, nil, imgui.Window_Flags.NoResize   |
                                     imgui.Window_Flags.NoMove     |
                                     imgui.Window_Flags.NoCollapse |
@@ -278,7 +275,7 @@ window :: proc(settings : ^settings.Settings, wnd_height : int,
 
     imgui.set_next_window_pos(imgui.Vec2{0, f32(18+half_height)});
     imgui.set_next_window_size(imgui.Vec2{widget_width, f32(half_height)});
-    label = fmt.bprintf(buf[..], "%r %s", icon.CLOUD, "Remote Branches");
+    label = fmt.bprintf(buf[..], "%r %s", CLOUD, "Remote Branches");
     if imgui.begin(label, nil, imgui.Window_Flags.NoResize   |
                                     imgui.Window_Flags.NoMove     |
                                     imgui.Window_Flags.NoCollapse |
@@ -290,21 +287,21 @@ window :: proc(settings : ^settings.Settings, wnd_height : int,
             if col.name == "origin" {
                 imgui.set_next_tree_node_open(true, imgui.Set_Cond.Once);
             }
-            label = fmt.bprintf(buf[..], "%r %s", icon.CLOUD_UPLOAD, col.name);
+            label = fmt.bprintf(buf[..], "%r %s", CLOUD_UPLOAD, col.name);
             if imgui.tree_node(label) {
                 defer imgui.tree_pop();
                 imgui.indent(5);
                 for b in col.branches {
                     if b.name == "origin/HEAD" do continue;
-                    label = fmt.bprintf(buf[..], "%r %s", icon.RANDOM, b.name);
+                    label = fmt.bprintf(buf[..], "%r %s", RANDOM, b.name);
                     imgui.selectable(label);
                     imgui.push_id(git.reference_name(b.ref));
                     defer imgui.pop_id();
                     if imgui.begin_popup_context_item("branch_context", 1) {
                         defer imgui.end_popup();
-                        imgui.push_style_color(imgui.Color.Text, color.white);
+                        imgui.push_style_color(imgui.Color.Text, white);
                         defer imgui.pop_style_color();
-                        label = fmt.bprintf(buf[..], "%r Checkout", icon.CHECK);
+                        label = fmt.bprintf(buf[..], "%r Checkout", CHECK);
                         if imgui.selectable(label) {
                             branch := create_branch(repo, b);
                             if checkout_branch(repo, branch) {
@@ -312,9 +309,9 @@ window :: proc(settings : ^settings.Settings, wnd_height : int,
                                 current_branch^ = branch;
                             }
                         }
-                        imgui.text_disabled("%r Push", icon.CLOUD_UPLOAD);
-                        imgui.text_disabled("%r Pull", icon.CLOUD_DOWNLOAD);
-                        imgui.text_disabled("%r Delete", icon.TIMES);
+                        imgui.text_disabled("%r Push", CLOUD_UPLOAD);
+                        imgui.text_disabled("%r Pull", CLOUD_DOWNLOAD);
+                        imgui.text_disabled("%r Delete", TIMES);
                     }
                 }
                 imgui.unindent(5);
@@ -336,8 +333,8 @@ print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branc
     for b in branches {
         is_current_branch := git.reference_is_branch(b.ref) && git.branch_is_checked_out(b.ref);
         buf : [1024]byte;
-        name := fmt.bprintf(buf[..], "%r %s | %r %d %r %d", icon.RANDOM, b.name, icon.ARROW_UP, b.ahead, icon.ARROW_DOWN, b.behind);
-        if is_current_branch do imgui.push_style_color(imgui.Color.Text, color.light_greenA400); 
+        name := fmt.bprintf(buf[..], "%r %s | %r %d %r %d", RANDOM, b.name, ARROW_UP, b.ahead, ARROW_DOWN, b.behind);
+        if is_current_branch do imgui.push_style_color(imgui.Color.Text, light_greenA400); 
         imgui.selectable(name, is_current_branch);
         if is_current_branch do imgui.pop_style_color();
         if imgui.is_item_clicked(0) && imgui.is_mouse_double_clicked(0) {
@@ -352,9 +349,9 @@ print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branc
 
         if imgui.begin_popup_context_item("branch_context", 1) {
             defer imgui.end_popup();
-            imgui.push_style_color(imgui.Color.Text, color.white);
+            imgui.push_style_color(imgui.Color.Text, white);
             defer imgui.pop_style_color();
-            label := fmt.bprintf(buf[..], "%r Checkout", icon.CHECK);
+            label := fmt.bprintf(buf[..], "%r Checkout", CHECK);
             if !is_current_branch {
                 if imgui.selectable(label) {
                     if checkout_branch(repo, b) {
@@ -366,16 +363,16 @@ print_branches :: proc(repo : ^git.Repository, branches : []Branch, update_branc
                 imgui.text_disabled(label);
             }
 
-            imgui.text_disabled("%r Push", icon.CLOUD_UPLOAD);
-            imgui.text_disabled("%r Pull", icon.CLOUD_DOWNLOAD);
+            imgui.text_disabled("%r Push", CLOUD_UPLOAD);
+            imgui.text_disabled("%r Pull", CLOUD_DOWNLOAD);
 
             if !is_current_branch {
-                label := fmt.bprintf(buf[..], "%r Delete", icon.TIMES);
+                label := fmt.bprintf(buf[..], "%r Delete", TIMES);
                 if imgui.selectable(label) {
                     branch_to_delete = b;
                 }
             } else {
-                imgui.text_disabled("%r Delete", icon.TIMES);
+                imgui.text_disabled("%r Delete", TIMES);
             }
         }
     }

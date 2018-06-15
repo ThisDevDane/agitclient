@@ -1,4 +1,4 @@
-main_file = "src/main.odin"
+main_file = "src/"
 app_name = "agc"
 use_resource = true
 resource_path = "src/resource.rc"
