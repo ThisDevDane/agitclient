@@ -35,10 +35,10 @@ init_settings :: proc(username := "username", password := "password", name := "J
 }
 
 settings_free :: proc(settings : ^Settings) {
-    runtime.free(settings.username);
-    runtime.free(settings.password);
-    runtime.free(settings.name);
-    runtime.free(settings.email);
+    runtime.delete(settings.username);
+    runtime.delete(settings.password);
+    runtime.delete(settings.name);
+    runtime.delete(settings.email);
 }
 
 save :: proc() {

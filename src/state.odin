@@ -39,26 +39,12 @@ State :: struct {
     lib_ver_rev        : i32,
     lib_ver_string     : string,
 
-    path_buf           : [255+1]byte,
-
-    commit_hash_buf    : [1024]byte,
-
-    create_branch_name : [1024]byte,
-
     close_repo         : bool,
     git_log            : Log,
 
     status             : Status,
     show_status_window : bool,
 
-    username_buf       : [1024]byte,
-    password_buf       : [1024]byte,
-
-    name_buf           : [1024]byte,
-    email_buf          : [1024]byte,
-
-    clone_repo_url     : [1024]byte,
-    clone_repo_path    : [1024]byte,
 
     open_recent        : bool,
     recent_repo        : string,
@@ -75,10 +61,32 @@ State :: struct {
     local_branches     : []Branch_Collection,
     remote_branches    : []Branch_Collection,
 
+    diff_ctx           : ^DiffCtx,
+
+    //NOTE(Hoej): See comment on State_Buffers for this.
+    using buffers      : ^State_Buffers
+}
+
+//NOTE(Hoej): The reason the buffers are split into a seperate struct is because
+// of a LLVM bug. The compile times skyrocket of these are inside the State struct.
+// Until the Odin developers put a fix into the ir-gen, this is the workaround.
+//                                                  - Hoej 2018 Jul 26
+State_Buffers :: struct {
+    username_buf       : [128+1]byte,
+    password_buf       : [128+1]byte,
+
+    name_buf           : [1024]byte,
+    email_buf          : [255+1]byte,
+
+    clone_repo_url     : [1024]byte,
+    clone_repo_path    : [1024]byte,
+    path_buf           : [255+1]byte,
+
+    commit_hash_buf    : [1024]byte,
+
+    create_branch_name : [1024]byte,
     summary_buf        : [512+1]byte,
     message_buf        : [1024+1]byte,
-
-    diff_ctx           : ^DiffCtx,
 }
 
 State_ctor :: proc() -> State {
@@ -105,6 +113,8 @@ State_ctor :: proc() -> State {
     git.lib_version(&lib_ver_major, &lib_ver_minor, &lib_ver_rev);
     lib_ver_string = fmt.aprintf("libgit2 v%d.%d.%d",
                                   lib_ver_major, lib_ver_minor, lib_ver_rev);
+
+    result.buffers = new(State_Buffers);
 
     return result;
 }

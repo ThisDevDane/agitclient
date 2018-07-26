@@ -1,0 +1,5 @@
+Odin
+    filter call_regexp_common C++
+    filter remove_inline //.*$
+    extension odin
+    3rd_gen_scale 1.0

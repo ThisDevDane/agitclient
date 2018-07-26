@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-06-2018 19:15:03 UTC+1
+ *  @Last Time: 26-07-2018 22:29:36 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -57,8 +57,8 @@ free_lib :: proc(lib : rawptr) {
 
 set_user :: proc(args : []string) {
     if len(args) == 2 {
-        free(settings_instance.username);
-        free(settings_instance.password);
+        delete(settings_instance.username);
+        delete(settings_instance.password);
 
         settings_instance.username = strings.new_string(args[0]);
         settings_instance.password = strings.new_string(args[1]);
@@ -71,16 +71,16 @@ set_user :: proc(args : []string) {
 
 set_signature :: proc(args : []string) {
     if len(args) == 2 {
-        free(settings_instance.name);
-        free(settings_instance.email);
+        delete(settings_instance.name);
+        delete(settings_instance.email);
 
         settings_instance.name  = strings.new_string(args[0]);
         settings_instance.email = strings.new_string(args[1]);
 
         save();
     } else if len(args) == 3 {
-        free(settings_instance.name);
-        free(settings_instance.email);
+        delete(settings_instance.name);
+        delete(settings_instance.email);
 
         settings_instance.name  = fmt.aprintf("%s %s", args[0], args[1]);
         settings_instance.email = strings.new_string(args[2]);
@@ -179,10 +179,10 @@ open_repo :: proc(new_repo: ^git.Repository, using state : ^State) {
 
     // @todo(bpunsky): optimize with a buffer
     path := fmt.aprintf("%s/..", repo_path);
-    defer free(path);
+    defer delete(path);
 
     full_path := full(path);
-    defer free(full_path);
+    defer delete(full_path);
 
     found := false;
 
@@ -534,7 +534,7 @@ do_async_push :: proc(repo : ^git.Repository, branches_to_push : []Branch) {
         ok := git.remote_connect(remote, git.Direction.Push, &remote_cb, nil, nil);
         if !log_if_err(ok) {
             console.logf("Connected to %s", git.remote_name(remote));
-            refspec : [dynamic]string; defer free(refspec);
+            refspec : [dynamic]string; defer delete(refspec);
             for b in branches {
                 refname := git.reference_name(b.ref);
                 spec := fmt.aprintf("%s:%s", refname, refname);
@@ -689,7 +689,7 @@ commit_window :: proc(using state : ^State) {
         if imgui.button("Commit") {
             // @note(bpunsky): do the commit!
             commit_msg := fmt.aprintf("%s\r\n%s", string(cstring(&summary_buf[0])), string(cstring(&message_buf[0])));
-            defer runtime.free(commit_msg);
+            defer runtime.delete(commit_msg);
 
             committer, _ := git.signature_now(settings_instance.name, settings_instance.email);
             author       := committer;
@@ -735,7 +735,7 @@ commit_window :: proc(using state : ^State) {
 
             //NOTE(Hoej): Should probably be a mem.set
             summary_buf = [512+1]u8{};
-            message_buf = [4096+1]u8{};
+            message_buf = [1024+1]u8{};
         }
         imgui.same_line();
     }

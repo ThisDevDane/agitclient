@@ -6,7 +6,7 @@
  *  @Creation: 13-02-2018 14:26:12 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-06-2018 17:21:38 UTC+1
+ *  @Last Time: 26-07-2018 22:29:55 UTC+1
  *  
  *  @Description:
  *  
@@ -161,7 +161,7 @@ status_update :: proc(repo : ^git.Repository, status : ^Status) {
                 if c.next_entry_offset == 0 {
                     return nil;
                 } else {
-                    return cast(^win32.File_Notify_Information)mem.ptr_offset(cast(^byte)c, uintptr(c.next_entry_offset));
+                    return cast(^win32.File_Notify_Information)mem.ptr_offset(cast(^byte)c, int(c.next_entry_offset));
                 }
             }
 
@@ -178,8 +178,10 @@ status_update :: proc(repo : ^git.Repository, status : ^Status) {
                 if ok {
                     c := cast(^win32.File_Notify_Information)buf;
                     for c != nil {
-                        dos_name := sys.wchar_to_odin_string(win32.Wstring(&c.file_name[0]), i32(c.file_name_length / size_of(u16))); defer free(dos_name);
-                        name := util.replace(dos_name, '\\', '/'); defer free(name);
+                        dos_name := sys.wchar_to_odin_string(win32.Wstring(&c.file_name[0]), 
+                                                             i32(c.file_name_length / size_of(u16))); 
+                        defer delete(dos_name);
+                        name := util.replace(dos_name, '\\', '/'); defer delete(name);
                         if ignored, _ := git.ignore_path_is_ignored(repo, name); ignored {
                             c = next_entry(c);
                             continue;

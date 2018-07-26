@@ -6,7 +6,7 @@ import git "shared:odin-libgit2";
 
 Item :: struct {
     commit : Commit,
-    time   : sys.Datetime,
+    time   : sys.DateTime,
 }
 
 Log :: struct {

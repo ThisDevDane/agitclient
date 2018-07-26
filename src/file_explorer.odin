@@ -6,7 +6,7 @@
  *  @Creation: 28-01-2018 22:20:23 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-06-2018 17:12:26 UTC+1
+ *  @Last Time: 26-07-2018 22:25:43 UTC+1
  *  
  *  @Description:
  *  
@@ -236,6 +236,6 @@ _set_and_open :: proc(ctx : ^File_Explorer_Ctx, path : string) {
     ctx.path = path;
     mem.zero(&ctx._path_buf[0], len(ctx._path_buf));
     fmt.bprint(ctx._path_buf[..], ctx.path);
-    free(ctx.files);
+    delete(ctx.files);
     ctx.files = sys.get_all_entries_in_directory(ctx.path);
 }

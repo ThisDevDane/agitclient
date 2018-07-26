@@ -6,7 +6,7 @@
  *  @Creation: 19-02-2018 16:09:18 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 15-06-2018 17:04:59 UTC+1
+ *  @Last Time: 26-07-2018 22:25:43 UTC+1
  *  
  *  @Description:
  *  
@@ -38,7 +38,7 @@ DiffCtx_ctor :: proc(file_name : string, patch : ^git.Patch) -> ^DiffCtx {
 }
 
 DiffCtx_free :: proc(ctx : ^DiffCtx) {
-    runtime.free(ctx.label);
+    runtime.delete(ctx.label);
     git.free(ctx.patch);
     runtime.free(ctx);
 }

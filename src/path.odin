@@ -17,7 +17,7 @@ long :: proc(path: string) -> string {
     
 
     c_path := strings.new_cstring(path);
-    defer free(c_path);
+    defer delete(c_path);
 
     length := GetLongPathNameA(c_path, nil, 0);
 
@@ -36,7 +36,7 @@ short :: proc(path: string) -> string {
     
 
     c_path := strings.new_cstring(path);
-    defer free(c_path);
+    defer delete(c_path);
 
     length := GetShortPathNameA(c_path, nil, 0);
 
@@ -55,7 +55,7 @@ full :: proc(path: string) -> string {
     
 
     c_path := strings.new_cstring(path);
-    defer free(c_path);
+    defer delete(c_path);
 
     length := GetFullPathNameA(c_path, 0, nil, nil);
 
@@ -126,7 +126,7 @@ name :: proc(path: string, new := false) -> string {
 
 is_dir :: proc(path: string) -> bool {
     c_path := strings.new_cstring(path);
-    defer free(c_path);
+    defer delete(c_path);
 
     return 0 < (win32.get_file_attributes_a(c_path) & win32.FILE_ATTRIBUTE_DIRECTORY);
 }
@@ -200,7 +200,7 @@ relative_between :: proc(from, to: string) -> string {
 
 relative_current :: proc(to: string) -> string {
     tmp := current();
-    defer free(tmp);
+    defer delete(tmp);
 
     return relative(tmp, to);
 }

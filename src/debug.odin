@@ -56,7 +56,7 @@ debug_set_settings :: proc(settings : Debug_Settings) {
 
 debug_format :: proc(format : string, args : ...any, loc := #caller_location) {
     buf := fmt.String_Buffer{};
-    defer free(buf);
+    defer delete(buf);
 
     space := false;
 
