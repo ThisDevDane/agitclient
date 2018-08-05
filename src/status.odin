@@ -6,7 +6,7 @@
  *  @Creation: 13-02-2018 14:26:12 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 26-07-2018 22:29:55 UTC+1
+ *  @Last Time: 02-08-2018 22:55:57 UTC+1
  *  
  *  @Description:
  *  
@@ -369,7 +369,7 @@ status_window :: proc(status : ^Status, repo : ^git.Repository, diff_ctx : ^^Dif
                         strs := [?]string{
                             path,
                         };
-                        err = git.reset_default(repo, head_commit, strs[..]);
+                        err = git.reset_default(repo, head_commit, strs[:]);
                         log_if_err(err);
                     }
                 }

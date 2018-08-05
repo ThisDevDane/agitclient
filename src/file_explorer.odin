@@ -6,7 +6,7 @@
  *  @Creation: 28-01-2018 22:20:23 UTC+1
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 26-07-2018 22:25:43 UTC+1
+ *  @Last Time: 02-08-2018 23:03:14 UTC+1
  *  
  *  @Description:
  *  
@@ -35,7 +35,7 @@ File_Explorer_Ctx :: struct {
     _writing_path   : bool,
     _path_buf       : [1024]byte,
     _input_buf      : [1024]byte,
-    _selected       : uint,
+    _selected       : int,
 
     _selection_flag : Selection_Flag,
 } 
@@ -55,12 +55,12 @@ File_Explorer_Ctx_ctor :: proc(path : string, flags := Selection_Flag.Folder | S
     ctx.path = path;
     ctx.files = sys.get_all_entries_in_directory(path); 
     ctx._selection_flag = flags;
-    fmt.bprint(ctx._path_buf[..], path);
+    fmt.bprint(ctx._path_buf[:], path);
     return ctx;
 }
 
-_make_misc_string :: proc(fmt_: string, args: ...any) -> string {
-    s := fmt.bprintf(_misc_buf[..], fmt_, ...args);
+_make_misc_string :: proc(fmt_: string, args: ..any) -> string {
+    s := fmt.bprintf(_misc_buf[:], fmt_, ..args);
     _misc_buf[len(s)] = 0;
     return s;
 }
@@ -88,20 +88,20 @@ file_explorer_window :: proc(ctx : ^File_Explorer_Ctx, show : ^bool) {
         if ctx._writing_path {
             fail :: proc(ctx : ^File_Explorer_Ctx) {
                 mem.zero(&ctx._path_buf[0], len(ctx._path_buf));
-                fmt.bprint(ctx._path_buf[..], ctx.path);
+                fmt.bprint(ctx._path_buf[:], ctx.path);
             }
 
             open :: proc(ctx : ^File_Explorer_Ctx) {
                 ctx._writing_path = false;
-                str := string(ctx._path_buf[..]);
-                if sys.is_path_valid(str[..util.clen(str)]) {
-                    _open_folder_path(ctx, str[..util.clen(str)]);
+                str := string(ctx._path_buf[:]);
+                if sys.is_path_valid(str[:util.clen(str)]) {
+                    _open_folder_path(ctx, str[:util.clen(str)]);
                 } else {
                     fail(ctx);
                 }
             }
 
-            if imgui.input_text("##path", ctx._path_buf[..], imgui.Input_Text_Flags.EnterReturnsTrue) {
+            if imgui.input_text("##path", ctx._path_buf[:], imgui.Input_Text_Flags.EnterReturnsTrue) {
                 open(ctx);
             }
             imgui.same_line();
@@ -114,7 +114,7 @@ file_explorer_window :: proc(ctx : ^File_Explorer_Ctx, show : ^bool) {
                 fail(ctx);
             }
         } else {
-            if imgui.selectable(string(ctx._path_buf[..])) {
+            if imgui.selectable(string(ctx._path_buf[:])) {
                 ctx._writing_path = true;
             }
         }
@@ -134,7 +134,7 @@ file_explorer_window :: proc(ctx : ^File_Explorer_Ctx, show : ^bool) {
                     if !ctx.show_hidden && file.hidden do continue;
                     if !ctx.show_system && file.system do continue;
                     str := _make_misc_string("%r %s", file.dir ? FOLDER_O : FILE, file.name);
-                    if imgui.selectable(str, ctx._selected == uint(i), imgui.Selectable_Flags.SpanAllColumns | 
+                    if imgui.selectable(str, ctx._selected == int(i), imgui.Selectable_Flags.SpanAllColumns | 
                                                                       imgui.Selectable_Flags.AllowDoubleClick) {
                         if imgui.is_mouse_double_clicked(0) {
                             if file.dir {
@@ -144,8 +144,8 @@ file_explorer_window :: proc(ctx : ^File_Explorer_Ctx, show : ^bool) {
                         } else {
                             select :: proc(ctx : ^File_Explorer_Ctx, file : sys.DiskEntry, idx : int) {
                                 mem.zero(&ctx._input_buf[0], len(ctx._input_buf));
-                                fmt.bprintf(ctx._input_buf[..], "%s", file.name);
-                                ctx._selected = uint(idx);
+                                fmt.bprintf(ctx._input_buf[:], "%s", file.name);
+                                ctx._selected = int(idx);
                             }
 
                             if (ctx._selection_flag & Selection_Flag.Folder == Selection_Flag.Folder) &&
@@ -207,7 +207,7 @@ file_explorer_window :: proc(ctx : ^File_Explorer_Ctx, show : ^bool) {
         brew_imgui.columns_reset();
         imgui.separator();
         imgui.text("%d items", len(ctx.files)); imgui.same_line();
-        imgui.input_text(": File name", ctx._input_buf[..]); imgui.same_line();
+        imgui.input_text(": File name", ctx._input_buf[:]); imgui.same_line();
         imgui.button("Open"); imgui.same_line(); // Call some callback with the file path
         imgui.button("Cancel"); imgui.same_line();
     }
@@ -227,7 +227,7 @@ _open_folder :: proc(ctx : ^File_Explorer_Ctx, folder : sys.DiskEntry) {
 _open_folder_path :: proc(ctx : ^File_Explorer_Ctx, path : string) {
     buf : [1024]byte;
     if(path[len(path)-1] != '\\') {
-        path = fmt.bprintf(buf[..], "%s\\", path);
+        path = fmt.bprintf(buf[:], "%s\\", path);
     }
     _set_and_open(ctx, strings.new_string(path));
 }
@@ -235,7 +235,7 @@ _open_folder_path :: proc(ctx : ^File_Explorer_Ctx, path : string) {
 _set_and_open :: proc(ctx : ^File_Explorer_Ctx, path : string) {
     ctx.path = path;
     mem.zero(&ctx._path_buf[0], len(ctx._path_buf));
-    fmt.bprint(ctx._path_buf[..], ctx.path);
+    fmt.bprint(ctx._path_buf[:], ctx.path);
     delete(ctx.files);
     ctx.files = sys.get_all_entries_in_directory(ctx.path);
 }

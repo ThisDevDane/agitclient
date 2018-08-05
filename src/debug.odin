@@ -54,7 +54,7 @@ debug_set_settings :: proc(settings : Debug_Settings) {
     _state.settings = settings;
 }
 
-debug_format :: proc(format : string, args : ...any, loc := #caller_location) {
+debug_format :: proc(format : string, args : ..any, loc := #caller_location) {
     buf := fmt.String_Buffer{};
     defer delete(buf);
 
@@ -78,7 +78,7 @@ debug_format :: proc(format : string, args : ...any, loc := #caller_location) {
     }
 
     fmt.sbprint(&buf, "> ");
-    fmt.sbprintf(&buf, format, ...args);
+    fmt.sbprintf(&buf, format, ..args);
 
     console.logf_error("%s\r\n", fmt.to_string(buf));
 

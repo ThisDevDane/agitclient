@@ -26,7 +26,7 @@ long :: proc(path: string) -> string {
 
         GetLongPathNameA(c_path, cstring(&buf[0]), length);
 
-        return cast(string) buf[..length-1];
+        return cast(string) buf[:length-1];
     }
 
     return "";
@@ -45,7 +45,7 @@ short :: proc(path: string) -> string {
 
         GetShortPathNameA(c_path, cstring(&buf[0]), length);
 
-        return cast(string) buf[..length-1];
+        return cast(string) buf[:length-1];
     }
 
     return "";
@@ -64,7 +64,7 @@ full :: proc(path: string) -> string {
 
         GetFullPathNameA(c_path, length, cstring(&buf[0]), nil);
 
-        return cast(string) buf[..length-1];
+        return cast(string) buf[:length-1];
     }
 
     return "";
@@ -80,7 +80,7 @@ current :: proc() -> string {
 
         GetCurrentDirectoryA(length, &buf[0]);
 
-        return cast(string) buf[..length-1];
+        return cast(string) buf[:length-1];
     }
 
     return "";
@@ -97,7 +97,7 @@ ext :: proc(path: string, new := false) -> string {
         case '\\': slash = i;
     }
 
-    if dot != -1 && (slash == -1 || slash < dot) do return new ? strings.new_string(path[dot+1..]) : path[dot+1..];
+    if dot != -1 && (slash == -1 || slash < dot) do return new ? strings.new_string(path[dot+1:]) : path[dot+1:];
 
     return "";
 }
@@ -114,10 +114,10 @@ name :: proc(path: string, new := false) -> string {
     }
 
     if slash != -1 {
-        if slash < dot do return path[slash+1..dot];
-        return new ? strings.new_string(path[slash+1..]) : path[slash+1..];
+        if slash < dot do return path[slash+1:dot];
+        return new ? strings.new_string(path[slash+1:]) : path[slash+1:];
     } else {
-        if dot != -1 do return path[..dot];
+        if dot != -1 do return path[:dot];
         return new ? strings.new_string(path) : path;
     }
 
@@ -144,7 +144,7 @@ dir :: proc(path: string, new := false) -> string {
             case '\\': slash = i;
         }
 
-        if slash != -1 do return new ? strings.new_string(path[..slash]) : path[..slash];
+        if slash != -1 do return new ? strings.new_string(path[:slash]) : path[:slash];
 
         return "";
     }
@@ -163,7 +163,7 @@ relative_between :: proc(from, to: string) -> string {
     common := 0;
 
     for char, i in full_from {
-        if char2, bytes := utf8.decode_rune(cast([]u8) full_to[i..]); bytes > 0 {
+        if char2, bytes := utf8.decode_rune(cast([]u8) full_to[i:]); bytes > 0 {
             if ((char == '\\' || char == '/') && (char2 != '\\' && char2 != '/')) || char != char2 {
                 common = i;
                 break;
@@ -175,7 +175,7 @@ relative_between :: proc(from, to: string) -> string {
 
     if common <= 0 do return "";
 
-    for char, i in full_from[common+1..] {
+    for char, i in full_from[common+1:] {
         if char == '/' || char == '\\' do dots += 1;
     }
 
@@ -195,7 +195,7 @@ relative_between :: proc(from, to: string) -> string {
 
     mem.copy(&buf[i], &full_to[common], len(full_to)-common);
 
-    return cast(string) buf[..];
+    return cast(string) buf[:];
 }
 
 relative_current :: proc(to: string) -> string {

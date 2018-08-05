@@ -6,7 +6,7 @@
  *  @Creation: 12-12-2017 00:59:20
  *
  *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 26-07-2018 22:29:36 UTC+1
+ *  @Last Time: 02-08-2018 22:54:36 UTC+1
  *
  *  @Description:
  *      Entry point for A Git Client.
@@ -385,17 +385,17 @@ main_menu :: proc(using state : ^State) {
     }
 
     if open_set_signature {
-        if len(settings_instance.username) > 0 do fmt.bprintf(name_buf[..], settings_instance.name);
+        if len(settings_instance.username) > 0 do fmt.bprintf(name_buf[:], settings_instance.name);
                                  else do mem.zero(&name_buf[0], len(name_buf));
-        if len(settings_instance.password) > 0 do fmt.bprintf(email_buf[..], settings_instance.email);
+        if len(settings_instance.password) > 0 do fmt.bprintf(email_buf[:], settings_instance.email);
                                  else do mem.zero(&email_buf[0], len(email_buf));
         imgui.open_popup("Set Signature##modal");
     }
 
     if open_set_user {
-        if len(settings_instance.username) > 0 do fmt.bprintf(username_buf[..], settings_instance.username);
+        if len(settings_instance.username) > 0 do fmt.bprintf(username_buf[:], settings_instance.username);
                                  else do mem.zero(&username_buf[0], len(username_buf));
-        if len(settings_instance.password) > 0 do fmt.bprintf(password_buf[..], settings_instance.password);
+        if len(settings_instance.password) > 0 do fmt.bprintf(password_buf[:], settings_instance.password);
                                  else do mem.zero(&password_buf[0], len(password_buf));
         imgui.open_popup("Set User##modal");
     }
@@ -408,13 +408,13 @@ main_menu :: proc(using state : ^State) {
 
     if imgui.begin_popup_modal("Clone Repo##modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
-        imgui.input_text("URL", clone_repo_url[..]);
-        imgui.input_text("Destination path", clone_repo_path[..]);
+        imgui.input_text("URL", clone_repo_url[:]);
+        imgui.input_text("Destination path", clone_repo_path[:]);
         
         if imgui.button("Clone", imgui.Vec2{160, 30}) {
             options, err := git.clone_init_options(1);
             if !log_if_err(err) {
-                repo, err2 := git.clone(cast(string)clone_repo_url[..], cast(string)clone_repo_path[..], &options);
+                repo, err2 := git.clone(cast(string)clone_repo_url[:], cast(string)clone_repo_path[:], &options);
                 if !log_if_err(err2) {
                     open_repo(repo, state);
                 }
@@ -433,8 +433,8 @@ main_menu :: proc(using state : ^State) {
 
     if imgui.begin_popup_modal("Set Signature##modal", nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
-        imgui.input_text("Name", name_buf[..]);
-        imgui.input_text("Email", email_buf[..]);
+        imgui.input_text("Name", name_buf[:]);
+        imgui.input_text("Email", email_buf[:]);
         imgui.separator();
         if imgui.button("Save", imgui.Vec2{135, 30}) {
             { // Save settings
@@ -458,8 +458,8 @@ main_menu :: proc(using state : ^State) {
 
     if imgui.begin_popup_modal("Set User##modal",      nil, imgui.Window_Flags.AlwaysAutoResize) {
         defer imgui.end_popup();
-        imgui.input_text("Username", username_buf[..]);
-        imgui.input_text("Password", password_buf[..], imgui.Input_Text_Flags.Password);
+        imgui.input_text("Username", username_buf[:]);
+        imgui.input_text("Password", password_buf[:], imgui.Input_Text_Flags.Password);
         imgui.separator();
         if imgui.button("Save", imgui.Vec2{135, 30}) {
             { // Save settings
@@ -548,7 +548,7 @@ do_async_push :: proc(repo : ^git.Repository, branches_to_push : []Branch) {
             opts.pb_parallelism = 0;
 
 
-            err := git.remote_push(remote, refspec[..], &opts);
+            err := git.remote_push(remote, refspec[:], &opts);
             if !log_if_err(err) {
                 console.log("Push Complete...");
             }
@@ -578,7 +578,7 @@ repo_window :: proc(using state : ^State) {
                                 imgui.Window_Flags.NoBringToFrontOnFocus) {
         defer imgui.end();
         if repo == nil {
-            ok := imgui.input_text("Repo Path;", path_buf[..], imgui.Input_Text_Flags.EnterReturnsTrue);
+            ok := imgui.input_text("Repo Path;", path_buf[:], imgui.Input_Text_Flags.EnterReturnsTrue);
             if imgui.button("Open") || ok || open_recent {
                 path := string(cstring(&path_buf[0]));
 
@@ -683,8 +683,8 @@ repo_window :: proc(using state : ^State) {
 commit_window :: proc(using state : ^State) {
     if len(status.staged) > 0 {
         imgui.text("Commit Message:");
-        imgui.input_text          ("Summary", summary_buf[..]);
-        imgui.input_text_multiline("Message", message_buf[..], imgui.Vec2{0, 100});
+        imgui.input_text          ("Summary", summary_buf[:]);
+        imgui.input_text_multiline("Message", message_buf[:], imgui.Vec2{0, 100});
 
         if imgui.button("Commit") {
             // @note(bpunsky): do the commit!
@@ -831,7 +831,7 @@ main :: proc() {
 
         repo_window(&state);
         branch_window(&settings_instance, state.wnd_height,
-                     state.repo, state.create_branch_name[..],
+                     state.repo, state.create_branch_name[:],
                      &state.current_branch, state.credentials_cb,
                      &state.local_branches, &state.remote_branches);
         log_window(&state.git_log, state.repo, state.current_branch.ref);
